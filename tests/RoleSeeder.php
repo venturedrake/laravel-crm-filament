@@ -73,6 +73,12 @@ class RoleSeeder
             Permission::findOrCreate($perm);
         }
 
+        // Updates permission used by the Updates page. Core seeds it as a
+        // standalone permission (no create/edit/delete siblings), so it is not
+        // expressible through the ENTITIES matrix above — see
+        // vendor/venturedrake/laravel-crm/database/seeders/LaravelCrmTablesSeeder.php.
+        Permission::findOrCreate('view crm updates');
+
         $owner = Role::findOrCreate('Owner')->givePermissionTo(Permission::all());
         $admin = Role::findOrCreate('Admin')->givePermissionTo(Permission::all());
 

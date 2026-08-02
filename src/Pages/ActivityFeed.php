@@ -13,6 +13,7 @@ use VentureDrake\LaravelCrm\Models\Lunch;
 use VentureDrake\LaravelCrm\Models\Meeting;
 use VentureDrake\LaravelCrm\Models\Note;
 use VentureDrake\LaravelCrm\Models\Task;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 
 /**
@@ -26,6 +27,10 @@ use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
  */
 class ActivityFeed extends Page
 {
+    use AuthorizesCrmSettingsPage;
+
+    protected static string $crmPermission = 'view crm activities';
+
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-bolt';
 
     protected static ?string $title = 'Activity';

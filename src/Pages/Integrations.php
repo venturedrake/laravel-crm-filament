@@ -15,10 +15,14 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 class Integrations extends Page implements HasForms
 {
+    use AuthorizesCrmSettingsPage;
     use InteractsWithForms;
+
+    protected static string $crmPermission = 'view crm settings';
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-puzzle-piece';
 
@@ -159,7 +163,7 @@ class Integrations extends Page implements HasForms
 
     protected function getFormActions(): array
     {
-        if (! $this->xeroIsConnected()) {
+        if (! $this->xeroIsConnected() || ! static::canEditCrmSettings()) {
             return [];
         }
 
@@ -170,6 +174,8 @@ class Integrations extends Page implements HasForms
 
     public function save(): void
     {
+        $this->authorizeCrmSettingsEdit();
+
         $data = $this->form->getState();
         $settings = app('laravel-crm.settings');
 

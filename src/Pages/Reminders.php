@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 /**
  * Per-user reminder preferences. One toggle + "hours before" input per type;
@@ -25,7 +26,15 @@ use VentureDrake\LaravelCrm\Models\Setting;
  */
 class Reminders extends Page implements HasForms
 {
+    use AuthorizesCrmSettingsPage;
     use InteractsWithForms;
+
+    /**
+     * Reminders are per-user task/call/meeting/lunch nudges rather than
+     * org-wide settings, so they follow the task permission, not
+     * `view crm settings`.
+     */
+    protected static string $crmPermission = 'view crm tasks';
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-bell-alert';
 
@@ -37,6 +46,11 @@ class Reminders extends Page implements HasForms
 
     protected static ?int $navigationSort = 190;
 
+    /**
+     * Never a top-level nav entry — reached from the user menu / settings
+     * cluster. Overrides (and is stricter than) the
+     * `AuthorizesCrmSettingsPage` implementation.
+     */
     public static function shouldRegisterNavigation(): bool
     {
         return false;

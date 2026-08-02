@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\HtmlString;
 use VentureDrake\LaravelCrm\Services\ClickSendService;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 /**
  * Dedicated ClickSend SMS integration page. Persists the three core
@@ -27,7 +28,10 @@ use VentureDrake\LaravelCrm\Services\ClickSendService;
  */
 class ClickSendIntegration extends Page implements HasForms
 {
+    use AuthorizesCrmSettingsPage;
     use InteractsWithForms;
+
+    protected static string $crmPermission = 'view crm settings';
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-chat-bubble-bottom-center-text';
 
@@ -39,6 +43,12 @@ class ClickSendIntegration extends Page implements HasForms
 
     protected static ?int $navigationSort = 115;
 
+    /**
+     * Never a top-level nav entry — reached through the Integrations
+     * sub-navigation tabs. Overrides (and is stricter than) the
+     * `AuthorizesCrmSettingsPage` implementation, which would otherwise fall
+     * back to the parent behaviour for permitted users.
+     */
     public static function shouldRegisterNavigation(): bool
     {
         return false;
@@ -176,7 +186,7 @@ class ClickSendIntegration extends Page implements HasForms
                                         ->danger()
                                         ->send();
                                 }),
-                        ])->visible(fn (): bool => $this->clickSendIsConfigured()),
+                        ])->visible(fn (): bool => $this->clickSendIsConfigured() && static::canEditCrmSettings()),
                     ]),
             ]);
     }
@@ -195,8 +205,30 @@ class ClickSendIntegration extends Page implements HasForms
         }
     }
 
+    /**
+     * The blade view renders its own submit button (gated on
+     * `canEditCrmSettings()`); this mirrors GeneralSettings / Integrations so
+     * any Filament-rendered form action is gated on the same permission.
+     *
+     * @return array<int, Action>
+     */
+    protected function getFormActions(): array
+    {
+        if (! static::canEditCrmSettings()) {
+            return [];
+        }
+
+        return [
+            Action::make('save')
+                ->label(__('laravel-crm-filament::labels.actions.save_changes'))
+                ->submit('save'),
+        ];
+    }
+
     public function save(): void
     {
+        $this->authorizeCrmSettingsEdit();
+
         $data = $this->form->getState();
         $settings = app('laravel-crm.settings');
 

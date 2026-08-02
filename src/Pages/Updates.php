@@ -7,9 +7,14 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Artisan;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 class Updates extends Page
 {
+    use AuthorizesCrmSettingsPage;
+
+    protected static string $crmPermission = 'view crm updates';
+
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-arrow-down-tray';
 
     protected static string | \UnitEnum | null $navigationGroup = 'Settings';
@@ -57,7 +62,12 @@ class Updates extends Page
             Action::make('checkForUpdates')
                 ->label(__('laravel-crm-filament::labels.actions.check_for_updates'))
                 ->icon('heroicon-o-arrow-path')
+                // Queues an Artisan command — never expose it to a user who
+                // cannot view updates in the first place.
+                ->visible(fn (): bool => static::canAccess())
                 ->action(function () {
+                    abort_unless(static::canAccess(), 403);
+
                     Artisan::queue('laravelcrm:update');
 
                     Notification::make()

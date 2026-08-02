@@ -23,6 +23,7 @@ use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Email;
 use VentureDrake\LaravelCrm\Models\Phone;
 use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 /**
  * General settings page backed by `SettingService` (`laravel-crm.settings`).
@@ -42,7 +43,10 @@ use VentureDrake\LaravelCrm\Models\Setting;
  */
 class GeneralSettings extends Page implements HasForms
 {
+    use AuthorizesCrmSettingsPage;
     use InteractsWithForms;
+
+    protected static string $crmPermission = 'view crm settings';
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-adjustments-vertical';
 
@@ -295,6 +299,10 @@ class GeneralSettings extends Page implements HasForms
 
     protected function getFormActions(): array
     {
+        if (! static::canEditCrmSettings()) {
+            return [];
+        }
+
         return [
             Action::make('save')
                 ->label(__('laravel-crm-filament::labels.actions.save'))
@@ -304,6 +312,8 @@ class GeneralSettings extends Page implements HasForms
 
     public function save(): void
     {
+        $this->authorizeCrmSettingsEdit();
+
         $data = $this->form->getState();
         $settings = app('laravel-crm.settings');
 
