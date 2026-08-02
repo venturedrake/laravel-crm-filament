@@ -8,11 +8,11 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Concerns\DownloadsPdf;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 trait HasPurchaseOrderSendAction
 {
@@ -65,9 +65,9 @@ trait HasPurchaseOrderSendAction
 
     protected function dispatchPurchaseOrder(PurchaseOrder $record, array $data): void
     {
-        $signedUrl = Route::has('laravel-crm.portal.purchase-orders.show')
+        $signedUrl = PortalUrl::exists('laravel-crm.portal.purchase-orders.show')
             ? URL::temporarySignedRoute('laravel-crm.portal.purchase-orders.show', now()->addDays(14), ['purchaseOrder' => $record])
-            : url('p/purchase-orders/' . $record->external_id);
+            : '';
 
         $pdfPath = $this->generatePurchaseOrderPdf($record);
 

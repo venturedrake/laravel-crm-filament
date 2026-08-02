@@ -37,7 +37,7 @@ it('promotes the Quote portal action as a primary "Preview portal" header action
     expect($source)->toContain('actions.preview_portal');
     expect($source)->toContain("->color('primary')");
     expect($source)->toContain('openUrlInNewTab');
-    expect($source)->toContain('p/quotes/');
+    expect($source)->toContain("PortalUrl::for('laravel-crm.portal.quotes.show'");
 
     expect(class_uses_recursive(ViewQuote::class))->toContain(HasQuotePortalAction::class);
 });
@@ -47,7 +47,7 @@ it('promotes the Invoice portal action as a primary "Preview portal" header acti
     expect($source)->toContain('actions.preview_portal');
     expect($source)->toContain("->color('primary')");
     expect($source)->toContain('openUrlInNewTab');
-    expect($source)->toContain('p/invoices/');
+    expect($source)->toContain("PortalUrl::for('laravel-crm.portal.invoices.show'");
 
     expect(class_uses_recursive(ViewInvoice::class))->toContain(HasInvoicePortalAction::class);
 });

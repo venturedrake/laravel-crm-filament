@@ -56,6 +56,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Invoices\Pages\ViewInvoice;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class InvoiceResource extends Resource
 {
@@ -538,7 +539,7 @@ class InvoiceResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->url(fn (Invoice $record): string => url('p/invoices/' . $record->external_id))
+            ->url(fn (Invoice $record): ?string => PortalUrl::for('laravel-crm.portal.invoices.show', $record))
             ->openUrlInNewTab();
     }
 

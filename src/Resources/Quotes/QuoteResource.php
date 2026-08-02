@@ -50,6 +50,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\EditQuote;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ListQuotes;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class QuoteResource extends Resource
 {
@@ -341,7 +342,7 @@ class QuoteResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->url(fn (Quote $record): string => url('p/quotes/' . $record->external_id))
+            ->url(fn (Quote $record): ?string => PortalUrl::for('laravel-crm.portal.quotes.show', $record))
             ->openUrlInNewTab();
     }
 

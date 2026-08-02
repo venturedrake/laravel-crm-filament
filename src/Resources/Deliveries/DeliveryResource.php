@@ -41,6 +41,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Deliveries\Pages\ViewDelivery;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class DeliveryResource extends Resource
 {
@@ -394,7 +395,9 @@ class DeliveryResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->url(fn (Delivery $record): string => url('p/deliveries/' . $record->external_id))
+            ->visible(fn (Delivery $record): bool => PortalUrl::exists('laravel-crm.portal.deliveries.show')
+                && $record->external_id !== null)
+            ->url(fn (Delivery $record): ?string => PortalUrl::for('laravel-crm.portal.deliveries.show', $record))
             ->openUrlInNewTab();
     }
 

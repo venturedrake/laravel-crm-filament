@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
@@ -36,18 +37,18 @@ it('uses the purchase order portal action trait on ViewPurchaseOrder', function 
 });
 
 dataset('portalActionTraits', [
-    'order' => [HasOrderPortalAction::class, 'p/orders/'],
-    'delivery' => [HasDeliveryPortalAction::class, 'p/deliveries/'],
-    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'p/purchase-orders/'],
+    'order' => [HasOrderPortalAction::class, 'laravel-crm.portal.orders.show'],
+    'delivery' => [HasDeliveryPortalAction::class, 'laravel-crm.portal.deliveries.show'],
+    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'laravel-crm.portal.purchase-orders.show'],
 ]);
 
-it('declares the preview_portal label, primary color, openUrlInNewTab, and the correct URL prefix', function (string $trait, string $urlPrefix) {
+it('declares the preview_portal label, primary color, openUrlInNewTab, and the named portal route', function (string $trait, string $routeName) {
     $source = file_get_contents((new ReflectionClass($trait))->getFileName());
 
     expect($source)->toContain('actions.preview_portal');
     expect($source)->toContain("->color('primary')");
     expect($source)->toContain('openUrlInNewTab');
-    expect($source)->toContain($urlPrefix);
+    expect($source)->toContain("PortalUrl::for('" . $routeName . "'");
 })->with('portalActionTraits');
 
 it('gates each portal action behind a visible() callback', function (string $trait) {
@@ -91,6 +92,9 @@ it('hides the Order portal action when there are no order products', function ()
 });
 
 it('shows the Order portal action once an order product is attached', function () {
+    Route::get('p/orders/{external_id}', fn () => '')->name('laravel-crm.portal.orders.show');
+    Route::getRoutes()->refreshNameLookups();
+
     $order = Order::create([
         'external_id' => (string) Str::uuid(),
     ]);
@@ -136,6 +140,9 @@ it('hides the Delivery portal action when there are no delivery products', funct
 });
 
 it('shows the Delivery portal action once a delivery product is attached', function () {
+    Route::get('p/deliveries/{external_id}', fn () => '')->name('laravel-crm.portal.deliveries.show');
+    Route::getRoutes()->refreshNameLookups();
+
     $delivery = Delivery::create([
         'external_id' => (string) Str::uuid(),
     ]);
@@ -179,6 +186,9 @@ it('hides the PurchaseOrder portal action when there are no purchase order lines
 });
 
 it('shows the PurchaseOrder portal action once a line is attached', function () {
+    Route::get('p/purchase-orders/{external_id}', fn () => '')->name('laravel-crm.portal.purchase-orders.show');
+    Route::getRoutes()->refreshNameLookups();
+
     $po = PurchaseOrder::create([
         'external_id' => (string) Str::uuid(),
     ]);

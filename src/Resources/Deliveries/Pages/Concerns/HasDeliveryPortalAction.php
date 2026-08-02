@@ -4,6 +4,7 @@ namespace VentureDrake\LaravelCrmFilament\Resources\Deliveries\Pages\Concerns;
 
 use Filament\Actions\Action;
 use VentureDrake\LaravelCrm\Models\Delivery;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 trait HasDeliveryPortalAction
 {
@@ -13,8 +14,10 @@ trait HasDeliveryPortalAction
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->visible(fn (Delivery $record): bool => $record->external_id !== null && $record->deliveryProducts()->count() > 0)
-            ->url(fn (Delivery $record): string => url('p/deliveries/' . $record->external_id))
+            ->visible(fn (Delivery $record): bool => PortalUrl::exists('laravel-crm.portal.deliveries.show')
+                && $record->external_id !== null
+                && $record->deliveryProducts()->count() > 0)
+            ->url(fn (Delivery $record): ?string => PortalUrl::for('laravel-crm.portal.deliveries.show', $record))
             ->openUrlInNewTab();
     }
 }

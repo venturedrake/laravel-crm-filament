@@ -19,7 +19,6 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
@@ -50,6 +49,7 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\CreatePurchas
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\EditPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class PurchaseOrderResource extends Resource
 {
@@ -375,7 +375,7 @@ class PurchaseOrderResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->url(fn (PurchaseOrder $record): string => url('p/purchase-orders/' . $record->external_id))
+            ->url(fn (PurchaseOrder $record): ?string => PortalUrl::for('laravel-crm.portal.purchase-orders.show', $record))
             ->openUrlInNewTab();
     }
 
@@ -397,9 +397,9 @@ class PurchaseOrderResource extends Resource
 
     protected static function dispatchPurchaseOrderSend(PurchaseOrder $record, array $data): void
     {
-        $signedUrl = Route::has('laravel-crm.portal.purchase-orders.show')
+        $signedUrl = PortalUrl::exists('laravel-crm.portal.purchase-orders.show')
             ? URL::temporarySignedRoute('laravel-crm.portal.purchase-orders.show', now()->addDays(14), ['purchaseOrder' => $record])
-            : url('p/purchase-orders/' . $record->external_id);
+            : '';
 
         $pdfPath = static::renderPurchaseOrderPdfToDisk($record);
 
