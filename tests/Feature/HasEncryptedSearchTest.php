@@ -104,6 +104,83 @@ it('applies a whereIn narrowing that excludes all records when accessor never ma
     expect($query->count())->toBe(0);
 });
 
+it('loads the requested columns so an accessor reading a non-id column matches', function () {
+    config(['laravel-crm.encrypt_db_fields' => true]);
+
+    $alpha = Person::create([
+        'external_id' => (string) Str::uuid(),
+        'first_name' => 'Alpha',
+        'last_name' => 'Zebra',
+    ]);
+    $beta = Person::create([
+        'external_id' => (string) Str::uuid(),
+        'first_name' => 'Beta',
+        'last_name' => 'Yak',
+    ]);
+
+    request()->replace(['tableSearch' => 'zeb']);
+
+    // The accessor reads first_name / last_name straight off the chunked
+    // record — no re-fetch — which only works when those columns are selected.
+    $closure = HasEncryptedSearch::modifyQuery(
+        fn ($r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')),
+        ['first_name', 'last_name']
+    );
+    $query = Person::query();
+    $closure($query);
+
+    $results = $query->pluck('id')->all();
+
+    expect($results)->toContain($alpha->id);
+    expect($results)->not->toContain($beta->id);
+});
+
+it('always selects the primary key alongside the requested columns', function () {
+    $ref = new ReflectionMethod(HasEncryptedSearch::class, 'columns');
+    $ref->setAccessible(true);
+
+    expect($ref->invoke(null, 'id', ['first_name', 'last_name']))
+        ->toBe(['id', 'first_name', 'last_name']);
+    expect($ref->invoke(null, 'id', ['id', 'name']))->toBe(['id', 'name']);
+    expect($ref->invoke(null, 'id', ['*']))->toBe(['*']);
+    expect($ref->invoke(null, 'id', []))->toBe(['*']);
+});
+
+it('defaults the required columns argument to all columns', function () {
+    $params = (new ReflectionMethod(HasEncryptedSearch::class, 'modifyQuery'))->getParameters();
+
+    expect($params[1]->getName())->toBe('requiredColumns');
+    expect($params[1]->getDefaultValue())->toBe(['*']);
+});
+
+it('scans the table in chunks rather than loading every row at once', function () {
+    $source = file_get_contents(__DIR__ . '/../../src/Concerns/HasEncryptedSearch.php');
+
+    expect($source)->toContain('chunkById(self::CHUNK_SIZE')
+        ->and($source)->toContain('CHUNK_SIZE = 500')
+        ->and($source)->not->toContain('->get()');
+});
+
+it('scans every row of the table, not just the first one it inspects', function () {
+    config(['laravel-crm.encrypt_db_fields' => true]);
+
+    $ids = [];
+    foreach (['Aaa', 'Bbb', 'Needle', 'Ccc'] as $name) {
+        $ids[$name] = Person::create([
+            'external_id' => (string) Str::uuid(),
+            'first_name' => $name,
+        ])->id;
+    }
+
+    request()->replace(['tableSearch' => 'needle']);
+
+    $closure = HasEncryptedSearch::modifyQuery(fn ($r) => $r->first_name ?? '', ['first_name']);
+    $query = Person::query();
+    $closure($query);
+
+    expect($query->pluck('id')->all())->toBe([$ids['Needle']]);
+});
+
 it('falls back to the request(search) key when tableSearch is absent', function () {
     config(['laravel-crm.encrypt_db_fields' => true]);
 

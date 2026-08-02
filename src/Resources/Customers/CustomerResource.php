@@ -80,7 +80,7 @@ class CustomerResource extends Resource
             ->when(
                 $encrypted,
                 fn (Table $t) => $t->modifyQueryUsing(
-                    HasEncryptedSearch::modifyQuery(fn ($r) => (string) ($r->name ?? ''))
+                    HasEncryptedSearch::modifyQuery(fn ($r) => (string) ($r->name ?? ''), ['name'])
                 )
             )
             ->recordActions([

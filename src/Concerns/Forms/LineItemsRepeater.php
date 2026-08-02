@@ -162,8 +162,12 @@ class LineItemsRepeater
      *   1. $product->taxRate?->rate   (TaxRate relation on Product)
      *   2. $product->tax_rate          (legacy scalar column on Product)
      *   3. TaxRate::where('default', 1)->first()?->rate
-     *   4. app('laravel-crm.settings')->get('tax_rate')?->value
+     *   4. app('laravel-crm.settings')->get('tax_rate')
      *   5. 0.0
+     *
+     * Note: SettingService::get() resolves through Arr::get() on a
+     * name => value array, so it returns the scalar value — NOT a Setting
+     * model. Reading ->value off it would yield null (0.0 tax on every line).
      */
     private static function resolveTaxRate(?int $productId): float
     {
@@ -184,7 +188,7 @@ class LineItemsRepeater
         }
 
         if ($setting = app('laravel-crm.settings')->get('tax_rate')) {
-            return (float) $setting->value;
+            return (float) $setting;
         }
 
         return 0.0;

@@ -96,6 +96,44 @@ it('falls back to default TaxRate when product has no rate', function () {
     expect($row['tax_amount'])->toBe(5.0);
 });
 
+it('falls back to the tax_rate setting when no TaxRate row is flagged default', function () {
+    // SettingService::get() reads a name => value array, so it hands back the
+    // scalar rate — resolveTaxRate() must cast that, not read ->value off it.
+    $settings = app('laravel-crm.settings');
+    $settings->set('tax_rate', '15');
+    $settings->forgetCache();
+
+    $row = recalcRowInvoke([
+        'id' => null,
+        'unit_price' => 40,
+        'quantity' => 2,
+    ], 'unit_price');
+
+    expect($row['amount'])->toBe(80.0);
+    expect($row['tax_amount'])->toBe(12.0);
+});
+
+it('prefers a default TaxRate row over the tax_rate setting', function () {
+    TaxRate::create([
+        'external_id' => (string) Str::uuid(),
+        'name' => 'Default',
+        'rate' => 5,
+        'default' => 1,
+    ]);
+
+    $settings = app('laravel-crm.settings');
+    $settings->set('tax_rate', '15');
+    $settings->forgetCache();
+
+    $row = recalcRowInvoke([
+        'id' => null,
+        'unit_price' => 100,
+        'quantity' => 1,
+    ], 'unit_price');
+
+    expect($row['tax_amount'])->toBe(5.0);
+});
+
 it('writes zero tax_amount when no rate is resolvable', function () {
     $row = recalcRowInvoke([
         'id' => null,

@@ -205,7 +205,7 @@ class OrganizationResource extends Resource
                 ]);
 
                 if ($encrypted) {
-                    $accessor = HasEncryptedSearch::modifyQuery(fn ($r) => $r->name ?? '');
+                    $accessor = HasEncryptedSearch::modifyQuery(fn ($r) => $r->name ?? '', ['name']);
                     $accessor($query);
                 }
 

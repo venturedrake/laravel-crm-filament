@@ -197,7 +197,8 @@ class PersonResource extends Resource
 
                 if ($encrypted) {
                     $accessor = HasEncryptedSearch::modifyQuery(
-                        fn ($r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? ''))
+                        fn ($r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')),
+                        ['first_name', 'last_name']
                     );
                     $accessor($query);
                 }
