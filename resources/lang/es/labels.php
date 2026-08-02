@@ -413,6 +413,8 @@ return [
         'send_invoice' => 'Enviar factura',
         'send_purchase_order' => 'Enviar OC',
         'send_now' => 'Enviar ahora',
+        'invite_user' => 'Invitar usuario',
+        'send_invite' => 'Enviar invitación',
         'schedule' => 'Programar',
         'convert_to_lead' => 'Convertir en prospecto',
         'convert_to_order' => 'Convertir en pedido',
@@ -513,6 +515,7 @@ return [
         'users' => 'Usuarios',
         'crm' => 'CRM',
         'crm_access' => 'Acceso al CRM',
+        'crm_access_helper' => 'Necesario para que el usuario pueda acceder al panel del CRM.',
         'crm_role' => 'Rol CRM',
         'has_crm_access' => 'Tiene acceso al CRM',
         'hours_before' => 'Horas antes',
@@ -571,6 +574,7 @@ return [
     'notifications' => [
         'related_contact_added' => 'Contacto relacionado añadido',
         'related_contact_removed' => 'Contacto relacionado eliminado',
+        'user_invited' => 'Invitación enviada',
     ],
 
     // Dashboard widgets — stat labels, chart titles, task list, doughnut slices, and heading period suffix
