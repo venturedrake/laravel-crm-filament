@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Ramsey\Uuid\Uuid;
@@ -340,19 +341,28 @@ class InvoiceResource extends Resource
                 $newDueCents = max(0, $totalCents - $newPaidCents);
                 $fullyPaid = $totalCents > 0 && $newPaidCents >= $totalCents;
 
-                InvoicePayment::create([
-                    'external_id' => Uuid::uuid4()->toString(),
-                    'invoice_id' => $record->getKey(),
-                    'amount' => $paymentCents,
-                    'paid_at' => $paidAt,
-                    'user_created_id' => auth()->id(),
-                ]);
-
+                // Updating the invoice totals is the base-parity behaviour —
+                // core's PayInvoice has no payments table at all — so it must
+                // happen whether or not the plugin's optional
+                // `crm_invoice_payments` table has been migrated.
                 // The model setters multiply by 100, so divide first.
                 $record->amount_paid = $newPaidCents / 100;
                 $record->amount_due = $newDueCents / 100;
                 $record->fully_paid_at = $fullyPaid ? $paidAt : null;
                 $record->save();
+
+                // The payment-history row is a plugin extra; skip it (rather
+                // than throwing a missing-table QueryException) when the host
+                // has not published/migrated the plugin migration.
+                if (DbSchema::hasTable((new InvoicePayment)->getTable())) {
+                    InvoicePayment::create([
+                        'external_id' => Uuid::uuid4()->toString(),
+                        'invoice_id' => $record->getKey(),
+                        'amount' => $paymentCents,
+                        'paid_at' => $paidAt,
+                        'user_created_id' => auth()->id(),
+                    ]);
+                }
 
                 Notification::make()
                     ->title(__('laravel-crm-filament::labels.actions.mark_paid'))

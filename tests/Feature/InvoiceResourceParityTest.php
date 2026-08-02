@@ -234,7 +234,10 @@ it('markPaidAction factory returns an Action with the expected modal form fields
     expect($action->getName())->toBe('markPaid');
 
     $source = file_get_contents(__DIR__ . '/../../src/Resources/Invoices/InvoiceResource.php');
-    expect($source)->toContain("Forms\\Components\\TextInput::make('amount')");
+    // The file imports Filament\Forms\Components\TextInput, and Pint's
+    // fully_qualified_strict_types fixer rewrites any `Forms\Components\`
+    // prefix back to the imported short name, so assert on that form.
+    expect($source)->toContain("TextInput::make('amount')");
     expect($source)->toContain("Forms\\Components\\DatePicker::make('paid_at')");
 });
 

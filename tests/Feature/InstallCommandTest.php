@@ -3,7 +3,67 @@
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\PanelRegistry;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\ServiceProvider;
+use VentureDrake\LaravelCrmFilament\Console\InstallCommand;
+use VentureDrake\LaravelCrmFilament\LaravelCrmFilamentServiceProvider;
+
+/**
+ * Stand-ins for the base package's `laravelcrm:install`, used to prove the
+ * plugin installer forwards `--modules` / `--no-interaction` when the base
+ * command supports them and warns-and-skips when it does not (laravel-crm
+ * added `--modules` in 2.3.0).
+ */
+class FakeLaravelCrmInstallWithModules extends Command
+{
+    public static ?string $modules = null;
+
+    public static ?bool $interactive = null;
+
+    public static bool $ran = false;
+
+    protected $signature = 'laravelcrm:install {--modules=}';
+
+    protected $description = 'Fake base installer that accepts --modules.';
+
+    public function handle(): int
+    {
+        self::$ran = true;
+        self::$modules = $this->option('modules');
+        self::$interactive = $this->input->isInteractive();
+
+        return self::SUCCESS;
+    }
+}
+
+class FakeLaravelCrmInstallWithoutModules extends Command
+{
+    public static bool $ran = false;
+
+    protected $signature = 'laravelcrm:install';
+
+    protected $description = 'Fake base installer from before --modules existed.';
+
+    public function handle(): int
+    {
+        self::$ran = true;
+
+        return self::SUCCESS;
+    }
+}
+
+/**
+ * @return array<int, string> Absolute publish targets for the plugin migrations tag.
+ */
+function crmInstallMigrationPublishTargets(): array
+{
+    return array_values(ServiceProvider::pathsToPublish(
+        LaravelCrmFilamentServiceProvider::class,
+        InstallCommand::MIGRATIONS_PUBLISH_TAG,
+    ));
+}
 
 function crmInstallMakeTempDir(): string
 {
@@ -37,9 +97,23 @@ function crmInstallRegisterFixtureProvider(string $providerFqcn): PanelProvider
     return $provider;
 }
 
+beforeEach(function () {
+    FakeLaravelCrmInstallWithModules::$modules = null;
+    FakeLaravelCrmInstallWithModules::$interactive = null;
+    FakeLaravelCrmInstallWithModules::$ran = false;
+    FakeLaravelCrmInstallWithoutModules::$ran = false;
+});
+
 afterEach(function () {
     foreach (glob(sys_get_temp_dir() . '/crm-install-test-*') ?: [] as $dir) {
         File::deleteDirectory($dir);
+    }
+
+    // vendor:publish resolves its targets at boot, so the migration lands in
+    // the testbench skeleton's database/migrations rather than the per-test
+    // temp base path. Remove it so runs stay hermetic.
+    foreach (crmInstallMigrationPublishTargets() as $target) {
+        File::delete($target);
     }
 });
 
@@ -81,7 +155,9 @@ it('injects the LaravelCrmPlugin call and use import on --mode=inject with no co
     $className = 'FixturePlainPanelProvider' . $suffix;
     $providerFile = $temp . '/' . $className . '.php';
 
-    File::put($providerFile, <<<PHP
+    File::put(
+        $providerFile,
+        <<<PHP
 <?php
 
 namespace VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall;
@@ -127,7 +203,9 @@ it('reports resource-slug conflicts and leaves the target file untouched on inje
     $resourceClassName = 'FixtureUsersResource' . $suffix;
 
     $resourceFile = $temp . '/' . $resourceClassName . '.php';
-    File::put($resourceFile, <<<PHP
+    File::put(
+        $resourceFile,
+        <<<PHP
 <?php
 
 namespace VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall;
@@ -144,7 +222,9 @@ PHP
     $resourceFqcn = 'VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall\\' . $resourceClassName;
 
     $providerFile = $temp . '/' . $providerClassName . '.php';
-    File::put($providerFile, <<<PHP
+    File::put(
+        $providerFile,
+        <<<PHP
 <?php
 
 namespace VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall;
@@ -193,7 +273,9 @@ it('warns and exits zero without modifying the file when the panel() method cann
     // panel() assigns to a local var and `return $configured;` — the regex looks
     // for `return $panel` followed by a chain terminating in `;\s*}`, so this
     // shape does not match and the command should warn + no-op.
-    File::put($providerFile, <<<PHP
+    File::put(
+        $providerFile,
+        <<<PHP
 <?php
 
 namespace VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall;
@@ -291,4 +373,107 @@ it('does not prompt or mutate .env on --mode=crm when LARAVEL_CRM_USER_INTERFACE
         ->assertSuccessful();
 
     expect(File::get($temp . '/.env'))->toBe($envBefore);
+});
+
+it('registers the invoice-payments migration under the crm-filament-migrations tag', function () {
+    $targets = ServiceProvider::pathsToPublish(
+        LaravelCrmFilamentServiceProvider::class,
+        InstallCommand::MIGRATIONS_PUBLISH_TAG,
+    );
+
+    // Spatie's shortName() strips the `laravel-` prefix, so the tag is
+    // `crm-filament-migrations`, not `laravel-crm-filament-migrations`.
+    expect($targets)->not->toBeEmpty();
+
+    $sources = array_keys($targets);
+    expect(basename($sources[0]))->toBe('create_laravel_crm_invoice_payments_table.php.stub');
+    expect(basename($targets[$sources[0]]))->toEndWith('_create_laravel_crm_invoice_payments_table.php');
+    expect(File::get($sources[0]))->toContain("'invoice_payments'");
+});
+
+it('publishes and runs the plugin migrations on --mode=crm', function () {
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    foreach (crmInstallMigrationPublishTargets() as $target) {
+        File::delete($target);
+    }
+
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'crm',
+        '--skip-crm-install' => true,
+        '--no-interaction' => true,
+    ])
+        ->expectsConfirmation(
+            'Add LARAVEL_CRM_USER_INTERFACE=false to your .env now (disables the legacy /crm Livewire UI so the Filament CRM panel can take over /crm)?',
+            'no'
+        )
+        ->expectsOutputToContain('Published and ran the CRM Filament migrations.')
+        ->assertSuccessful();
+
+    $published = crmInstallMigrationPublishTargets();
+    expect($published)->not->toBeEmpty();
+
+    foreach ($published as $target) {
+        expect(File::exists($target))->toBeTrue();
+        expect(File::get($target))->toContain("'invoice_payments'");
+    }
+});
+
+it('forwards --modules and --no-interaction to laravelcrm:install when the base command supports them', function () {
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    Artisan::registerCommand(new FakeLaravelCrmInstallWithModules);
+
+    // No published config/laravel-crm.php in the temp base path → the command
+    // runs the base installer (the confirm defaults to yes non-interactively).
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'crm',
+        '--modules' => 'leads,deals',
+        '--no-interaction' => true,
+    ])
+        ->expectsConfirmation('Run `php artisan laravelcrm:install` now?', 'yes')
+        ->expectsConfirmation(
+            'Add LARAVEL_CRM_USER_INTERFACE=false to your .env now (disables the legacy /crm Livewire UI so the Filament CRM panel can take over /crm)?',
+            'no'
+        )
+        ->assertSuccessful();
+
+    expect(FakeLaravelCrmInstallWithModules::$ran)->toBeTrue();
+    expect(FakeLaravelCrmInstallWithModules::$modules)->toBe('leads,deals');
+    expect(FakeLaravelCrmInstallWithModules::$interactive)->toBeFalse();
+});
+
+it('warns and skips --modules when the installed base command has no modules option', function () {
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    Artisan::registerCommand(new FakeLaravelCrmInstallWithoutModules);
+
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'crm',
+        '--modules' => 'leads,deals',
+        '--no-interaction' => true,
+    ])
+        ->expectsConfirmation('Run `php artisan laravelcrm:install` now?', 'yes')
+        ->expectsConfirmation(
+            'Add LARAVEL_CRM_USER_INTERFACE=false to your .env now (disables the legacy /crm Livewire UI so the Filament CRM panel can take over /crm)?',
+            'no'
+        )
+        ->expectsOutputToContain('does not support `--modules`')
+        ->assertSuccessful();
+
+    // The base installer still runs — the unsupported option is simply dropped.
+    expect(FakeLaravelCrmInstallWithoutModules::$ran)->toBeTrue();
+    expect(File::exists($temp . '/app/Providers/Filament/CrmPanelProvider.php'))->toBeTrue();
 });

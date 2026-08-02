@@ -13,10 +13,18 @@ use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 
 class InstallCommand extends Command
 {
+    /**
+     * Publish tag for the plugin's migrations. Spatie's PackageServiceProvider
+     * registers it as `{shortName}-migrations`, and shortName() strips the
+     * `laravel-` prefix from `laravel-crm-filament`.
+     */
+    public const MIGRATIONS_PUBLISH_TAG = 'crm-filament-migrations';
+
     protected $signature = 'laravelcrm:filament-install
         {--mode= : Install mode: crm (standalone panel) or inject (into an existing panel).}
         {--panel= : Target panel id when using --mode=inject.}
         {--force : Overwrite an existing CrmPanelProvider.}
+        {--modules= : Comma separated module list forwarded to laravelcrm:install (requires laravel-crm 2.3.0+).}
         {--skip-crm-install : Skip the venturedrake/laravel-crm install check (assume it is already installed).}';
 
     protected $description = 'Install the Laravel CRM Filament panel (publishes CrmPanelProvider at app/Providers/Filament/CrmPanelProvider.php).';
@@ -64,7 +72,7 @@ class InstallCommand extends Command
             return false;
         }
 
-        $exitCode = $this->call('laravelcrm:install');
+        $exitCode = $this->callLaravelCrmInstall();
 
         if ($exitCode !== 0) {
             $this->error('`laravelcrm:install` exited with a non-zero status. Fix the reported issue and re-run this command.');
@@ -73,6 +81,52 @@ class InstallCommand extends Command
         }
 
         return true;
+    }
+
+    /**
+     * Run the base package installer, forwarding `--modules` and
+     * `--no-interaction`. laravel-crm 2.3.0 added an interactive module
+     * prompt: `Command::call()` builds a fresh interactive input, so without
+     * forwarding `--no-interaction` that prompt stalls scripted installs.
+     * Older base versions have no `modules` option, so probe the definition
+     * first and warn rather than fail with an "option does not exist" error.
+     */
+    private function callLaravelCrmInstall(): int
+    {
+        $arguments = [];
+
+        $modules = $this->option('modules');
+
+        if (is_string($modules) && $modules !== '') {
+            if ($this->laravelCrmInstallSupportsModules()) {
+                $arguments['--modules'] = $modules;
+            } else {
+                $this->warn('The installed venturedrake/laravel-crm version does not support `--modules`; ignoring it. Upgrade to laravel-crm 2.3.0 or newer to choose modules during install.');
+            }
+        }
+
+        if (! $this->input->isInteractive()) {
+            $arguments['--no-interaction'] = true;
+        }
+
+        return $this->call('laravelcrm:install', $arguments);
+    }
+
+    private function laravelCrmInstallSupportsModules(): bool
+    {
+        $application = $this->getApplication();
+
+        if ($application === null) {
+            return false;
+        }
+
+        try {
+            $command = $application->find('laravelcrm:install');
+        } catch (Throwable) {
+            return false;
+        }
+
+        return $command->getDefinition()->hasOption('modules');
     }
 
     private function laravelCrmIsInstalled(): bool
@@ -200,6 +254,8 @@ class InstallCommand extends Command
 
         $this->registerProvider($files);
 
+        $this->publishAndRunMigrations();
+
         $this->maybeDisableLegacyCrmUi($files);
 
         $this->newLine();
@@ -209,6 +265,27 @@ class InstallCommand extends Command
         $this->line('  2. Visit /crm to view your panel.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Publish + run the plugin's own migrations (currently the
+     * `crm_invoice_payments` table the invoice Mark Paid action writes to).
+     * Spatie derives publish tags from `Package::shortName()`, which strips
+     * the `laravel-` prefix — hence `crm-filament-migrations` rather than
+     * `laravel-crm-filament-migrations`.
+     */
+    protected function publishAndRunMigrations(): void
+    {
+        $publishArguments = ['--tag' => self::MIGRATIONS_PUBLISH_TAG];
+
+        if ($this->option('force')) {
+            $publishArguments['--force'] = true;
+        }
+
+        $this->call('vendor:publish', $publishArguments);
+        $this->call('migrate', ['--force' => true]);
+
+        $this->info('Published and ran the CRM Filament migrations.');
     }
 
     private function maybeDisableLegacyCrmUi(Filesystem $files): void

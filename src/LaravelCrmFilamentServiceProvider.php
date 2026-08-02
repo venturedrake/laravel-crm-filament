@@ -44,6 +44,14 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
     {
         $package
             ->name(static::$name)
+            // The plugin owns the `crm_invoice_payments` table written by the
+            // invoice Mark Paid action — core CRM ships no payments table.
+            // Registering it here gives hosts a publishable migration; note
+            // Spatie derives publish tags from Package::shortName(), which
+            // strips the `laravel-` prefix, so the tag is
+            // `crm-filament-migrations` (see InstallCommand).
+            ->hasMigration('create_laravel_crm_invoice_payments_table')
+            ->runsMigrations()
             ->hasCommands($this->getCommands());
 
         if (file_exists($package->basePath('/../resources/lang'))) {
