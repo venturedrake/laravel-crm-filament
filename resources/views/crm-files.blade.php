@@ -2,7 +2,7 @@
     @include('laravel-crm-filament::partials.crm-card-styles')
 
     @php
-        $fileRows = $this->getOwnerRecord()->files()->orderBy('created_at', 'desc')->get();
+        $fileRows = $this->relatedActivityRows();
     @endphp
 
     <div class="crm-card-card crm-card-card--add" data-testid="crm-lead-file-add-card">
@@ -88,6 +88,7 @@
                 </div>
             </div>
             <div class="crm-card-badges">
+                @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($file)])
                 @if ($file->mime)
                     <span class="crm-card-pill">{{ $file->mime }}</span>
                 @endif

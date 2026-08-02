@@ -94,6 +94,7 @@ it('does not introduce any new blade partials beyond activity-feed.blade.php', f
         'crm-card-note.blade.php',
         'crm-card-styles.blade.php',
         'crm-card-task.blade.php',
+        'crm-related-badge.blade.php',
     ]);
 });
 

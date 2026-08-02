@@ -8,10 +8,12 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrmFilament\Concerns\LogsCrmActivity;
+use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmLunchesRelationManager extends LunchesRelationManager
 {
     use LogsCrmActivity;
+    use RollsUpRelatedActivity;
 
     protected string $view = 'laravel-crm-filament::crm-lunches';
 

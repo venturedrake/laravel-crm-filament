@@ -7,9 +7,12 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Storage;
 use VentureDrake\LaravelCrm\Models\File;
+use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmFilesRelationManager extends FilesRelationManager
 {
+    use RollsUpRelatedActivity;
+
     protected string $view = 'laravel-crm-filament::crm-files';
 
     /**

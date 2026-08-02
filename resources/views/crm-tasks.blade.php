@@ -2,7 +2,7 @@
     @include('laravel-crm-filament::partials.crm-card-styles')
 
     @php
-        $taskRows = $this->getOwnerRecord()->tasks()->orderBy('created_at', 'desc')->get();
+        $taskRows = $this->relatedActivityRows();
         $userOptions = \VentureDrake\LaravelCrm\Http\Helpers\SelectOptions\users(false);
     @endphp
 
@@ -194,6 +194,7 @@
                     </div>
                 </div>
                 <div class="crm-card-badges">
+                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($task)])
                     @if ($task->completed_at)
                         <span class="crm-card-badge crm-card-badge--success">{{ __('laravel-crm-filament::labels.status.complete') }}</span>
                     @else

@@ -7,9 +7,12 @@ use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Person;
+use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmMeetingsRelationManager extends MeetingsRelationManager
 {
+    use RollsUpRelatedActivity;
+
     protected string $view = 'laravel-crm-filament::crm-meetings';
 
     /**

@@ -50,11 +50,13 @@ it('exposes the add-note form wired to createNote with content + noted_at bindin
     expect($blade)->toContain("__('laravel-crm-filament::labels.actions.save')");
 });
 
-it('loops getOwnerRecord()->notes() sorted by created_at desc', function () {
+it('loops the rolled-up note rows sorted by created_at desc', function () {
     $blade = file_get_contents($this->bladePath);
 
-    expect($blade)->toContain('$this->getOwnerRecord()->notes()');
-    expect($blade)->toContain("->orderBy('created_at', 'desc')");
+    // US-009: the raw `getOwnerRecord()->notes()->orderBy(...)` lookup moved
+    // into RollsUpRelatedActivity::relatedActivityRows(), which defaults to
+    // created_at desc and honours `show_related_activity`.
+    expect($blade)->toContain('$this->relatedActivityRows()');
     expect($blade)->toContain('@forelse');
 });
 

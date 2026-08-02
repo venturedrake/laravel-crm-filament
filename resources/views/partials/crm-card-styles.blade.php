@@ -234,6 +234,14 @@
             background: var(--crm-card-primary);
             color: #ffffff;
         }
+        .crm-card-badge--related {
+            background: #f59e0b;
+            color: #ffffff;
+        }
+        html.dark .crm-card-badge--related {
+            background: #fbbf24;
+            color: #451a03;
+        }
         html.dark .crm-card-badge--success {
             background: #14b8a6;
             color: #052e2b;

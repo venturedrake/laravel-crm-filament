@@ -136,9 +136,12 @@ it('AC(e): each Lead-prefixed blade view contains the expected structural marker
         ->and($source)->toContain('data-testid="' . $addCardTestId . '"');
 
     // (4) Cards loop: a @forelse over a $rows local with @empty fallback.
+    // US-009: the created_at-desc ordering moved into
+    // RollsUpRelatedActivity::relatedActivityRows(), which every card view
+    // now sources its rows from.
     expect($source)->toContain('@forelse')
         ->and($source)->toContain('@empty')
-        ->and($source)->toContain('orderBy(\'created_at\', \'desc\')');
+        ->and($source)->toContain('$this->relatedActivityRows()');
 
     // (5) Three-dot dropdown: Alpine-driven open/close state, the dropdown wrapper class,
     //     the trigger button class, and the dropdown menu container class — all four are

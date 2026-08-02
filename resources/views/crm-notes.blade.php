@@ -2,7 +2,7 @@
     @include('laravel-crm-filament::partials.crm-card-styles')
 
     @php
-        $noteRows = $this->getOwnerRecord()->notes()->orderBy('created_at', 'desc')->get();
+        $noteRows = $this->relatedActivityRows();
     @endphp
 
     @if ($editingId === null)
@@ -71,6 +71,11 @@
                     </div>
                 </form>
             @else
+                @if ($this->isRelatedActivityRecord($note))
+                    <div class="crm-card-badges">
+                        @include('laravel-crm-filament::partials.crm-related-badge', ['related' => true])
+                    </div>
+                @endif
                 <div class="crm-card-card-head">
                     <div class="crm-card-card-meta">
                         {{ $note->created_at?->diffForHumans() }} - {{ $note->createdByUser?->name }}

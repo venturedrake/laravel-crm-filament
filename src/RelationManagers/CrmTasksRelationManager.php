@@ -6,9 +6,12 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmTasksRelationManager extends TasksRelationManager
 {
+    use RollsUpRelatedActivity;
+
     protected string $view = 'laravel-crm-filament::crm-tasks';
 
     /**

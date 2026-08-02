@@ -32,10 +32,9 @@ it('the lead-activity Blade view contains the expected timeline markers', functi
     // Wrapper class scopes the shared CSS custom properties.
     expect($blade)->toContain('class="crm-card-area-activity"');
 
-    // Loop over the owner's timelineActivities, newest first.
-    expect($blade)->toContain('$this->getOwnerRecord()');
-    expect($blade)->toContain('timelineActivities()');
-    expect($blade)->toContain("->orderBy('created_at', 'desc')");
+    // Loop over the owner's timelineActivities, newest first — sourced from
+    // RollsUpRelatedActivity::relatedActivityRows() since US-009.
+    expect($blade)->toContain('$this->relatedActivityRows()');
     expect($blade)->toContain('@forelse');
     expect($blade)->toContain('@empty');
 

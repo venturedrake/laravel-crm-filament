@@ -2,7 +2,7 @@
     @include('laravel-crm-filament::partials.crm-card-styles')
 
     @php
-        $callRows = $this->getOwnerRecord()->calls()->orderBy('created_at', 'desc')->get();
+        $callRows = $this->relatedActivityRows();
     @endphp
 
     @if ($editingId === null)
@@ -82,6 +82,7 @@
                     </div>
                 </div>
                 <div class="crm-card-badges">
+                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($call)])
                     @if ($call->start_at)
                         <span class="crm-card-pill">{{ __('laravel-crm-filament::labels.money.start_at') }} {{ $call->start_at->format('h:i A') }} on {{ $call->start_at->format('M d, Y') }}</span>
                     @endif

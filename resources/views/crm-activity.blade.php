@@ -28,6 +28,11 @@
         <div class="crm-timeline-body">
             <div class="crm-timeline-title">{{ $title }}</div>
             <div class="crm-timeline-subtitle">{{ $activity->created_at?->format('m/d/Y h:i A') }}</div>
+            @if ($related ?? false)
+                <div class="crm-card-badges">
+                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => true])
+                </div>
+            @endif
             @if ($recordable)
                 <div class="crm-timeline-recordable">
                     @switch($entityType)
@@ -59,14 +64,11 @@
         @include('laravel-crm-filament::partials.crm-card-styles')
 
         @php
-            $activityRows = $this->getOwnerRecord()
-                ->timelineActivities()
-                ->orderBy('created_at', 'desc')
-                ->get();
+            $activityRows = $this->relatedActivityRows();
         @endphp
 
         @forelse ($activityRows as $i => $activity)
-            @include('laravel-crm-filament::crm-activity', ['activity' => $activity, 'last' => $loop->last])
+            @include('laravel-crm-filament::crm-activity', ['activity' => $activity, 'last' => $loop->last, 'related' => $this->isRelatedActivityRecord($activity)])
         @empty
             <div class="crm-card-empty">No activity yet.</div>
         @endforelse

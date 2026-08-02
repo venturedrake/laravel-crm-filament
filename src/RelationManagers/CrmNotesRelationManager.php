@@ -5,9 +5,12 @@ namespace VentureDrake\LaravelCrmFilament\RelationManagers;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmNotesRelationManager extends NotesRelationManager
 {
+    use RollsUpRelatedActivity;
+
     protected string $view = 'laravel-crm-filament::crm-notes';
 
     /**

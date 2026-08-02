@@ -182,8 +182,14 @@ it('inherits the parent table configuration (columns and actions)', function () 
     $ref = new ReflectionClass(CrmMeetingsRelationManager::class);
 
     expect($ref->hasMethod('table'))->toBeTrue();
+
+    // US-009: the RollsUpRelatedActivity concern composes a table() that
+    // delegates to the parent and appends the "Related" badge column, so the
+    // declaring class is now the Crm* subclass the trait is used by.
     expect($ref->getMethod('table')->getDeclaringClass()->getName())
-        ->toBe(MeetingsRelationManager::class);
+        ->toBe(CrmMeetingsRelationManager::class);
+    expect(($ref->getMethod('table')->getFileName()))
+        ->toContain('RollsUpRelatedActivity.php');
 });
 
 it('inherits the parent relationship binding', function () {
@@ -341,8 +347,9 @@ it('the lead-meetings Blade view contains the expected structural markers', func
     expect($blade)->toContain('laravel-crm-filament::labels.sections.add_meeting');
 
     // Meetings loop (cards) sorted by created_at desc.
-    expect($blade)->toContain('$this->getOwnerRecord()->meetings()');
-    expect($blade)->toContain("->orderBy('created_at', 'desc')");
+    // US-009: rows now come from the RollsUpRelatedActivity concern (still
+    // newest-first) so the `show_related_activity` setting is honoured.
+    expect($blade)->toContain('$this->relatedActivityRows()');
     expect($blade)->toContain('@forelse');
     expect($blade)->toContain('@empty');
 

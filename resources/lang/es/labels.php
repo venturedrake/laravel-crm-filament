@@ -36,6 +36,7 @@ return [
         'created' => 'Creado',
         'updated_at' => 'Actualizado el',
         'assigned_to' => 'Asignado a',
+        'related' => 'Relacionado',
         'assigned' => 'Asignado',
         'assignee' => 'Asignado',
         'by_user' => 'Por usuario',
