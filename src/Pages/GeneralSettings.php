@@ -4,6 +4,8 @@ namespace VentureDrake\LaravelCrmFilament\Pages;
 
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\ColorPicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -23,6 +25,7 @@ use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Email;
 use VentureDrake\LaravelCrm\Models\Phone;
 use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrm\Services\SettingService;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 /**
@@ -72,6 +75,7 @@ class GeneralSettings extends Page implements HasForms
         'organization_name' => 'Organization name',
         'vat_number' => 'VAT number',
         'logo_file' => 'Logo file',
+        'primary_color' => 'Primary color',
         // Localisation
         'language' => 'Language',
         'country' => 'Country',
@@ -102,6 +106,24 @@ class GeneralSettings extends Page implements HasForms
         'dynamic_products' => 'Dynamic products',
     ];
 
+    /**
+     * Companion setting written alongside `logo_file` by the logo uploader.
+     * Not a KEYS entry — it has no form field of its own; it mirrors base
+     * (SettingEdit::save()), which stores the original client filename here.
+     */
+    public const LOGO_FILE_NAME_KEY = 'logo_file_name';
+
+    /**
+     * Directory the logo is uploaded into on the `public` disk.
+     *
+     * Base picks `laravel-crm/{team}` when `config('laravel-crm.teams')` is on
+     * and the user has a current team, else plain `laravel-crm`. The Filament
+     * panel this plugin registers is NOT multi-tenant (no `->tenant()` call
+     * anywhere in the plugin — verified against LaravelCrmPlugin::register()),
+     * so the non-tenant path is the correct one here.
+     */
+    public const LOGO_DIRECTORY = 'laravel-crm';
+
     public array $data = [];
 
     public function mount(): void
@@ -110,6 +132,11 @@ class GeneralSettings extends Page implements HasForms
         foreach (array_keys(static::KEYS) as $key) {
             $this->data[$key] = $settings->get($key);
         }
+
+        // The uploader is hydrated from the already-stored logo path so the
+        // current logo previews in the field; `saveUploadedFiles()` passes
+        // plain string paths straight through on the way back out.
+        $this->data['logo_upload'] = $this->data['logo_file'] ?? null;
 
         $anchor = $this->resolveAnchor();
         $this->data['phones'] = $anchor->phones->map(fn (Phone $p) => [
@@ -149,7 +176,18 @@ class GeneralSettings extends Page implements HasForms
                             TextInput::make('organization_name')->label(static::KEYS['organization_name'])->maxLength(255),
                             TextInput::make('vat_number')->label(static::KEYS['vat_number'])->maxLength(255),
                         ]),
-                        TextInput::make('logo_file')->label(static::KEYS['logo_file'])->maxLength(255),
+                        FileUpload::make('logo_upload')
+                            ->label(static::KEYS['logo_file'])
+                            ->image()
+                            ->maxSize(1024)
+                            ->disk('public')
+                            ->directory(static::LOGO_DIRECTORY)
+                            ->visibility('public')
+                            // Base stores the logo under its original client
+                            // filename, so keep the same so a logo uploaded
+                            // from either UI resolves to the same asset path.
+                            ->preserveFilenames(),
+                        ColorPicker::make('primary_color')->label(static::KEYS['primary_color']),
                     ]),
 
                 Section::make('localisation')
@@ -158,7 +196,7 @@ class GeneralSettings extends Page implements HasForms
                         Grid::make(2)->schema([
                             Select::make('language')
                                 ->label(static::KEYS['language'])
-                                ->options(['english' => 'English'])
+                                ->options(static::languageOptions())
                                 ->searchable(),
                             Select::make('country')
                                 ->label(static::KEYS['country'])
@@ -318,8 +356,15 @@ class GeneralSettings extends Page implements HasForms
         $settings = app('laravel-crm.settings');
 
         foreach (static::KEYS as $key => $label) {
+            if ($key === 'logo_file') {
+                // Written by the uploader below, from the `logo_upload` field.
+                continue;
+            }
+
             $settings->set($key, $data[$key] ?? null, $label);
         }
+
+        $this->saveLogo($settings, $data['logo_upload'] ?? null);
 
         $anchor = $this->resolveAnchor();
         $this->syncPhones($anchor, $data['phones'] ?? []);
@@ -334,6 +379,101 @@ class GeneralSettings extends Page implements HasForms
             ->title('Settings saved')
             ->success()
             ->send();
+    }
+
+    /**
+     * Persist the uploaded logo, mirroring base's
+     * SettingEdit::save() (vendor/venturedrake/laravel-crm/src/Livewire/Settings/SettingEdit.php:322-333):
+     * `logo_file` holds the disk-relative path, `logo_file_name` the filename.
+     *
+     * Filament has already moved the file onto the `public` disk by the time
+     * `getState()` returns (BaseFileUpload::saveUploadedFiles() runs on
+     * dehydration), so all that's left is to record the path.
+     *
+     * A blank state is deliberately a no-op rather than a clear: the field
+     * hydrates through BaseFileUpload::hydrateFiles(), which silently drops
+     * paths that don't exist on the disk, so an unrelated save would otherwise
+     * wipe a logo_file written by base into a different location. Base is
+     * likewise upload-only here.
+     *
+     * @param  mixed  $upload  disk-relative path produced by the FileUpload field
+     */
+    protected function saveLogo(SettingService $settings, mixed $upload): void
+    {
+        if (! is_string($upload) || blank($upload)) {
+            return;
+        }
+
+        $settings->set('logo_file', $upload, static::KEYS['logo_file']);
+        $settings->set(static::LOGO_FILE_NAME_KEY, basename($upload), 'Logo file name');
+    }
+
+    /**
+     * Language options, built by scanning the locale directories that actually
+     * ship — this plugin's `resources/lang` (en/es/fr) plus base's
+     * (en/en_au/en_gb) — rather than base's hardcoded English-only list.
+     *
+     * `en` is normalised to `english` because that is the value base seeds
+     * (`Settings` middleware / `config('laravel-crm.language')`) and stores, so
+     * an existing `language` setting keeps resolving to a real option.
+     *
+     * @return array<string, string>
+     */
+    protected static function languageOptions(): array
+    {
+        $options = [];
+
+        foreach (static::languageDirectories() as $directory) {
+            foreach ((array) glob($directory . '/*', GLOB_ONLYDIR) as $path) {
+                $locale = static::normaliseLocale(basename((string) $path));
+                $options[$locale] = static::localeLabel($locale);
+            }
+        }
+
+        // Always offer the stored default even if no lang directory was found
+        // (e.g. a host that published/pruned the translations).
+        $options['english'] ??= static::localeLabel('english');
+
+        asort($options);
+
+        // Pin the default first, then the rest alphabetically by label.
+        return ['english' => $options['english']] + $options;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function languageDirectories(): array
+    {
+        $directories = [dirname(__DIR__, 2) . '/resources/lang'];
+
+        if (class_exists(Setting::class)) {
+            $file = (new \ReflectionClass(Setting::class))->getFileName();
+            if (is_string($file)) {
+                // .../laravel-crm/src/Models/Setting.php -> .../laravel-crm
+                $directories[] = dirname($file, 3) . '/resources/lang';
+            }
+        }
+
+        return array_values(array_filter($directories, 'is_dir'));
+    }
+
+    protected static function normaliseLocale(string $locale): string
+    {
+        return $locale === 'en' ? 'english' : $locale;
+    }
+
+    protected static function localeLabel(string $locale): string
+    {
+        $labels = [
+            'english' => 'English',
+            'en_au' => 'English (Australia)',
+            'en_gb' => 'English (United Kingdom)',
+            'es' => 'Spanish',
+            'fr' => 'French',
+        ];
+
+        return $labels[$locale] ?? ucfirst(str_replace('_', '-', $locale));
     }
 
     /**

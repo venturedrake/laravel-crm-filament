@@ -19,6 +19,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 use VentureDrake\LaravelCrmFilament\Auth\Login;
 use VentureDrake\LaravelCrmFilament\Auth\Profile;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
+use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
 
 class CrmPanelProvider extends PanelProvider
 {
@@ -35,7 +36,9 @@ class CrmPanelProvider extends PanelProvider
             ->login(Login::class)
             ->profile(Profile::class)
             ->brandName($brandName)
-            ->brandLogo($brandLogo ? url($brandLogo) : null)
+            // `logo_file` is a path on the `public` disk (that's what the CRM's
+            // General settings uploader writes), so resolve it through the disk.
+            ->brandLogo(LogoUrl::resolve($brandLogo))
             ->colors([
                 'primary' => Color::hex($primary),
             ])

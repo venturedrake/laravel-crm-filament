@@ -62,6 +62,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroContactResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroInvoiceResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroItemResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroPurchaseOrderResource;
+use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\DealsPipelineValueChart;
@@ -368,7 +369,10 @@ class LaravelCrmPlugin implements Plugin
         $settings = app()->bound('laravel-crm.settings') ? app('laravel-crm.settings') : null;
         $brandName = $this->brand ?? ($settings?->get('organization_name')) ?? 'Laravel Filament CRM';
         $panel->brandName($brandName);
-        $logo = $this->brandLogo ?? ($settings?->get('logo_file'));
+        // A plugin-supplied brandLogo is already a URL; a `logo_file` setting is
+        // a path on the `public` disk, so it has to be resolved the same way
+        // Auth\Login does.
+        $logo = $this->brandLogo ?? LogoUrl::resolve($settings?->get('logo_file'));
         if ($logo) {
             $panel->brandLogo($logo);
         }

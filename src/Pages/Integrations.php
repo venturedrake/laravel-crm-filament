@@ -72,9 +72,15 @@ class Integrations extends Page implements HasForms
         return SubNavigationPosition::Top;
     }
 
+    /**
+     * The four Xero sync toggles base exposes, in base's own order — see
+     * vendor/venturedrake/laravel-crm/src/Livewire/Settings/Integrations/Xero/XeroConnect.php
+     * (contacts / products / quotes / invoices).
+     */
     public const KEYS = [
         'xero_contacts' => 'Sync contacts to Xero',
         'xero_products' => 'Sync products to Xero',
+        'xero_quotes' => 'Sync quotes to Xero',
         'xero_invoices' => 'Sync invoices to Xero',
     ];
 
@@ -99,6 +105,7 @@ class Integrations extends Page implements HasForms
                     ->schema([
                         Toggle::make('xero_contacts')->label(static::KEYS['xero_contacts']),
                         Toggle::make('xero_products')->label(static::KEYS['xero_products']),
+                        Toggle::make('xero_quotes')->label(static::KEYS['xero_quotes']),
                         Toggle::make('xero_invoices')->label(static::KEYS['xero_invoices']),
                     ])
                     ->visible($connected),

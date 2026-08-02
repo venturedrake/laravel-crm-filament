@@ -7,6 +7,7 @@ use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Email;
 use VentureDrake\LaravelCrm\Models\Phone;
 use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrmFilament\Auth\Login;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 
 /**
@@ -30,12 +31,13 @@ function parityGeneralSettingsSections(): array
     ));
 }
 
-it('(a) KEYS map contains exactly the expected 26 scalar keys in order', function (): void {
+it('(a) KEYS map contains exactly the expected 27 scalar keys in order', function (): void {
     // The story prompt names "25-key map" but the implementation enumerates 26
     // scalar settings (3 branding + 6 localisation + 7 prefixes + 6 document
     // defaults + 2 tax + 2 behaviour). The progress notes for US-001 of this
     // series document the discrepancy — the explicit enumeration is
-    // authoritative, so this test locks the 26-key contract.
+    // authoritative. US-006 adds `primary_color` (read by Auth\Login and the
+    // panel stub but previously not editable), taking the map to 27.
     $keys = array_keys(GeneralSettings::KEYS);
 
     expect($keys)->toBe([
@@ -43,6 +45,7 @@ it('(a) KEYS map contains exactly the expected 26 scalar keys in order', functio
         'organization_name',
         'vat_number',
         'logo_file',
+        'primary_color',
         // Localisation
         'language',
         'country',
@@ -73,7 +76,27 @@ it('(a) KEYS map contains exactly the expected 26 scalar keys in order', functio
         'dynamic_products',
     ]);
 
-    expect($keys)->toHaveCount(26);
+    expect($keys)->toHaveCount(27);
+});
+
+it('(a) primary_color is editable and feeds Auth\\Login::brandPrimaryColor()', function (): void {
+    expect(GeneralSettings::KEYS)->toHaveKey('primary_color');
+
+    $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
+    expect($src)->toContain("ColorPicker::make('primary_color')");
+
+    app('laravel-crm.settings')->set('primary_color', '#ff0066', GeneralSettings::KEYS['primary_color']);
+    app('laravel-crm.settings')->forgetCache();
+
+    $login = (new ReflectionClass(Login::class))->newInstanceWithoutConstructor();
+    expect($login->brandPrimaryColor())->toBe('#ff0066');
+});
+
+it('(a) Auth\\Login::brandPrimaryColor() falls back to the CRM teal when unset', function (): void {
+    app('laravel-crm.settings')->forgetCache();
+
+    $login = (new ReflectionClass(Login::class))->newInstanceWithoutConstructor();
+    expect($login->brandPrimaryColor())->toBe('#05b3a9');
 });
 
 it('(a) every KEYS entry has a non-empty string label for the SettingService::set call', function (): void {
@@ -152,12 +175,13 @@ it('(c) round-trip: full scalar + 1 phone + 1 email + 1 address payload persists
         }
     };
 
-    // Full scalar payload (26 keys) + 1 nested row each.
+    // Full scalar payload (27 keys) + 1 nested row each.
     $page->data = [
         // Branding
         'organization_name' => 'Acme Inc',
         'vat_number' => 'GB123456789',
         'logo_file' => 'logo.png',
+        'primary_color' => '#123456',
         // Localisation
         'language' => 'english',
         'country' => 'United States',

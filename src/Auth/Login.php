@@ -5,6 +5,7 @@ namespace VentureDrake\LaravelCrmFilament\Auth;
 use Filament\Auth\Pages\Login as FilamentLogin;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
+use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
 
 /**
  * Branded login screen for the CRM panel.
@@ -49,17 +50,7 @@ class Login extends FilamentLogin
 
     protected function brandLogoUrl(): ?string
     {
-        $path = app('laravel-crm.settings')->get('logo_file');
-
-        if (blank($path)) {
-            return null;
-        }
-
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return $path;
-        }
-
-        return url($path);
+        return LogoUrl::resolve(app('laravel-crm.settings')->get('logo_file'));
     }
 
     public function brandPrimaryColor(): string

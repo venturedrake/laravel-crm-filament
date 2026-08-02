@@ -4,13 +4,14 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 
-it('declares the full 26-key scalar setting map on GeneralSettings', function (): void {
+it('declares the full 27-key scalar setting map on GeneralSettings', function (): void {
     $keys = array_keys(GeneralSettings::KEYS);
 
     expect($keys)->toBe([
         'organization_name',
         'vat_number',
         'logo_file',
+        'primary_color',
         'language',
         'country',
         'currency',
@@ -119,6 +120,46 @@ it('save() writes every KEYS entry through SettingService::set with the entry la
         ->toContain('->success()')
         ->toContain('->send();');
 });
+
+it('builds the language options from the plugin and base lang directories', function (): void {
+    $method = new ReflectionMethod(GeneralSettings::class, 'languageOptions');
+    $method->setAccessible(true);
+    /** @var array<string, string> $options */
+    $options = $method->invoke(null);
+
+    // `en` normalises to `english` so the value base seeds keeps resolving.
+    expect($options)->toHaveKey('english');
+    expect($options)->not->toHaveKey('en');
+    expect(array_key_first($options))->toBe('english');
+
+    // Shipped by this plugin: resources/lang/{en,es,fr}
+    expect($options)->toHaveKey('es');
+    expect($options)->toHaveKey('fr');
+
+    // Shipped by base: vendor/venturedrake/laravel-crm/resources/lang/{en,en_au,en_gb}
+    expect($options)->toHaveKey('en_au');
+    expect($options)->toHaveKey('en_gb');
+
+    foreach ($options as $code => $label) {
+        expect($label)->toBeString()->not->toBeEmpty("Expected a label for locale '{$code}'");
+    }
+});
+
+it('no longer hardcodes the language select to English only', function (): void {
+    $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
+
+    expect($src)->toContain('->options(static::languageOptions())')
+        ->and($src)->not->toContain("->options(['english' => 'English'])");
+});
+
+it('every scanned lang directory yields an option key', function (string $locale): void {
+    $method = new ReflectionMethod(GeneralSettings::class, 'languageOptions');
+    $method->setAccessible(true);
+    $options = $method->invoke(null);
+
+    $expected = $locale === 'en' ? 'english' : $locale;
+    expect($options)->toHaveKey($expected);
+})->with(['en', 'es', 'fr', 'en_au', 'en_gb']);
 
 it('translation keys for the 3 new sections exist in en/fr/es labels.php', function (string $locale): void {
     $path = dirname(__DIR__, 2) . "/resources/lang/{$locale}/labels.php";
