@@ -26,6 +26,7 @@ use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendQuote;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\MoneyTotalsRow;
@@ -247,6 +248,23 @@ class QuoteResource extends Resource
             ])
             ->toolbarActions([
                 static::primaryBulkActionGroup(),
+                Actions\BulkActionGroup::make([
+                    ExportsCsv::action(
+                        columns: [
+                            'ID' => fn ($r) => $r->quote_id,
+                            'Title' => fn ($r) => $r->title,
+                            'Contact' => fn ($r) => optional($r->person)->name,
+                            'Organization' => fn ($r) => optional($r->organization)->name,
+                            'Total' => fn ($r) => ($r->total ?? 0) / 100,
+                            'Currency' => fn ($r) => $r->currency,
+                            'Issue date' => fn ($r) => $r->issue_at,
+                            'Expiry date' => fn ($r) => $r->expire_at,
+                            'Stage' => fn ($r) => optional($r->pipelineStage)->name,
+                            'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                        ],
+                        filename: 'quotes',
+                    ),
+                ]),
             ]);
     }
 

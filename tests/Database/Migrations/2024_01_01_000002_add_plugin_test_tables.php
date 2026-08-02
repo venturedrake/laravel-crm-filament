@@ -329,6 +329,12 @@ return new class extends Migration
                 $table->decimal('price', 15, 2)->nullable();
                 $table->decimal('cost_per_unit', 15, 2)->nullable();
                 $table->unsignedBigInteger('tax_rate_id')->nullable();
+                // Base's create_laravel_crm_purchase_order_lines_table ships
+                // both of these and PurchaseOrderService::create() writes
+                // tax_amount on every line.
+                $table->decimal('tax_rate')->nullable();
+                $table->integer('tax_amount')->nullable();
+                $table->unsignedBigInteger('order_product_id')->nullable();
                 $table->text('comments')->nullable();
                 $table->timestamps();
                 $table->softDeletes();

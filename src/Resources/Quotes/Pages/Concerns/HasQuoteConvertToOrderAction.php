@@ -49,7 +49,7 @@ trait HasQuoteConvertToOrderAction
                     ->body('Quote converted successfully.')
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('open')
+                        Action::make('open')
                             ->label(__('laravel-crm-filament::labels.actions.open_order'))
                             ->url($url),
                     ])

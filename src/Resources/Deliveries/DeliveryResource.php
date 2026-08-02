@@ -21,6 +21,7 @@ use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
@@ -267,6 +268,21 @@ class DeliveryResource extends Resource
             ])
             ->toolbarActions([
                 static::primaryBulkActionGroup(),
+                Actions\BulkActionGroup::make([
+                    ExportsCsv::action(
+                        columns: [
+                            'ID' => fn ($r) => $r->delivery_id,
+                            'Order' => fn ($r) => optional($r->order)->order_id,
+                            'Reference' => fn ($r) => optional($r->order)->reference,
+                            'Total' => fn ($r) => (optional($r->order)->total ?? 0) / 100,
+                            'Expected' => fn ($r) => $r->delivery_expected,
+                            'Delivered on' => fn ($r) => $r->delivered_on,
+                            'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                            'Created' => fn ($r) => $r->created_at,
+                        ],
+                        filename: 'deliveries',
+                    ),
+                ]),
             ]);
     }
 

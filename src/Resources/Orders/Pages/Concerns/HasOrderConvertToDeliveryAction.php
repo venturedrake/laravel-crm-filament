@@ -41,7 +41,7 @@ trait HasOrderConvertToDeliveryAction
                     ->body('Order converted to delivery.')
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('open')
+                        Action::make('open')
                             ->label(__('laravel-crm-filament::labels.actions.open_delivery'))
                             ->url($url),
                     ])

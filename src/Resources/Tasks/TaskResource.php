@@ -15,6 +15,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use VentureDrake\LaravelCrm\Models\Task;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -264,6 +265,19 @@ class TaskResource extends Resource
                             }
                             Notification::make()->title($updated . ' task(s) marked complete')->success()->send();
                         }),
+                    ExportsCsv::action(
+                        columns: [
+                            'Name' => fn ($r) => $r->name,
+                            'Description' => fn ($r) => $r->description,
+                            'Status' => fn ($r) => $r->completed_at ? 'Completed' : 'Pending',
+                            'Due' => fn ($r) => $r->due_at,
+                            'Completed' => fn ($r) => $r->completed_at,
+                            'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                            'Assigned to' => fn ($r) => optional($r->assignedToUser)->name,
+                            'Created' => fn ($r) => $r->created_at,
+                        ],
+                        filename: 'tasks',
+                    ),
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);

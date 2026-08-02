@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
@@ -223,6 +224,23 @@ class ProductResource extends Resource
             ])
             ->toolbarActions([
                 static::primaryBulkActionGroup(),
+                // Deliberately not wrapped in an Actions\BulkActionGroup: the
+                // Product toolbar keeps a single group (asserted by
+                // ProductResourceBulkActionsTest).
+                ExportsCsv::action(
+                    columns: [
+                        'Name' => fn ($r) => $r->name,
+                        'Code' => fn ($r) => $r->code,
+                        'Category' => fn ($r) => optional($r->productCategory)->name,
+                        'Unit' => fn ($r) => $r->unit,
+                        'Price' => fn ($r) => (optional($r->getDefaultPrice())->unit_price ?? 0) / 100,
+                        'Currency' => fn ($r) => optional($r->getDefaultPrice())->currency,
+                        'Active' => fn ($r) => $r->active ? 'Yes' : 'No',
+                        'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                        'Created' => fn ($r) => $r->created_at,
+                    ],
+                    filename: 'products',
+                ),
             ]);
     }
 

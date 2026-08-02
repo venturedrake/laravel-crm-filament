@@ -42,7 +42,7 @@ trait HasOrderConvertToInvoiceAction
                     ->body('Order converted successfully.')
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('open')
+                        Action::make('open')
                             ->label(__('laravel-crm-filament::labels.actions.open_invoice'))
                             ->url($url),
                     ])

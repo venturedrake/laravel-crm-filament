@@ -260,6 +260,7 @@ return [
         'default_tax_rate' => 'Default tax rate',
         'unit_price' => 'Unit price',
         'line_items' => 'Line items',
+        'suppliers' => 'Suppliers',
         'products' => 'Products',
         'product' => 'Product',
         'sku' => 'SKU',
@@ -534,6 +535,9 @@ return [
         'back_to_features' => 'Back to features',
         'purchase_order' => 'Purchase Order',
         'delivery' => 'Delivery',
+        'invoice' => 'Invoice',
+        'create_purchase_orders' => 'Create purchase orders',
+        'split_by_supplier' => 'Split by supplier',
         'upload' => 'Upload',
         'back_to_monitors' => 'Back to monitors',
         'back_to_conversations' => 'Back to conversations',
@@ -565,6 +569,7 @@ return [
 
     // Misc / settings
     'misc' => [
+        'split_by_supplier_helper' => 'Creates one purchase order per supplier from the selected lines.',
         'none' => 'None',
         'unallocated' => 'Unallocated',
         'no_teams' => 'No teams',
@@ -588,6 +593,7 @@ return [
         'related_contact_added' => 'Related contact added',
         'related_contact_removed' => 'Related contact removed',
         'user_invited' => 'Invitation sent',
+        'no_line_items_selected' => 'No line items selected',
     ],
 
     // Dashboard widgets — stat labels, chart titles, task list, doughnut slices, and heading period suffix

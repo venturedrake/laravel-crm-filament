@@ -256,6 +256,7 @@ return [
         'default_tax_rate' => 'Tasa de impuesto por defecto',
         'unit_price' => 'Precio unitario',
         'line_items' => 'Líneas',
+        'suppliers' => 'Proveedores',
         'products' => 'Productos',
         'product' => 'Producto',
         'sku' => 'SKU',
@@ -481,6 +482,9 @@ return [
         'back_to_features' => 'Volver a características',
         'purchase_order' => 'Orden de compra',
         'delivery' => 'Entrega',
+        'invoice' => 'Factura',
+        'create_purchase_orders' => 'Crear órdenes de compra',
+        'split_by_supplier' => 'Dividir por proveedor',
         'upload' => 'Subir',
         'back_to_monitors' => 'Volver a monitores',
         'back_to_conversations' => 'Volver a conversaciones',
@@ -510,6 +514,7 @@ return [
     ],
 
     'misc' => [
+        'split_by_supplier_helper' => 'Crea una orden de compra por proveedor a partir de las líneas seleccionadas.',
         'none' => 'Ninguno',
         'unallocated' => 'Sin asignar',
         'no_teams' => 'Sin equipos',
@@ -577,6 +582,7 @@ return [
         'related_contact_added' => 'Contacto relacionado añadido',
         'related_contact_removed' => 'Contacto relacionado eliminado',
         'user_invited' => 'Invitación enviada',
+        'no_line_items_selected' => 'No se han seleccionado líneas',
     ],
 
     // Dashboard widgets — stat labels, chart titles, task list, doughnut slices, and heading period suffix

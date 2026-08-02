@@ -21,6 +21,7 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\MoneyTotalsRow;
@@ -227,6 +228,23 @@ class OrderResource extends Resource
             ])
             ->toolbarActions([
                 static::primaryBulkActionGroup(),
+                Actions\BulkActionGroup::make([
+                    ExportsCsv::action(
+                        columns: [
+                            'ID' => fn ($r) => $r->order_id,
+                            'Reference' => fn ($r) => $r->reference,
+                            'Contact' => fn ($r) => optional($r->person)->name,
+                            'Organization' => fn ($r) => optional($r->organization)->name,
+                            'Subtotal' => fn ($r) => ($r->subtotal ?? 0) / 100,
+                            'Tax' => fn ($r) => ($r->tax ?? 0) / 100,
+                            'Total' => fn ($r) => ($r->total ?? 0) / 100,
+                            'Currency' => fn ($r) => $r->currency,
+                            'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                            'Created' => fn ($r) => $r->created_at,
+                        ],
+                        filename: 'orders',
+                    ),
+                ]),
             ]);
     }
 
@@ -380,7 +398,7 @@ class OrderResource extends Resource
                     ->body('Order converted to delivery.')
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('open')
+                        Action::make('open')
                             ->label(__('laravel-crm-filament::labels.actions.open_delivery'))
                             ->url($url),
                     ])
@@ -413,7 +431,7 @@ class OrderResource extends Resource
                     ->body('Order converted to purchase order.')
                     ->success()
                     ->actions([
-                        \Filament\Notifications\Actions\Action::make('open')
+                        Action::make('open')
                             ->label(__('laravel-crm-filament::labels.actions.open_purchase_order'))
                             ->url($url),
                     ])

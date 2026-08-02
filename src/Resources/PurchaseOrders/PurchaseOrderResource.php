@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
+use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\MoneyTotalsRow;
@@ -230,6 +231,21 @@ class PurchaseOrderResource extends Resource
             ])
             ->toolbarActions([
                 static::primaryBulkActionGroup(),
+                Actions\BulkActionGroup::make([
+                    ExportsCsv::action(
+                        columns: [
+                            'ID' => fn ($r) => $r->purchase_order_id,
+                            'Reference' => fn ($r) => $r->reference,
+                            'Supplier' => fn ($r) => optional($r->organization)->name,
+                            'Issue date' => fn ($r) => $r->issue_date,
+                            'Delivery date' => fn ($r) => $r->delivery_date,
+                            'Total' => fn ($r) => ($r->total ?? 0) / 100,
+                            'Currency' => fn ($r) => $r->currency,
+                            'Owner' => fn ($r) => optional($r->ownerUser)->name,
+                        ],
+                        filename: 'purchase-orders',
+                    ),
+                ]),
             ]);
     }
 

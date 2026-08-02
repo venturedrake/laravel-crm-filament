@@ -36,10 +36,21 @@ it('exposes Download-PDF on the Quote view page', function () {
 });
 
 it('exposes Convert-to-Invoice on the Order view page', function () {
+    // Asserted on the page's header actions, not just the trait: the trait was
+    // fully implemented but never referenced from getHeaderActions() until
+    // US-010, which a class_uses_recursive() check could not catch.
     expect(pageUsesTrait(
         ViewOrder::class,
         HasOrderConvertToInvoiceAction::class,
     ))->toBeTrue();
+
+    $instance = (new ReflectionClass(ViewOrder::class))->newInstanceWithoutConstructor();
+    $method = new ReflectionMethod(ViewOrder::class, 'getHeaderActions');
+    $method->setAccessible(true);
+
+    $names = array_map(fn ($action) => $action->getName(), $method->invoke($instance));
+
+    expect($names)->toContain('convertToInvoice');
 });
 
 it('exposes Convert-to-Delivery on the Order view page', function () {

@@ -1903,12 +1903,6 @@ parameters:
 			path: src/Resources/Orders/OrderResource.php
 
 		-
-			message: '#^Call to static method make\(\) on an unknown class Filament\\Notifications\\Actions\\Action\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Resources/Orders/OrderResource.php
-
-		-
 			message: '#^Cannot access property \$id on class\-string\|object\.$#'
 			identifier: property.nonObject
 			count: 1
@@ -1937,12 +1931,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Resources/Orders/OrderResource.php
-
-		-
-			message: '#^Trait VentureDrake\\LaravelCrmFilament\\Resources\\Orders\\Pages\\Concerns\\HasOrderConvertToInvoiceAction is used zero times and is not analysed\.$#'
-			identifier: trait.unused
-			count: 1
-			path: src/Resources/Orders/Pages/Concerns/HasOrderConvertToInvoiceAction.php
 
 		-
 			message: '#^Trait VentureDrake\\LaravelCrmFilament\\Resources\\Orders\\Pages\\Concerns\\HasOrderPortalAction is used zero times and is not analysed\.$#'
@@ -2001,42 +1989,78 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$currency\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 4
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 3
+			count: 4
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 6
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$reference\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$user_owner_id\.$#'
 			identifier: property.notFound
+			count: 3
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$subtotal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$tax\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$comments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$product_id\.$#'
+			identifier: property.notFound
 			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
-			message: '#^Call to static method make\(\) on an unknown class Filament\\Notifications\\Actions\\Action\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$quantity\.$#'
+			identifier: property.notFound
 			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
@@ -2715,12 +2739,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$user_owner_id\.$#'
 			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/ViewQuote.php
-
-		-
-			message: '#^Call to static method make\(\) on an unknown class Filament\\Notifications\\Actions\\Action\.$#'
-			identifier: class.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 

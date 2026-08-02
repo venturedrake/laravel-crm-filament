@@ -13,6 +13,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 class ViewOrder extends ViewRecord
 {
     use Concerns\HasOrderConvertToDeliveryAction;
+    use Concerns\HasOrderConvertToInvoiceAction;
     use Concerns\HasOrderConvertToPurchaseOrderAction;
     use DownloadsPdf;
     use HasCrmSideBySideRelationManagers;
@@ -23,6 +24,8 @@ class ViewOrder extends ViewRecord
     {
         return [
             OrderResource::backToIndexAction(),
+            $this->orderConvertToInvoiceAction()
+                ->label(__('laravel-crm-filament::labels.actions.invoice')),
             $this->orderConvertToDeliveryAction()
                 ->label(__('laravel-crm-filament::labels.actions.delivery')),
             $this->orderConvertToPurchaseOrderAction()
