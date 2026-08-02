@@ -10,6 +10,8 @@ use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Contracts\Support\Htmlable;
+use Throwable;
+use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Teams\CrmTeamResource;
 use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
 
@@ -75,8 +77,26 @@ class ViewUser extends ViewRecord
                         ->icon('heroicon-m-user-group')
                         ->state($team->name)
                         ->color('primary')
-                        ->url(CrmTeamResource::getUrl('view', ['record' => $team])))
+                        ->url(static::crmTeamUrl($team)))
                         ->all()
             );
+    }
+
+    /**
+     * Link a team name to CrmTeamResource, but only while the `teams` module
+     * is on — the resource isn't registered on the panel otherwise, and
+     * getUrl() on an unregistered resource throws.
+     */
+    protected static function crmTeamUrl(object $team): ?string
+    {
+        try {
+            if (! LaravelCrmPlugin::get()->isModuleEnabled('teams')) {
+                return null;
+            }
+
+            return CrmTeamResource::getUrl('view', ['record' => $team]);
+        } catch (Throwable) {
+            return null;
+        }
     }
 }

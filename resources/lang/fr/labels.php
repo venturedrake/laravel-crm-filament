@@ -399,6 +399,7 @@ return [
         'back_to_roles' => 'Retour aux rôles',
         'save' => 'Enregistrer',
         'add_line_item' => 'Ajouter une ligne',
+        'create_product' => 'Créer un produit',
         'save_sync_settings' => 'Enregistrer les paramètres de synchronisation',
         'save_changes' => 'Enregistrer les modifications',
         'cancel' => 'Annuler',

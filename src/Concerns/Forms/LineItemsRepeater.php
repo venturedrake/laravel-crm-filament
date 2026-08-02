@@ -3,9 +3,13 @@
 namespace VentureDrake\LaravelCrmFilament\Concerns\Forms;
 
 use Filament\Forms;
+use Filament\Forms\Components\Field;
 use Filament\Schemas\Components\Grid;
+use Illuminate\Support\Facades\Auth;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
+use VentureDrake\LaravelCrm\Services\ProductService;
+use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 /**
  * Shared products line-items Repeater used by Deal, Quote, Order, Invoice,
@@ -75,6 +79,9 @@ class LineItemsRepeater
                     ->label(__('laravel-crm-filament::labels.money.product'))
                     ->options(fn () => Product::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                     ->searchable()
+                    ->createOptionForm(self::productCreateForm())
+                    ->createOptionModalHeading(__('laravel-crm-filament::labels.actions.create_product'))
+                    ->createOptionUsing(fn (array $data) => self::createProduct($data))
                     ->live()
                     ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
                         $product = Product::find($state);
@@ -95,6 +102,107 @@ class LineItemsRepeater
             ->defaultItems(0)
             ->reorderable()
             ->columnSpanFull();
+    }
+
+    /**
+     * Is inline product creation allowed on line items?
+     *
+     * Mirrors core CRM's ModelProducts::mount() (line 171), which flips the
+     * "+ create product" button on the same `dynamic_products` setting.
+     *
+     * Note: SettingService::get() returns the scalar value (see resolveTaxRate
+     * below), so the truthiness check is on the value itself.
+     */
+    public static function dynamicProductsEnabled(): bool
+    {
+        if (! app()->bound('laravel-crm.settings')) {
+            return false;
+        }
+
+        return (bool) app('laravel-crm.settings')->get('dynamic_products');
+    }
+
+    /**
+     * The inline "create product" modal schema for the line-item product Select.
+     *
+     * Returns null when `dynamic_products` is off, which makes the create
+     * option disappear entirely: Select::getCreateOptionAction() bails early
+     * when hasCreateOptionActionFormSchema() is false.
+     *
+     * The null has to come from here rather than from a Closure handed to
+     * createOptionForm() — hasCreateOptionActionFormSchema() is a plain
+     * `(bool) $this->createOptionActionForm`, so any Closure (even one that
+     * evaluates to null) leaves the create button rendered with an empty modal.
+     *
+     * Fields mirror the subset of ProductResource::form() that core's
+     * ProductService::create() actually consumes.
+     *
+     * @return array<int, Field>|null
+     */
+    public static function productCreateForm(): ?array
+    {
+        if (! self::dynamicProductsEnabled()) {
+            return null;
+        }
+
+        return [
+            Forms\Components\TextInput::make('name')
+                ->required()
+                ->maxLength(255),
+            Forms\Components\TextInput::make('code')
+                ->label(__('laravel-crm-filament::labels.money.sku'))
+                ->maxLength(100),
+            Forms\Components\TextInput::make('unit_price')
+                ->label(__('laravel-crm-filament::labels.money.unit_price'))
+                ->numeric(),
+            Forms\Components\TextInput::make('currency')
+                ->maxLength(3)
+                ->default(fn () => self::defaultCurrency()),
+            Forms\Components\Select::make('tax_rate_id')
+                ->label(__('laravel-crm-filament::labels.money.tax_rate'))
+                ->options(fn () => TaxRate::query()->orderBy('name')->pluck('name', 'id'))
+                ->default(fn () => TaxRate::where('default', 1)->first()?->id),
+            Forms\Components\Textarea::make('description')
+                ->rows(2),
+        ];
+    }
+
+    /**
+     * Persist a product created from the line-item Select's inline modal and
+     * hand its key back so Filament selects it on the row.
+     *
+     * Routed through core's ProductService (exactly as the CreateProduct page
+     * does) so the product_prices row, the product_category_id mapping and the
+     * Xero push stay identical to a full product create. Owner and currency
+     * default the way core's ProductCreate component defaults them.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function createProduct(array $data): int | string | null
+    {
+        $data['user_owner_id'] ??= Auth::id();
+        $data['currency'] ??= self::defaultCurrency();
+
+        $product = app(ProductService::class)->create(FormPayload::wrap($data));
+
+        return $product->getKey();
+    }
+
+    /**
+     * The currency a new product's default price is written in.
+     *
+     * Must agree with Product::getDefaultPrice(), which filters
+     * product_prices on the `currency` setting (falling back to USD) —
+     * otherwise the newly created product has no "default" price and the
+     * line item's unit_price would stay at 0.
+     */
+    private static function defaultCurrency(): string
+    {
+        $currency = app()->bound('laravel-crm.settings')
+            ? app('laravel-crm.settings')->get('currency')
+            : null;
+
+        return is_string($currency) && $currency !== '' ? $currency : 'USD';
     }
 
     /**

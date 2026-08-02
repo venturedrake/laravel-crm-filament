@@ -172,6 +172,31 @@ class LaravelCrmPlugin implements Plugin
         return $this;
     }
 
+    /**
+     * Toggle the CRM **teams** module — the `teams` entry in core's
+     * `config('laravel-crm.modules')` array, which gates the CRM's own
+     * `crm_teams` grouping of users.
+     *
+     * This is NOT `config('laravel-crm.teams')`, the separate boolean that
+     * turns on core's Jetstream multi-tenancy (BelongsToTeams scoping).
+     * The two are unrelated; do not conflate them.
+     */
+    public function withTeams(bool $enabled = true): static
+    {
+        $this->modules['teams'] = $enabled;
+
+        return $this;
+    }
+
+    /**
+     * Alias of {@see withTeams()}, so the module reads naturally as
+     * `->teams(false)` alongside `->modules([...])`.
+     */
+    public function teams(bool $enabled = true): static
+    {
+        return $this->withTeams($enabled);
+    }
+
     public function withDashboard(bool $enabled = true): static
     {
         $this->registerDashboard = $enabled;
@@ -313,7 +338,13 @@ class LaravelCrmPlugin implements Plugin
         $resources[] = PipelineStageProbabilityResource::class;
         $resources[] = LeadStatusResource::class;
         $resources[] = FeatureStatusResource::class;
-        $resources[] = CrmTeamResource::class;
+
+        // `teams` is a core module slug (config('laravel-crm.modules')), not the
+        // `laravel-crm.teams` multi-tenancy boolean — see withTeams().
+        if ($this->isModuleEnabled('teams')) {
+            $resources[] = CrmTeamResource::class;
+        }
+
         $resources[] = LabelResource::class;
         $resources[] = LeadSourceResource::class;
         $resources[] = TaxRateResource::class;

@@ -452,6 +452,7 @@ return [
         'back_to_roles' => 'Back to roles',
         'save' => 'Save',
         'add_line_item' => 'Add line item',
+        'create_product' => 'Create product',
         'save_sync_settings' => 'Save sync settings',
         'save_changes' => 'Save changes',
         'cancel' => 'Cancel',
