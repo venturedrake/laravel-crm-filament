@@ -121,12 +121,6 @@ parameters:
 			path: src/Concerns/ImportsCsv.php
 
 		-
-			message: '#^Class App\\User not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/LaravelCrmFilamentServiceProvider.php
-
-		-
 			message: '#^Class VentureDrake\\LaravelCrm\\Models\\Feature not found\.$#'
 			identifier: class.notFound
 			count: 2

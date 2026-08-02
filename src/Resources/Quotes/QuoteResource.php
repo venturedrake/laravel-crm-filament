@@ -32,6 +32,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\MoneyTotalsRow;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\SalesDetailsSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
+use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -56,6 +57,7 @@ class QuoteResource extends Resource
 {
     use HasCrmCustomFieldEntries;
     use HasCrmCustomFields;
+    use HasEncryptedGlobalSearch;
     use HasLabels;
     use HasPrimaryBulkActions;
     use UsesExternalIdRouting;
@@ -261,6 +263,11 @@ class QuoteResource extends Resource
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return array_filter(['ID' => $record->quote_id]);
+    }
+
+    protected static function crmEncryptedSearchAccessor(): \Closure
+    {
+        return fn ($r) => trim(($r->quote_id ?? '') . ' ' . ($r->title ?? ''));
     }
 
     public static function getRelations(): array

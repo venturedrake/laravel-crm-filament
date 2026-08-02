@@ -72,14 +72,15 @@ it('FeatureCommentsRelationManager renders the AC-named columns', function () {
     expect($src)->toContain('->since()');
 });
 
-it('FeatureCommentsRelationManager header CreateAction routes through FeatureService::comment with authorize=true', function () {
+it('FeatureCommentsRelationManager header CreateAction routes through FeatureService::comment behind the edit permission', function () {
     $src = file_get_contents((new ReflectionClass(FeatureCommentsRelationManager::class))->getFileName());
 
     // Header CreateAction registered with body Textarea + parent_id Select
     expect($src)->toMatch('/headerActions\(\[\s*Actions\\\\CreateAction::make\(\)/');
 
-    // Action is authorized via the `authorize(fn () => true)` closure (AC requirement)
-    expect($src)->toContain('->authorize(fn () => true)');
+    // Action is gated on `edit crm features` — never blanket-allowed.
+    expect($src)->toContain('->authorize(fn (): bool => $this->canCreateFeatureComment())');
+    expect($src)->not->toContain('authorize(fn () => true)');
 
     // Action schema declares Textarea body + Select parent_id
     expect($src)->toContain("Forms\\Components\\Textarea::make('body')");
@@ -98,9 +99,10 @@ it('FeatureCommentsRelationManager header CreateAction routes through FeatureSer
 it('FeatureCommentsRelationManager registers row Edit + Delete actions for moderation', function () {
     $src = file_get_contents((new ReflectionClass(FeatureCommentsRelationManager::class))->getFileName());
 
-    // Edit and Delete actions both authorized via fn () => true (bypassing missing FeatureCommentPolicy)
-    expect($src)->toMatch('/Actions\\\\EditAction::make\(\)\s*->authorize\(fn \(\) => true\)/');
-    expect($src)->toMatch('/Actions\\\\DeleteAction::make\(\)\s*->authorize\(fn \(\) => true\)\s*->requiresConfirmation\(\)/');
+    // Core CRM ships no FeatureCommentPolicy, so Edit / Delete are authorized
+    // explicitly against the feature permissions with author-or-admin scoping.
+    expect($src)->toMatch('/Actions\\\\EditAction::make\(\)\s*->authorize\(fn \(\?Model \$record\): bool => \$this->canEditFeatureComment\(\$record\)\)/');
+    expect($src)->toMatch('/Actions\\\\DeleteAction::make\(\)\s*->authorize\(fn \(\?Model \$record\): bool => \$this->canDeleteFeatureComment\(\$record\)\)\s*->requiresConfirmation\(\)/');
 });
 
 // ----------------------------------------------------------------------------

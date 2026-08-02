@@ -28,6 +28,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\OrderAddressTabs;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\SalesDetailsSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
+use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\HasXeroSyncStateInfolist;
@@ -55,6 +56,7 @@ class OrderResource extends Resource
 {
     use HasCrmCustomFieldEntries;
     use HasCrmCustomFields;
+    use HasEncryptedGlobalSearch;
     use HasLabels;
     use HasPrimaryBulkActions;
     use HasXeroSyncStateInfolist;
@@ -241,6 +243,11 @@ class OrderResource extends Resource
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return array_filter(['Reference' => $record->reference]);
+    }
+
+    protected static function crmEncryptedSearchAccessor(): \Closure
+    {
+        return fn ($r) => trim(($r->order_id ?? '') . ' ' . ($r->reference ?? ''));
     }
 
     public static function getRelations(): array

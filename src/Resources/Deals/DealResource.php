@@ -23,6 +23,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
+use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -46,6 +47,7 @@ class DealResource extends Resource
 {
     use HasCrmCustomFieldEntries;
     use HasCrmCustomFields;
+    use HasEncryptedGlobalSearch;
     use HasLabels;
     use HasPrimaryBulkActions;
     use UsesExternalIdRouting;
@@ -289,6 +291,11 @@ class DealResource extends Resource
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return array_filter(['ID' => $record->deal_id]);
+    }
+
+    protected static function crmEncryptedSearchAccessor(): \Closure
+    {
+        return fn ($r) => trim(($r->deal_id ?? '') . ' ' . ($r->title ?? ''));
     }
 
     public static function getPages(): array

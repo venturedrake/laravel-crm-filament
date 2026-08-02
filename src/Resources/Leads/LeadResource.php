@@ -26,6 +26,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
+use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -49,6 +50,7 @@ class LeadResource extends Resource
 {
     use HasCrmCustomFieldEntries;
     use HasCrmCustomFields;
+    use HasEncryptedGlobalSearch;
     use HasLabels;
     use HasPrimaryBulkActions;
     use UsesExternalIdRouting;
@@ -299,6 +301,11 @@ class LeadResource extends Resource
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return array_filter(['ID' => $record->lead_id]);
+    }
+
+    protected static function crmEncryptedSearchAccessor(): \Closure
+    {
+        return fn ($r) => trim(($r->lead_id ?? '') . ' ' . ($r->title ?? ''));
     }
 
     public static function getPages(): array

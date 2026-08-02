@@ -2,9 +2,9 @@
 
 namespace VentureDrake\LaravelCrmFilament;
 
-use App\User;
 use Filament\Actions\EditAction;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Schema;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 use VentureDrake\LaravelCrm\Models\Activity;
@@ -140,12 +140,20 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
         // `user_id` column. Filament's parity table column shape names an
         // `ownerUser` relation (analogous to every other entity in the
         // family) for surfacing an explicit team owner — but core's
-        // crm_teams table doesn't ship a `user_owner_id` column yet.
-        // Register the relation so the column renders cleanly with its
-        // `Unallocated` placeholder until upstream lands the column.
-        Team::resolveRelationUsing('ownerUser', function ($model) {
-            return $model->belongsTo(User::class, 'user_owner_id');
-        });
+        // crm_teams table doesn't ship a `user_owner_id` column yet, so the
+        // relation is only registered once upstream lands the column.
+        // Filament's dot-notation column degrades to its `Unallocated`
+        // placeholder in the meantime (HasCellState::getRelationship() bails
+        // on `! $record->isRelation(...)`).
+        if (static::teamsTableHasOwnerColumn()) {
+            Team::resolveRelationUsing('ownerUser', function ($model) {
+                // Resolved inside the closure so the relation points at
+                // whatever User model the host configured — hardcoding
+                // App\User breaks every host that keeps its User class
+                // elsewhere (App\Models\User is the Laravel 8+ default).
+                return $model->belongsTo(config('auth.providers.users.model'), 'user_owner_id');
+            });
+        }
 
         // Core CRM's Person/Organization expose a `contacts()` morphMany that
         // mixes related-people and related-organizations rows. The Filament
@@ -281,6 +289,31 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
             Organization::class,
             Feature::class,
         ];
+    }
+
+    /**
+     * Whether the teams table carries the `user_owner_id` column the
+     * `ownerUser` polyfill hangs off.
+     *
+     * The table name comes from the Team model itself rather than
+     * `config('laravel-crm.db_table_prefix').'teams'` because core CRM
+     * hardcodes `crm_teams` on the model, so the prefix config does not apply
+     * to this one table.
+     *
+     * Swallows connection-level failures: this runs during `packageBooted()`,
+     * which also happens with no usable database (`config:cache` at deploy
+     * time, a fresh install before `migrate`). Missing column means "don't
+     * register", never "blow up the boot".
+     */
+    protected static function teamsTableHasOwnerColumn(): bool
+    {
+        try {
+            $table = (new Team)->getTable();
+
+            return Schema::hasTable($table) && Schema::hasColumn($table, 'user_owner_id');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     /**

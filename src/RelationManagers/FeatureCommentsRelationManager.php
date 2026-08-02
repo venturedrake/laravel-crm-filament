@@ -9,14 +9,76 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\FeatureComment;
 use VentureDrake\LaravelCrm\Services\FeatureService;
+use VentureDrake\LaravelCrmFilament\Concerns\ChecksCrmPermissions;
 
 class FeatureCommentsRelationManager extends RelationManager
 {
+    use ChecksCrmPermissions;
+
+    /**
+     * Permission required to post or amend a comment. Core CRM ships no
+     * FeatureCommentPolicy (and no FeatureComment model before 2.2), so the
+     * comment actions are gated on the owning feature's permissions instead
+     * of a policy — Filament v4 actions carry no implicit authorization.
+     */
+    public const CREATE_PERMISSION = 'edit crm features';
+
+    public const DELETE_PERMISSION = 'delete crm features';
+
+    /** @var list<string> Roles allowed to moderate other users' comments. */
+    public const MODERATOR_ROLES = ['Owner', 'Admin'];
+
     protected static string $relationship = 'comments';
 
     protected static ?string $title = 'Comments';
+
+    /**
+     * Anyone who may edit features may add a comment.
+     */
+    public function canCreateFeatureComment(): bool
+    {
+        return static::userHasCrmPermission(static::CREATE_PERMISSION);
+    }
+
+    /**
+     * Editing a comment additionally requires that it is the acting user's own
+     * comment, unless they hold a moderator role.
+     */
+    public function canEditFeatureComment(?Model $record): bool
+    {
+        return $this->canCreateFeatureComment()
+            && $this->isFeatureCommentAuthorOrAdmin($record);
+    }
+
+    public function canDeleteFeatureComment(?Model $record): bool
+    {
+        return static::userHasCrmPermission(static::DELETE_PERMISSION)
+            && $this->isFeatureCommentAuthorOrAdmin($record);
+    }
+
+    /**
+     * A comment belongs to the user recorded in `user_created_id` (set by
+     * FeatureService::comment()); everyone else needs a moderator role.
+     */
+    protected function isFeatureCommentAuthorOrAdmin(?Model $record): bool
+    {
+        $user = auth()->user();
+
+        if ($user === null) {
+            return false;
+        }
+
+        $authorId = $record?->getAttribute('user_created_id');
+
+        if (filled($authorId) && (string) $authorId === (string) $user->getAuthIdentifier()) {
+            return true;
+        }
+
+        return method_exists($user, 'hasRole') && $user->hasRole(static::MODERATOR_ROLES);
+    }
 
     public function form(Schema $schema): Schema
     {
@@ -69,7 +131,7 @@ class FeatureCommentsRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc')
             ->headerActions([
                 Actions\CreateAction::make()
-                    ->authorize(fn () => true)
+                    ->authorize(fn (): bool => $this->canCreateFeatureComment())
                     ->schema([
                         Forms\Components\Textarea::make('body')
                             ->label(__('laravel-crm-filament::labels.fields.message'))
@@ -113,9 +175,9 @@ class FeatureCommentsRelationManager extends RelationManager
             ])
             ->recordActions([
                 Actions\EditAction::make()
-                    ->authorize(fn () => true),
+                    ->authorize(fn (?Model $record): bool => $this->canEditFeatureComment($record)),
                 Actions\DeleteAction::make()
-                    ->authorize(fn () => true)
+                    ->authorize(fn (?Model $record): bool => $this->canDeleteFeatureComment($record))
                     ->requiresConfirmation(),
             ])
             ->toolbarActions([]);

@@ -33,6 +33,8 @@ use Filament\Pages\Page;
  */
 trait AuthorizesCrmSettingsPage
 {
+    use ChecksCrmPermissions;
+
     /**
      * Permission required to mutate CRM settings. Shared by every settings
      * page — only the read permission varies per page.
@@ -66,39 +68,5 @@ trait AuthorizesCrmSettingsPage
     protected function authorizeCrmSettingsEdit(): void
     {
         abort_unless(static::canEditCrmSettings(), 403);
-    }
-
-    /**
-     * Resolve a Spatie permission check for the authenticated user.
-     *
-     * Degrades gracefully rather than hard-failing: `hasPermissionTo()` throws
-     * `PermissionDoesNotExist` when the host has never seeded the permission
-     * (and a `QueryException` when the Spatie tables are absent altogether).
-     * In both cases the permission simply is not part of the host's install,
-     * so nobody could ever hold it — we fall back to the pre-gating behaviour
-     * of allowing access instead of locking every user out of settings.
-     * A user who is merely missing a permission that *does* exist gets `false`.
-     */
-    protected static function userHasCrmPermission(?string $permission): bool
-    {
-        if (blank($permission)) {
-            return true;
-        }
-
-        $user = auth()->user();
-
-        if ($user === null) {
-            return false;
-        }
-
-        try {
-            if (method_exists($user, 'hasPermissionTo')) {
-                return (bool) $user->hasPermissionTo($permission);
-            }
-
-            return (bool) $user->can($permission);
-        } catch (\Throwable) {
-            return true;
-        }
     }
 }

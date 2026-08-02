@@ -11,10 +11,13 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use VentureDrake\LaravelCrm\Models\Contact;
 use VentureDrake\LaravelCrm\Models\Person;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesRelatedContacts;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 
 class RelatedPeopleRelationManager extends RelationManager
 {
+    use AuthorizesRelatedContacts;
+
     protected static string $relationship = 'relatedPeopleContacts';
 
     protected static ?string $title = 'Related people';
@@ -72,7 +75,7 @@ class RelatedPeopleRelationManager extends RelationManager
             ])
             ->headerActions([
                 Actions\CreateAction::make()
-                    ->authorize(fn (): bool => true)
+                    ->authorize(fn (): bool => $this->authorizeRelatedContact('create'))
                     ->icon('heroicon-m-plus')
                     ->color('gray')
                     ->hiddenLabel()
@@ -108,7 +111,7 @@ class RelatedPeopleRelationManager extends RelationManager
             ])
             ->recordActions([
                 Actions\DeleteAction::make()
-                    ->authorize(fn (): bool => true)
+                    ->authorize(fn (?Contact $record): bool => $this->authorizeRelatedContact('delete', $record))
                     ->icon('heroicon-m-x-mark')
                     ->hiddenLabel()
                     ->tooltip('Remove')
