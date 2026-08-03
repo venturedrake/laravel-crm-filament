@@ -91,11 +91,15 @@ class CrmFilesRelationManager extends FilesRelationManager
             ->send();
     }
 
+    /**
+     * Read-only, so it resolves across the rolled-up set: a file rolled up
+     * from a related contact still renders a working download link.
+     */
     public function downloadFile(int $id): ?string
     {
-        $file = $this->getOwnerRecord()->files()->whereKey($id)->first();
+        $file = $this->findRolledUpActivityRecord($id);
 
-        if ($file === null) {
+        if (! $file instanceof File) {
             return null;
         }
 

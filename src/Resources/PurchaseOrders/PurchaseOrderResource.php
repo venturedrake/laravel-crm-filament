@@ -20,7 +20,6 @@ use Filament\Tables\Table;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
@@ -51,6 +50,7 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\EditPurchaseO
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
+use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 class PurchaseOrderResource extends Resource
 {
@@ -371,7 +371,7 @@ class PurchaseOrderResource extends Resource
                     ->default(fn () => 'Purchase Order ' . $record->purchase_order_id),
                 Textarea::make('message')
                     ->rows(8)
-                    ->default("Hi,\n\nPlease find the purchase order here: [Online Purchase Order Link]\n\nThanks."),
+                    ->default(fn (): string => PurchaseOrderPortalLink::defaultMessage()),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
@@ -391,7 +391,11 @@ class PurchaseOrderResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
-            ->url(fn (PurchaseOrder $record): ?string => PortalUrl::for('laravel-crm.portal.purchase-orders.show', $record))
+            // Same gate the Order and Delivery preview actions use: base does
+            // not register a purchase-order portal route, and an action with a
+            // null URL renders as a button that does nothing on click.
+            ->visible(fn (): bool => PurchaseOrderPortalLink::available())
+            ->url(fn (PurchaseOrder $record): ?string => PortalUrl::for(PurchaseOrderPortalLink::ROUTE, $record))
             ->openUrlInNewTab();
     }
 
@@ -413,18 +417,22 @@ class PurchaseOrderResource extends Resource
 
     protected static function dispatchPurchaseOrderSend(PurchaseOrder $record, array $data): void
     {
-        $signedUrl = PortalUrl::exists('laravel-crm.portal.purchase-orders.show')
-            ? URL::temporarySignedRoute('laravel-crm.portal.purchase-orders.show', now()->addDays(14), ['purchaseOrder' => $record])
-            : '';
+        $signedUrl = PurchaseOrderPortalLink::signedFor($record);
+
+        $message = (string) $data['message'];
+
+        if ($signedUrl === null) {
+            $message = PurchaseOrderPortalLink::stripPlaceholder($message);
+        }
 
         $pdfPath = static::renderPurchaseOrderPdfToDisk($record);
 
         Mail::send(new SendPurchaseOrder([
             'to' => $data['to'],
             'subject' => $data['subject'],
-            'message' => $data['message'],
+            'message' => $message,
             'cc' => ! empty($data['cc']) ? 1 : 0,
-            'onlinePurchaseOrderLink' => $signedUrl,
+            'onlinePurchaseOrderLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
         ]));
     }

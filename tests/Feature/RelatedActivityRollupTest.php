@@ -4,6 +4,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Contact;
+use VentureDrake\LaravelCrm\Models\File;
 use VentureDrake\LaravelCrm\Models\Lead;
 use VentureDrake\LaravelCrm\Models\Note;
 use VentureDrake\LaravelCrm\Models\Organization;
@@ -377,4 +378,96 @@ it('rolls related rows into the relation manager table query', function () {
 
     expect($rm->getTable()->getQuery()->pluck('content')->sort()->values()->all())
         ->toBe(['Own note', 'Related note']);
+});
+
+// ----------------------------------------------------------------------------
+// Rolled-up rows are read-only
+//
+// The mutating handlers all resolve through `getOwnerRecord()->x()`, so they
+// silently no-op on a row that belongs to a related contact. The views must
+// therefore not offer edit/delete/complete on those rows, and the read-only
+// download link must resolve across the rolled-up set so a related file is
+// still openable.
+// ----------------------------------------------------------------------------
+
+it('leaves a rolled-up row untouched when a mutating handler is called with its id', function () {
+    relatedActivitySetting(true);
+
+    $organization = relatedActivityOrganization();
+    $person = relatedActivityPerson();
+    relatedActivityContact($organization, $person);
+
+    $related = relatedActivityNote($person, 'Related note');
+
+    $rm = relatedActivityNotesRm($organization);
+
+    $rm->editNote((int) $related->id);
+    expect($rm->editingId)->toBeNull();
+
+    $rm->deleteNote((int) $related->id);
+    expect(Note::whereKey($related->id)->exists())->toBeTrue();
+});
+
+it('hides edit and delete on rolled-up rows in every card view', function (string $view, array $controls) {
+    $blade = file_get_contents(__DIR__ . '/../../resources/views/' . $view . '.blade.php');
+
+    // Each view computes the flag once and wraps its control cluster in it.
+    expect($blade)->toContain('$isRelated = $this->isRelatedActivityRecord(');
+    expect($blade)->toContain('@unless ($isRelated)');
+
+    foreach ($controls as $control) {
+        expect($blade)->toContain($control);
+    }
+})->with([
+    'notes' => ['crm-notes', ['editNote(', 'deleteNote(']],
+    'tasks' => ['crm-tasks', ['editTask(', 'completeTask(', 'deleteTask(']],
+    'calls' => ['crm-calls', ['editCall(', 'deleteCall(']],
+    'meetings' => ['crm-meetings', ['editMeeting(', 'deleteMeeting(']],
+    'lunches' => ['crm-lunches', ['editLunch(', 'deleteLunch(']],
+    'files' => ['crm-files', ['deleteFile(']],
+]);
+
+it('resolves a download URL for a rolled-up file but still refuses to delete it', function () {
+    relatedActivitySetting(true);
+
+    $organization = relatedActivityOrganization();
+    $person = relatedActivityPerson();
+    relatedActivityContact($organization, $person);
+
+    $relatedFile = $person->files()->create([
+        'external_id' => (string) Str::uuid(),
+        'file' => 'laravel-crm/related.pdf',
+        'name' => 'related.pdf',
+        'disk' => 'public',
+    ]);
+
+    $rm = new CrmFilesRelationManager;
+    $rm->ownerRecord = $organization;
+
+    // Read-only: the rolled-up file is downloadable rather than rendering
+    // without any link at all.
+    expect($rm->downloadFile((int) $relatedFile->id))->toContain('laravel-crm/related.pdf');
+
+    // Mutating: still owner-scoped.
+    $rm->deleteFile((int) $relatedFile->id);
+    expect(File::whereKey($relatedFile->id)->exists())->toBeTrue();
+});
+
+it('does not resolve a download URL for a file on an unrelated record', function () {
+    relatedActivitySetting(true);
+
+    $organization = relatedActivityOrganization();
+    $stranger = relatedActivityOrganization('Unrelated Org');
+
+    $foreign = $stranger->files()->create([
+        'external_id' => (string) Str::uuid(),
+        'file' => 'laravel-crm/foreign.pdf',
+        'name' => 'foreign.pdf',
+        'disk' => 'public',
+    ]);
+
+    $rm = new CrmFilesRelationManager;
+    $rm->ownerRecord = $organization;
+
+    expect($rm->downloadFile((int) $foreign->id))->toBeNull();
 });

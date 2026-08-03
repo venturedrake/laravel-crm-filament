@@ -179,6 +179,11 @@ class GeneralSettings extends Page implements HasForms
                         FileUpload::make('logo_upload')
                             ->label(static::KEYS['logo_file'])
                             ->image()
+                            // ->image() alone maps to `mimetypes:image/*`, which
+                            // accepts image/svg+xml. An SVG is script-bearing
+                            // markup served same-origin off the public disk, so
+                            // pin the raster formats a brand logo actually needs.
+                            ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
                             ->maxSize(1024)
                             ->disk('public')
                             ->directory(static::LOGO_DIRECTORY)

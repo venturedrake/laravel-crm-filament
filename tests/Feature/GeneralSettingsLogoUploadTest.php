@@ -99,8 +99,16 @@ it('configures the uploader as an image capped at 1024KB on the public disk', fu
     expect($field->getMaxSize())->toBe(1024);
     expect($field->getDiskName())->toBe('public');
     expect($field->getDirectory())->toBe(GeneralSettings::LOGO_DIRECTORY);
-    // FileUpload::image() sets the wildcard image MIME type.
-    expect($field->getAcceptedFileTypes())->toContain('image/*');
+    // Raster formats only. FileUpload::image() alone would set the wildcard
+    // `image/*`, which validates image/svg+xml through — and an SVG on the
+    // public disk is script-bearing markup served same-origin.
+    expect($field->getAcceptedFileTypes())
+        ->toContain('image/png')
+        ->toContain('image/jpeg')
+        ->toContain('image/gif')
+        ->toContain('image/webp')
+        ->not->toContain('image/*')
+        ->not->toContain('image/svg+xml');
     expect($field->isMultiple())->toBeFalse();
 });
 

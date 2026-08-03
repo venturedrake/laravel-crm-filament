@@ -116,6 +116,10 @@ class Integrations extends Page implements HasForms
                             Action::make('connectXeroCta')
                                 ->label(__('laravel-crm-filament::labels.actions.connect_xero'))
                                 ->outlined()
+                                // Connecting rewrites the org's integration
+                                // state, so it belongs behind the same gate as
+                                // the settings form, not merely `view`.
+                                ->visible(fn (): bool => static::canEditCrmSettings())
                                 ->url(fn () => route('laravel-crm.integrations.xero.connect')),
                         ])->fullWidth(),
                     ])
@@ -149,7 +153,9 @@ class Integrations extends Page implements HasForms
                 ->color('danger')
                 ->requiresConfirmation()
                 ->url(fn () => route('laravel-crm.integrations.xero.disconnect'))
-                ->visible(fn () => $this->xeroIsConnected()),
+                // Disconnecting tears down the org's Xero connection — a write,
+                // so it needs `edit crm settings`, not just `view`.
+                ->visible(fn () => $this->xeroIsConnected() && static::canEditCrmSettings()),
         ];
     }
 

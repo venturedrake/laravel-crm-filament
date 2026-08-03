@@ -17,6 +17,24 @@ use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 
 use function Pest\Livewire\livewire;
 
+/**
+ * The Edit and Delete row actions, resolved by type.
+ *
+ * @return array{0: EditAction, 1: DeleteAction}
+ */
+function purchaseOrderEditAndDeleteRowActions(): array
+{
+    $actions = collect(livewire(ListPurchaseOrders::class)->instance()->getTable()->getRecordActions());
+
+    $edit = $actions->first(fn ($action) => $action instanceof EditAction);
+    $delete = $actions->first(fn ($action) => $action instanceof DeleteAction);
+
+    expect($edit)->not->toBeNull();
+    expect($delete)->not->toBeNull();
+
+    return [$edit, $delete];
+}
+
 beforeEach(function () {
     RoleSeeder::seed();
 
@@ -143,12 +161,10 @@ it('hides Edit and Delete row actions when the PO is linked to Xero', function (
         'xero_id' => (string) Str::uuid(),
     ]);
 
-    $actions = array_values(livewire(ListPurchaseOrders::class)->instance()->getTable()->getRecordActions());
-
-    /** @var EditAction $edit */
-    $edit = $actions[1];
-    /** @var DeleteAction $delete */
-    $delete = $actions[2];
+    // Resolved by type, not by position: the row now also carries Send,
+    // Download PDF and Preview portal, so a positional lookup silently
+    // asserts against the wrong actions.
+    [$edit, $delete] = purchaseOrderEditAndDeleteRowActions();
 
     $edit->record($po);
     $delete->record($po);
@@ -162,10 +178,7 @@ it('shows Edit and Delete row actions when the PO is not linked to Xero', functi
         'external_id' => (string) Str::uuid(),
     ]);
 
-    $actions = array_values(livewire(ListPurchaseOrders::class)->instance()->getTable()->getRecordActions());
-
-    $edit = $actions[1];
-    $delete = $actions[2];
+    [$edit, $delete] = purchaseOrderEditAndDeleteRowActions();
 
     $edit->record($po);
     $delete->record($po);

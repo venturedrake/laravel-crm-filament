@@ -42,47 +42,55 @@
                     </div>
                 </form>
             @else
+                @php
+                    // Rolled-up rows belong to a related contact; the
+                    // owner-scoped handlers cannot act on them, so they render
+                    // read-only. @see RollsUpRelatedActivity
+                    $isRelated = $this->isRelatedActivityRecord($meeting);
+                @endphp
                 <div class="crm-card-card-head">
                     <div class="crm-card-card-title">{{ $meeting->name }}</div>
-                    <div
-                        x-data="{ open: false }"
-                        @click.outside="open = false"
-                        class="crm-card-dropdown"
-                    >
-                        <button
-                            type="button"
-                            @click="open = !open"
-                            class="crm-card-dropdown-btn"
-                            aria-haspopup="menu"
-                            aria-expanded="false"
-                            x-bind:aria-expanded="open ? 'true' : 'false'"
-                        >&hellip;</button>
+                    @unless ($isRelated)
                         <div
-                            x-show="open"
-                            x-cloak
-                            class="crm-card-dropdown-menu"
-                            role="menu"
+                            x-data="{ open: false }"
+                            @click.outside="open = false"
+                            class="crm-card-dropdown"
                         >
                             <button
                                 type="button"
-                                wire:click="editMeeting({{ $meeting->id }})"
-                                @click="open = false"
-                                class="crm-card-dropdown-item"
-                                role="menuitem"
-                            >{{ __('laravel-crm-filament::labels.actions.edit') }}</button>
-                            <button
-                                type="button"
-                                wire:click="deleteMeeting({{ $meeting->id }})"
-                                wire:confirm="Delete this meeting?"
-                                @click="open = false"
-                                class="crm-card-dropdown-item crm-card-dropdown-item--danger"
-                                role="menuitem"
-                            >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                                @click="open = !open"
+                                class="crm-card-dropdown-btn"
+                                aria-haspopup="menu"
+                                aria-expanded="false"
+                                x-bind:aria-expanded="open ? 'true' : 'false'"
+                            >&hellip;</button>
+                            <div
+                                x-show="open"
+                                x-cloak
+                                class="crm-card-dropdown-menu"
+                                role="menu"
+                            >
+                                <button
+                                    type="button"
+                                    wire:click="editMeeting({{ $meeting->id }})"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item"
+                                    role="menuitem"
+                                >{{ __('laravel-crm-filament::labels.actions.edit') }}</button>
+                                <button
+                                    type="button"
+                                    wire:click="deleteMeeting({{ $meeting->id }})"
+                                    wire:confirm="Delete this meeting?"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item crm-card-dropdown-item--danger"
+                                    role="menuitem"
+                                >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                            </div>
                         </div>
-                    </div>
+                    @endunless
                 </div>
                 <div class="crm-card-badges">
-                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($meeting)])
+                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $isRelated])
                     @if ($meeting->start_at)
                         <span class="crm-card-pill">{{ __('laravel-crm-filament::labels.money.start_at') }} {{ $meeting->start_at->format('h:i A') }} on {{ $meeting->start_at->format('M d, Y') }}</span>
                     @endif

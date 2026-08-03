@@ -582,6 +582,8 @@ return [
         'related_contact_added' => 'Contact lié ajouté',
         'related_contact_removed' => 'Contact lié supprimé',
         'user_invited' => 'Invitation envoyée',
+        'user_invite_unavailable' => 'Invitation non envoyée',
+        'user_invite_unavailable_body' => 'Aucune route de réinitialisation de mot de passe n\'est disponible, la personne invitée ne pourrait donc pas définir de mot de passe. Activez ->passwordReset() sur le panneau CRM, puis réessayez.',
         'no_line_items_selected' => 'Aucune ligne sélectionnée',
     ],
 

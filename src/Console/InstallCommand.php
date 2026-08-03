@@ -367,6 +367,13 @@ class InstallCommand extends Command
             return self::FAILURE;
         }
 
+        // Inject mode needs the plugin's own tables just as much as crm mode
+        // does — `crm_invoice_payments` backs the invoice Mark Paid history,
+        // which is otherwise silently skipped by its Schema::hasTable() guard.
+        // Run this before the provider edit so it also covers the
+        // could-not-auto-inject path, which still returns SUCCESS.
+        $this->publishAndRunMigrations();
+
         $contents = $files->get($providerFile);
         $original = $contents;
 

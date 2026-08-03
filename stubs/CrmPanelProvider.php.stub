@@ -35,6 +35,11 @@ class CrmPanelProvider extends PanelProvider
             ->path('crm')
             ->login(Login::class)
             ->profile(Profile::class)
+            // Required by the "Invite user" action: the invite mail links here
+            // so the invitee can set their own password. Base CRM's own
+            // `laravel-crm.password.reset` route is unavailable once
+            // LARAVEL_CRM_USER_INTERFACE=false, which this installer recommends.
+            ->passwordReset()
             ->brandName($brandName)
             // `logo_file` is a path on the `public` disk (that's what the CRM's
             // General settings uploader writes), so resolve it through the disk.

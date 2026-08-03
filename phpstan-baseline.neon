@@ -387,7 +387,7 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:files\(\)\.$#'
 			identifier: method.notFound
-			count: 3
+			count: 2
 			path: src/RelationManagers/CrmFilesRelationManager.php
 
 		-

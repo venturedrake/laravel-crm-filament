@@ -37,18 +37,20 @@ it('uses the purchase order portal action trait on ViewPurchaseOrder', function 
 });
 
 dataset('portalActionTraits', [
-    'order' => [HasOrderPortalAction::class, 'laravel-crm.portal.orders.show'],
-    'delivery' => [HasDeliveryPortalAction::class, 'laravel-crm.portal.deliveries.show'],
-    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'laravel-crm.portal.purchase-orders.show'],
+    'order' => [HasOrderPortalAction::class, "PortalUrl::for('laravel-crm.portal.orders.show'"],
+    'delivery' => [HasDeliveryPortalAction::class, "PortalUrl::for('laravel-crm.portal.deliveries.show'"],
+    // The purchase-order trait names the route through the shared constant,
+    // so the send action and the preview action cannot drift apart.
+    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'PortalUrl::for(PurchaseOrderPortalLink::ROUTE'],
 ]);
 
-it('declares the preview_portal label, primary color, openUrlInNewTab, and the named portal route', function (string $trait, string $routeName) {
+it('declares the preview_portal label, primary color, openUrlInNewTab, and the named portal route', function (string $trait, string $portalUrlCall) {
     $source = file_get_contents((new ReflectionClass($trait))->getFileName());
 
     expect($source)->toContain('actions.preview_portal');
     expect($source)->toContain("->color('primary')");
     expect($source)->toContain('openUrlInNewTab');
-    expect($source)->toContain("PortalUrl::for('" . $routeName . "'");
+    expect($source)->toContain($portalUrlCall);
 })->with('portalActionTraits');
 
 it('gates each portal action behind a visible() callback', function (string $trait) {
@@ -170,6 +172,37 @@ it('shows the Delivery portal action once a delivery product is attached', funct
 it('hides the PurchaseOrder portal action when there are no purchase order lines', function () {
     $po = PurchaseOrder::create([
         'external_id' => (string) Str::uuid(),
+    ]);
+
+    $page = (new ReflectionClass(ViewPurchaseOrder::class))->newInstanceWithoutConstructor();
+    $page->record = $po;
+
+    $method = new ReflectionMethod(ViewPurchaseOrder::class, 'getHeaderActions');
+    $method->setAccessible(true);
+    $actions = $method->invoke($page);
+
+    $portal = collect($actions)->first(fn ($a) => $a->getName() === 'previewPortal');
+    $portal->record($po);
+
+    expect($portal->isVisible())->toBeFalse();
+});
+
+it('hides the PurchaseOrder portal action when base registers no portal route', function () {
+    // The shipping case: laravel-crm registers portal routes for quotes and
+    // invoices only, so a purchase order with lines must still hide the action
+    // rather than render a button whose URL resolves to null.
+    expect(Route::has('laravel-crm.portal.purchase-orders.show'))->toBeFalse();
+
+    $po = PurchaseOrder::create([
+        'external_id' => (string) Str::uuid(),
+    ]);
+
+    PurchaseOrderLine::create([
+        'external_id' => (string) Str::uuid(),
+        'purchase_order_id' => $po->id,
+        'quantity' => 1,
+        'unit_price' => 100,
+        'amount' => 100,
     ]);
 
     $page = (new ReflectionClass(ViewPurchaseOrder::class))->newInstanceWithoutConstructor();

@@ -546,6 +546,7 @@ class InvoiceResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
+            ->visible(fn (): bool => PortalUrl::exists('laravel-crm.portal.invoices.show'))
             ->url(fn (Invoice $record): ?string => PortalUrl::for('laravel-crm.portal.invoices.show', $record))
             ->openUrlInNewTab();
     }

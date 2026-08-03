@@ -201,3 +201,73 @@ function settingsViewerRole(): string
 
     return 'SettingsViewer';
 }
+
+// ----------------------------------------------------------------------------
+// Xero connect / disconnect are writes
+//
+// Disconnecting tears down the org's Xero connection, and the base route
+// behind it carries only `auth.laravel-crm` — no permission check of its own.
+// A `view crm settings` holder must not be able to reach either control.
+// ----------------------------------------------------------------------------
+
+function integrationsXeroConnected(bool $connected): void
+{
+    app()->instance('xero', new class($connected)
+    {
+        public function __construct(private bool $connected) {}
+
+        public function isConnected(): bool
+        {
+            return $this->connected;
+        }
+
+        public function getTenantName(): string
+        {
+            return 'Test Tenant';
+        }
+
+        public function __call($name, $args)
+        {
+            return null;
+        }
+    });
+}
+
+it('hides Disconnect Xero from a user who may only view settings', function (): void {
+    integrationsXeroConnected(true);
+
+    $viewer = authzUser('Xero Viewer');
+    $viewer->assignRole(settingsViewerRole());
+    $this->actingAs($viewer);
+
+    $page = new Integrations;
+    $actions = (new ReflectionMethod(Integrations::class, 'getHeaderActions'))->invoke($page);
+    $disconnect = collect($actions)->firstWhere(fn ($action) => $action->getName() === 'disconnectXero');
+
+    expect($disconnect)->not->toBeNull();
+    expect($disconnect->isVisible())->toBeFalse();
+});
+
+it('shows Disconnect Xero to a user holding edit crm settings', function (): void {
+    integrationsXeroConnected(true);
+
+    $editor = authzUser('Xero Editor');
+    $editor->assignRole('Owner');
+    $this->actingAs($editor);
+
+    $page = new Integrations;
+    $actions = (new ReflectionMethod(Integrations::class, 'getHeaderActions'))->invoke($page);
+    $disconnect = collect($actions)->firstWhere(fn ($action) => $action->getName() === 'disconnectXero');
+
+    expect($disconnect->isVisible())->toBeTrue();
+});
+
+it('gates the Connect Xero call to action on edit crm settings too', function (): void {
+    $source = file_get_contents((new ReflectionClass(Integrations::class))->getFileName());
+
+    // The connect CTA sits between its own Action::make() and the ->url()
+    // that fires the connection; the gate must be inside that block.
+    $cta = Str::between($source, "Action::make('connectXeroCta')", 'xero.connect');
+
+    expect($cta)->toContain('canEditCrmSettings()');
+});

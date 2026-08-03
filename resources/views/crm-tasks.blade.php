@@ -145,56 +145,64 @@
                     </div>
                 </form>
             @else
+                @php
+                    // Rolled-up rows belong to a related contact; the
+                    // owner-scoped handlers cannot act on them, so they render
+                    // read-only. @see RollsUpRelatedActivity
+                    $isRelated = $this->isRelatedActivityRecord($task);
+                @endphp
                 <div class="crm-card-card-head">
                     <div class="crm-card-card-title">{{ $task->name }}</div>
-                    <div
-                        x-data="{ open: false }"
-                        @click.outside="open = false"
-                        class="crm-card-dropdown"
-                    >
-                        <button
-                            type="button"
-                            @click="open = !open"
-                            class="crm-card-dropdown-btn"
-                            aria-haspopup="menu"
-                            aria-expanded="false"
-                            x-bind:aria-expanded="open ? 'true' : 'false'"
-                        >&hellip;</button>
+                    @unless ($isRelated)
                         <div
-                            x-show="open"
-                            x-cloak
-                            class="crm-card-dropdown-menu"
-                            role="menu"
+                            x-data="{ open: false }"
+                            @click.outside="open = false"
+                            class="crm-card-dropdown"
                         >
                             <button
                                 type="button"
-                                wire:click="editTask({{ $task->id }})"
-                                @click="open = false"
-                                class="crm-card-dropdown-item"
-                                role="menuitem"
-                            >{{ __('laravel-crm-filament::labels.actions.edit') }}</button>
-                            @if ($task->completed_at === null)
+                                @click="open = !open"
+                                class="crm-card-dropdown-btn"
+                                aria-haspopup="menu"
+                                aria-expanded="false"
+                                x-bind:aria-expanded="open ? 'true' : 'false'"
+                            >&hellip;</button>
+                            <div
+                                x-show="open"
+                                x-cloak
+                                class="crm-card-dropdown-menu"
+                                role="menu"
+                            >
                                 <button
                                     type="button"
-                                    wire:click="completeTask({{ $task->id }})"
+                                    wire:click="editTask({{ $task->id }})"
                                     @click="open = false"
                                     class="crm-card-dropdown-item"
                                     role="menuitem"
-                                >{{ __('laravel-crm-filament::labels.status.complete') }}</button>
-                            @endif
-                            <button
-                                type="button"
-                                wire:click="deleteTask({{ $task->id }})"
-                                wire:confirm="Delete this task?"
-                                @click="open = false"
-                                class="crm-card-dropdown-item crm-card-dropdown-item--danger"
-                                role="menuitem"
-                            >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                                >{{ __('laravel-crm-filament::labels.actions.edit') }}</button>
+                                @if ($task->completed_at === null)
+                                    <button
+                                        type="button"
+                                        wire:click="completeTask({{ $task->id }})"
+                                        @click="open = false"
+                                        class="crm-card-dropdown-item"
+                                        role="menuitem"
+                                    >{{ __('laravel-crm-filament::labels.status.complete') }}</button>
+                                @endif
+                                <button
+                                    type="button"
+                                    wire:click="deleteTask({{ $task->id }})"
+                                    wire:confirm="Delete this task?"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item crm-card-dropdown-item--danger"
+                                    role="menuitem"
+                                >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                            </div>
                         </div>
-                    </div>
+                    @endunless
                 </div>
                 <div class="crm-card-badges">
-                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($task)])
+                    @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $isRelated])
                     @if ($task->completed_at)
                         <span class="crm-card-badge crm-card-badge--success">{{ __('laravel-crm-filament::labels.status.complete') }}</span>
                     @else

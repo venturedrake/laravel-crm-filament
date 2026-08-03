@@ -2,6 +2,9 @@
 
 namespace VentureDrake\LaravelCrmFilament\Concerns;
 
+use Illuminate\Database\QueryException;
+use Spatie\Permission\Exceptions\PermissionDoesNotExist;
+
 /**
  * Resolves a core CRM Spatie permission check for the authenticated user.
  *
@@ -21,6 +24,11 @@ trait ChecksCrmPermissions
      * so nobody could ever hold it — we fall back to the pre-gating behaviour
      * of allowing access instead of locking every user out.
      * A user who is merely missing a permission that *does* exist gets `false`.
+     *
+     * The catch is deliberately narrow: those two exceptions mean "this
+     * permission is not part of the install". Anything else — a mismatched
+     * guard, a bug in a custom user model — is a real fault and must not
+     * silently open the settings pages, so it propagates.
      */
     protected static function userHasCrmPermission(?string $permission): bool
     {
@@ -40,7 +48,7 @@ trait ChecksCrmPermissions
             }
 
             return (bool) $user->can($permission);
-        } catch (\Throwable) {
+        } catch (PermissionDoesNotExist | QueryException) {
             return true;
         }
     }

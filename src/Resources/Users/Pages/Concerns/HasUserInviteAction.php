@@ -70,6 +70,20 @@ trait HasUserInviteAction
                     ->default(true),
             ])
             ->action(function (array $data): void {
+                // Pre-flight: without a reachable password-reset route the
+                // invitee could never set a password, so refuse before an
+                // unusable account is committed rather than after.
+                if (! SendUserInvite::canBuildSetPasswordUrl()) {
+                    Notification::make()
+                        ->title(__('laravel-crm-filament::labels.notifications.user_invite_unavailable'))
+                        ->body(__('laravel-crm-filament::labels.notifications.user_invite_unavailable_body'))
+                        ->danger()
+                        ->persistent()
+                        ->send();
+
+                    return;
+                }
+
                 $this->inviteCrmUser($data);
 
                 Notification::make()

@@ -219,3 +219,66 @@ it('returns nothing for a non-matching term on each added resource', function (s
 
     expect($resource::getGlobalSearchResults('zzz-definitely-no-match'))->toHaveCount(0);
 })->with('encryptedSearchResources');
+
+// ----------------------------------------------------------------------------
+// Only models that actually encrypt take the PHP-side path
+//
+// Deal and Lead store `deal_id` / `lead_id` / `title` in plain text whatever
+// `encrypt_db_fields` is set to — they declare no `$encryptable`. Routing them
+// through the decrypt-and-match scan would trade a correct SQL search for a
+// PHP one with nothing to gain.
+// ----------------------------------------------------------------------------
+
+it('keeps SQL search for models that declare no encryptable attributes', function () {
+    // Deal and Lead do not even use HasEncryptableFields, so the accessor the
+    // trait probes for is absent entirely.
+    expect(method_exists(new Deal, 'getEncryptable'))->toBeFalse();
+    expect(method_exists(new Lead, 'getEncryptable'))->toBeFalse();
+    expect((new Person)->getEncryptable())->not->toBe([]);
+});
+
+it('finds a deal beyond the first page of results while encryption is on', function () {
+    config(['laravel-crm.encrypt_db_fields' => true]);
+
+    // Comfortably past any fixed prefix window a PHP-side scan might use.
+    foreach (range(1, 220) as $i) {
+        Deal::create([
+            'external_id' => (string) Str::uuid(),
+            'title' => 'Filler deal ' . $i,
+        ]);
+    }
+
+    $needle = Deal::create([
+        'external_id' => (string) Str::uuid(),
+        'title' => 'Zzz Needle Deal',
+    ]);
+
+    $results = DealResource::getGlobalSearchResults('Zzz Needle');
+
+    expect($results)->toHaveCount(1);
+    expect($results->first())->toBeInstanceOf(GlobalSearchResult::class);
+    expect($results->first()->title)->toContain('Zzz Needle Deal');
+    expect($needle->exists)->toBeTrue();
+});
+
+it('finds an encrypted person beyond the first chunk of the scan', function () {
+    config(['laravel-crm.encrypt_db_fields' => true]);
+
+    foreach (range(1, 220) as $i) {
+        Person::create([
+            'external_id' => (string) Str::uuid(),
+            'first_name' => 'Filler',
+            'last_name' => 'Person' . $i,
+        ]);
+    }
+
+    Person::create([
+        'external_id' => (string) Str::uuid(),
+        'first_name' => 'Grace',
+        'last_name' => 'Hopperton',
+    ]);
+
+    $results = PersonResource::getGlobalSearchResults('Hopperton');
+
+    expect($results)->toHaveCount(1);
+});

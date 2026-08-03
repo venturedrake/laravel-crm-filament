@@ -196,6 +196,23 @@ trait RollsUpRelatedActivity
     }
 
     /**
+     * Look a row up across the rolled-up set — the owner's own rows plus the
+     * related entities' rows.
+     *
+     * Mutating handlers deliberately do NOT use this: a rolled-up row belongs
+     * to another record and is read-only here (the views hide its edit/delete
+     * controls). Read-only handlers such as the file download link do, so a
+     * rolled-up row is not rendered without one.
+     */
+    public function findRolledUpActivityRecord(int | string $id): ?Model
+    {
+        /** @var Model|null $record */
+        $record = $this->rolledUpActivityQuery()->whereKey($id)->first();
+
+        return $record;
+    }
+
+    /**
      * Whether a row was rolled up from a related entity rather than belonging
      * to the owner record itself.
      */

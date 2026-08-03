@@ -71,7 +71,14 @@
                     </div>
                 </form>
             @else
-                @if ($this->isRelatedActivityRecord($note))
+                @php
+                    // A rolled-up row belongs to a related contact, not to this
+                    // record, so the owner-scoped edit/delete handlers cannot
+                    // act on it — render it read-only rather than offering
+                    // controls that would silently do nothing.
+                    $isRelated = $this->isRelatedActivityRecord($note);
+                @endphp
+                @if ($isRelated)
                     <div class="crm-card-badges">
                         @include('laravel-crm-filament::partials.crm-related-badge', ['related' => true])
                     </div>
@@ -80,42 +87,44 @@
                     <div class="crm-card-card-meta">
                         {{ $note->created_at?->diffForHumans() }} - {{ $note->createdByUser?->name }}
                     </div>
-                    <div
-                        x-data="{ open: false }"
-                        @click.outside="open = false"
-                        class="crm-card-dropdown"
-                    >
-                        <button
-                            type="button"
-                            @click="open = !open"
-                            class="crm-card-dropdown-btn"
-                            aria-haspopup="menu"
-                            aria-expanded="false"
-                            x-bind:aria-expanded="open ? 'true' : 'false'"
-                        >&hellip;</button>
+                    @unless ($isRelated)
                         <div
-                            x-show="open"
-                            x-cloak
-                            class="crm-card-dropdown-menu"
-                            role="menu"
+                            x-data="{ open: false }"
+                            @click.outside="open = false"
+                            class="crm-card-dropdown"
                         >
                             <button
                                 type="button"
-                                wire:click="editNote({{ $note->id }})"
-                                @click="open = false"
-                                class="crm-card-dropdown-item"
-                                role="menuitem"
-                            >Edit</button>
-                            <button
-                                type="button"
-                                wire:click="deleteNote({{ $note->id }})"
-                                wire:confirm="Delete this note?"
-                                @click="open = false"
-                                class="crm-card-dropdown-item crm-card-dropdown-item--danger"
-                                role="menuitem"
-                            >Delete</button>
+                                @click="open = !open"
+                                class="crm-card-dropdown-btn"
+                                aria-haspopup="menu"
+                                aria-expanded="false"
+                                x-bind:aria-expanded="open ? 'true' : 'false'"
+                            >&hellip;</button>
+                            <div
+                                x-show="open"
+                                x-cloak
+                                class="crm-card-dropdown-menu"
+                                role="menu"
+                            >
+                                <button
+                                    type="button"
+                                    wire:click="editNote({{ $note->id }})"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item"
+                                    role="menuitem"
+                                >Edit</button>
+                                <button
+                                    type="button"
+                                    wire:click="deleteNote({{ $note->id }})"
+                                    wire:confirm="Delete this note?"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item crm-card-dropdown-item--danger"
+                                    role="menuitem"
+                                >Delete</button>
+                            </div>
                         </div>
-                    </div>
+                    @endunless
                 </div>
                 <div class="crm-card-card-body">{{ $note->content }}</div>
                 @if ($note->noted_at)

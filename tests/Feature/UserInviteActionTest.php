@@ -1,11 +1,14 @@
 <?php
 
+use Filament\Facades\Filament;
 use Filament\Schemas\Schema as FilamentSchema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Role;
@@ -347,4 +350,102 @@ it('returns null rather than querying a bogus configured model', function () {
     Mail::fake();
     (new SendUserInvite('anyone@example.com'))->handle();
     Mail::assertNothingSent();
+});
+
+// ----------------------------------------------------------------------------
+// Set-password link resolution
+//
+// Base's `laravel-crm.password.reset` route lives in `auth-routes.php`, which
+// LaravelCrmServiceProvider only loads while `laravel-crm.user_interface` is
+// on — and the plugin's own installer asks operators to turn that off so the
+// Filament panel can own /crm. The invite must not create an account nobody
+// can ever sign into.
+// ----------------------------------------------------------------------------
+
+/**
+ * Drop a named route from the router so the "user_interface=false" install can
+ * be exercised without rebooting the whole application.
+ */
+function forgetInviteRoute(string $name): void
+{
+    $remaining = new RouteCollection;
+
+    foreach (Route::getRoutes() as $route) {
+        if ($route->getName() === $name) {
+            continue;
+        }
+
+        $remaining->add($route);
+    }
+
+    app('router')->setRoutes($remaining);
+}
+
+it('builds the set-password link from base\'s route when the legacy UI is on', function () {
+    expect(Route::has('laravel-crm.password.reset'))->toBeTrue();
+    expect(SendUserInvite::canBuildSetPasswordUrl())->toBeTrue();
+});
+
+it('falls back to the panel\'s own reset route when base\'s route is gone', function () {
+    Mail::fake();
+    createInvitePasswordResetTable();
+
+    forgetInviteRoute('laravel-crm.password.reset');
+
+    // Stand in for a panel published with ->passwordReset(), which the
+    // CrmPanelProvider stub now enables.
+    Route::get('admin/password-reset/reset', fn () => '')
+        ->name('filament.admin.auth.password-reset.reset');
+    Route::getRoutes()->refreshNameLookups();
+    Filament::getPanel('admin')->passwordReset();
+
+    expect(SendUserInvite::canBuildSetPasswordUrl())->toBeTrue();
+
+    User::create([
+        'name' => 'Panel Invitee',
+        'email' => 'panel.invitee@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+
+    (new SendUserInvite('panel.invitee@example.com'))->handle();
+
+    Mail::assertSent(WelcomeImportedUser::class, fn (WelcomeImportedUser $mail) => str_contains($mail->setPasswordUrl, 'admin/password-reset/reset')
+        && str_contains($mail->setPasswordUrl, 'signature='));
+});
+
+it('mails nothing rather than a dead link when no reset route exists at all', function () {
+    Mail::fake();
+    createInvitePasswordResetTable();
+
+    forgetInviteRoute('laravel-crm.password.reset');
+
+    expect(SendUserInvite::canBuildSetPasswordUrl())->toBeFalse();
+
+    User::create([
+        'name' => 'Stranded Invitee',
+        'email' => 'stranded.invitee@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+
+    (new SendUserInvite('stranded.invitee@example.com'))->handle();
+
+    Mail::assertNothingSent();
+});
+
+it('refuses to create the account when no set-password link can be built', function () {
+    Bus::fake();
+
+    forgetInviteRoute('laravel-crm.password.reset');
+
+    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+
+    livewire(ListUsers::class)
+        ->callAction('invite', [
+            'name' => 'Never Created',
+            'email' => 'never.created@example.com',
+            'crm_access' => true,
+        ]);
+
+    expect(User::where('email', 'never.created@example.com')->exists())->toBeFalse();
+    Bus::assertNotDispatched(SendUserInvite::class);
 });

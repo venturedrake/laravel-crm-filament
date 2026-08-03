@@ -582,6 +582,8 @@ return [
         'related_contact_added' => 'Contacto relacionado añadido',
         'related_contact_removed' => 'Contacto relacionado eliminado',
         'user_invited' => 'Invitación enviada',
+        'user_invite_unavailable' => 'Invitación no enviada',
+        'user_invite_unavailable_body' => 'No hay ninguna ruta de restablecimiento de contraseña disponible, por lo que la persona invitada no podría establecer una contraseña. Active ->passwordReset() en el panel CRM y vuelva a intentarlo.',
         'no_line_items_selected' => 'No se han seleccionado líneas',
     ],
 

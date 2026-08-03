@@ -24,6 +24,9 @@
     @forelse ($fileRows as $file)
         @php
             $downloadUrl = $this->downloadFile($file->id);
+            // A rolled-up file belongs to a related contact: it stays
+            // downloadable, but the owner-scoped delete cannot touch it.
+            $isRelated = $this->isRelatedActivityRecord($file);
             $size = (int) ($file->filesize ?? 0);
             if ($size >= 1024 * 1024) {
                 $formattedSize = round($size / (1024 * 1024), 2) . ' MB';
@@ -47,48 +50,52 @@
                         {{ $file->name ?? $file->file }}
                     @endif
                 </div>
-                <div
-                    x-data="{ open: false }"
-                    @click.outside="open = false"
-                    class="crm-card-dropdown"
-                >
-                    <button
-                        type="button"
-                        @click="open = !open"
-                        class="crm-card-dropdown-btn"
-                        aria-haspopup="menu"
-                        aria-expanded="false"
-                        x-bind:aria-expanded="open ? 'true' : 'false'"
-                    >&hellip;</button>
+                @if ($downloadUrl || ! $isRelated)
                     <div
-                        x-show="open"
-                        x-cloak
-                        class="crm-card-dropdown-menu"
-                        role="menu"
+                        x-data="{ open: false }"
+                        @click.outside="open = false"
+                        class="crm-card-dropdown"
                     >
-                        @if ($downloadUrl)
-                            <a
-                                href="{{ $downloadUrl }}"
-                                target="_blank"
-                                rel="noopener"
-                                @click="open = false"
-                                class="crm-card-dropdown-item"
-                                role="menuitem"
-                            >{{ __('laravel-crm-filament::labels.actions.download') }}</a>
-                        @endif
                         <button
                             type="button"
-                            wire:click="deleteFile({{ $file->id }})"
-                            wire:confirm="Delete this file?"
-                            @click="open = false"
-                            class="crm-card-dropdown-item crm-card-dropdown-item--danger"
-                            role="menuitem"
-                        >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                            @click="open = !open"
+                            class="crm-card-dropdown-btn"
+                            aria-haspopup="menu"
+                            aria-expanded="false"
+                            x-bind:aria-expanded="open ? 'true' : 'false'"
+                        >&hellip;</button>
+                        <div
+                            x-show="open"
+                            x-cloak
+                            class="crm-card-dropdown-menu"
+                            role="menu"
+                        >
+                            @if ($downloadUrl)
+                                <a
+                                    href="{{ $downloadUrl }}"
+                                    target="_blank"
+                                    rel="noopener"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item"
+                                    role="menuitem"
+                                >{{ __('laravel-crm-filament::labels.actions.download') }}</a>
+                            @endif
+                            @unless ($isRelated)
+                                <button
+                                    type="button"
+                                    wire:click="deleteFile({{ $file->id }})"
+                                    wire:confirm="Delete this file?"
+                                    @click="open = false"
+                                    class="crm-card-dropdown-item crm-card-dropdown-item--danger"
+                                    role="menuitem"
+                                >{{ __('laravel-crm-filament::labels.actions.delete') }}</button>
+                            @endunless
+                        </div>
                     </div>
-                </div>
+                @endif
             </div>
             <div class="crm-card-badges">
-                @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $this->isRelatedActivityRecord($file)])
+                @include('laravel-crm-filament::partials.crm-related-badge', ['related' => $isRelated])
                 @if ($file->mime)
                     <span class="crm-card-pill">{{ $file->mime }}</span>
                 @endif

@@ -14,6 +14,9 @@ trait HasInvoicePortalAction
             ->label(__('laravel-crm-filament::labels.actions.preview_portal'))
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
+            // The invoice portal route ships with base's routes.php, which is
+            // unloaded entirely when laravel-crm.user_interface is off.
+            ->visible(fn (): bool => PortalUrl::exists('laravel-crm.portal.invoices.show'))
             ->url(fn (Invoice $record): ?string => PortalUrl::for('laravel-crm.portal.invoices.show', $record))
             ->openUrlInNewTab();
     }

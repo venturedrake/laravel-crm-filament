@@ -593,6 +593,8 @@ return [
         'related_contact_added' => 'Related contact added',
         'related_contact_removed' => 'Related contact removed',
         'user_invited' => 'Invitation sent',
+        'user_invite_unavailable' => 'Invitation not sent',
+        'user_invite_unavailable_body' => 'No password-reset route is available, so the invitee could not set a password. Enable ->passwordReset() on the CRM panel, then try again.',
         'no_line_items_selected' => 'No line items selected',
     ],
 

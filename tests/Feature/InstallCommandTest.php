@@ -423,6 +423,65 @@ it('publishes and runs the plugin migrations on --mode=crm', function () {
     }
 });
 
+it('publishes and runs the plugin migrations on --mode=inject too', function () {
+    // `crm_invoice_payments` backs the invoice Mark Paid history in both
+    // modes. `->runsMigrations()` cannot cover it: spatie hands
+    // `loadMigrationsFrom()` the `.php.stub` path, and Laravel's Migrator
+    // only picks up files ending in `.php`.
+    $temp = crmInstallMakeTempDir();
+    $suffix = bin2hex(random_bytes(4));
+    $panelId = 'target' . $suffix;
+    $className = 'FixtureMigrationPanelProvider' . $suffix;
+    $providerFile = $temp . '/' . $className . '.php';
+
+    File::put(
+        $providerFile,
+        <<<PHP
+<?php
+
+namespace VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall;
+
+use Filament\\Panel;
+use Filament\\PanelProvider;
+
+class {$className} extends PanelProvider
+{
+    public function panel(Panel \$panel): Panel
+    {
+        return \$panel
+            ->id('{$panelId}')
+            ->path('{$panelId}');
+    }
+}
+PHP
+    );
+    require_once $providerFile;
+
+    crmInstallRegisterFixtureProvider(
+        'VentureDrake\\LaravelCrmFilament\\Tests\\Fixtures\\CrmInstall\\' . $className
+    );
+
+    foreach (crmInstallMigrationPublishTargets() as $target) {
+        File::delete($target);
+    }
+
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'inject',
+        '--panel' => $panelId,
+        '--skip-crm-install' => true,
+    ])
+        ->expectsOutputToContain('Published and ran the CRM Filament migrations.')
+        ->assertSuccessful();
+
+    $published = crmInstallMigrationPublishTargets();
+    expect($published)->not->toBeEmpty();
+
+    foreach ($published as $target) {
+        expect(File::exists($target))->toBeTrue();
+        expect(File::get($target))->toContain("'invoice_payments'");
+    }
+});
+
 it('forwards --modules and --no-interaction to laravelcrm:install when the base command supports them', function () {
     $temp = crmInstallMakeTempDir();
     app()->setBasePath($temp);
