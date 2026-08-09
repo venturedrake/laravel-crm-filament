@@ -40,6 +40,9 @@ use VentureDrake\LaravelCrm\Services\PersonService;
  *   customFields      ?Section Optional custom fields Section to append
  *   orderLink         bool    Render Select 'order_id' first (Invoice/PO
  *                              link back to a parent Order)
+ *   pdfTemplate       ?string Registry doc type ('quote', 'invoice', 'order',
+ *                              'purchase-order') to render the per-record PDF
+ *                              template picker for. Null omits it.
  *
  * The Section's "Details" heading is the localised string.
  */
@@ -61,6 +64,7 @@ class SalesDetailsSection
             'labelsField' => null,
             'customFields' => null,
             'orderLink' => false,
+            'pdfTemplate' => null,
         ], $opts);
 
         $components = [
@@ -140,6 +144,10 @@ class SalesDetailsSection
                 ->relationship('ownerUser', 'name')
                 ->searchable()
                 ->preload();
+        }
+
+        if ($opts['pdfTemplate'] !== null) {
+            $components[] = PdfTemplateSelect::make($opts['pdfTemplate']);
         }
 
         if ($opts['labels'] && is_callable($opts['labelsField'])) {

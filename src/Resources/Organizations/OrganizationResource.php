@@ -2,7 +2,6 @@
 
 namespace VentureDrake\LaravelCrmFilament\Resources\Organizations;
 
-use App\Models\User;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Actions\Action;
@@ -107,7 +106,7 @@ class OrganizationResource extends Resource
 
             Forms\Components\Select::make('user_owner_id')
                 ->label(__('laravel-crm-filament::labels.fields.owner'))
-                ->options(fn () => User::query()->orderBy('name')->pluck('name', 'id'))
+                ->relationship('ownerUser', 'name')
                 ->searchable()
                 ->preload(),
 

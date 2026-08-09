@@ -35,6 +35,14 @@ class EditDelivery extends EditRecord
 
         $data['products'] = $delivery->deliveryProducts
             ->map(fn ($line) => [
+                // Load-bearing, not decorative: DeliveryResource's quantity
+                // rule uses this key to exclude the row from its own drawdown
+                // sum. Left unhydrated, a line counted against itself, so any
+                // delivery covering more than half its order line ("Quantity
+                // cannot be more than the 0 remaining") could never be saved
+                // again. EditInvoice hydrates invoice_line_id for the same
+                // reason.
+                'delivery_product_id' => $line->id,
                 'order_product_id' => $line->order_product_id,
                 'quantity' => $line->quantity,
             ])

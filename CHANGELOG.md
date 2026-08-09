@@ -7,6 +7,192 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-09
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `^2.4`.** The floor moved from `^2.0`, so this is
+  breaking for anyone pinned to 2.0–2.3. Update both packages together:
+
+  ```bash
+  composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
+  php artisan laravelcrm:update
+  ```
+
+- **Re-seed your CRM permissions.** `laravelcrm:update` does this. Core 2.4.0 registers
+  `ActivityPolicy` and `ProductAttributePolicy` for the first time; permissions that were
+  never seeded now deny rather than being ignored.
+
+- **Product attributes are now permission-gated.** No policy resolved for them before, and
+  Filament allows when it finds none — so `ProductAttributeResource` was reachable by *every*
+  panel user. It now enforces `view|create|edit|delete crm product attributes`. A host that
+  never re-seeds gets a 403, not the 500 core's unguarded `hasPermissionTo()` would otherwise
+  produce; the same guard covers Activities.
+
+- **The seven plugin Pages are permission-gated.** This shipped in the 2.3.0 parity work
+  (US-004) and was never announced. Dashboard, Activity feed, Calendar, General settings,
+  Integrations, ClickSend and Updates all check a CRM permission now. The checks fail *open*
+  on an install that never seeded the permission, and now log a warning when they do.
+
+- **Multi-tenancy (`LARAVEL_CRM_TEAMS=true`) is not supported.** `laravelcrm:filament-install`
+  refuses to install onto a tenanted CRM unless `--allow-teams` is passed, and a running panel
+  shows a banner. See "Multi-tenancy" in the README.
+
+- **Task edits no longer clear `start_at`.** If you have been running this plugin against a
+  2.4.0 pre-release, check your tasks: every edit through the panel silently wiped the column.
+
+### Added
+
+- **Task `start_at`** on the task form, infolist, table (toggled off by default) and CSV
+  export, and on both task relation managers. The calendar renders a task with both timestamps
+  as a span, includes tasks that start before the visible window, and shifts both ends by the
+  same delta when one is dragged.
+- **User invitations**, replacing the plugin's own invite flow with core 2.4.0's
+  `UserInvitation` lifecycle. An invitation is minted and mailed; the account is created (or
+  granted CRM access) only when the invitee redeems it.
+  - `Support\InvitationUrl` resolves the accept link, preferring the panel's own route.
+  - `Pages\AcceptInvitation`, a panel-owned acceptance page registered outside the panel's
+    auth middleware — core's acceptance routes live behind `laravel-crm.user_interface`, which
+    this plugin's own installer turns off.
+  - `Support\UserInvitationAcceptor` holds the three acceptance branches and core's
+    fail-closed Owner-escalation check.
+  - `Notifications\UserInvitationNotification`, which logs and bails when no accept route
+    exists rather than throwing inside a queued job.
+  - `Resources\UserInvitations\UserInvitationResource` — an index-only pending list with
+    resend and revoke, cross-linked from the Users list with a pending badge.
+- **Settings → Templates** (`Pages\TemplateSettings`), the PDF template picker, with inline
+  thumbnails and an in-panel PDF preview. Both are served from the page rather than from
+  core's routes, which are gated behind `laravel-crm.user_interface`.
+- **Per-record PDF template picker** on the Quote, Order, Invoice, Purchase Order and Delivery
+  forms (`Concerns\Forms\PdfTemplateSelect`).
+- **Decimal quantities** (`decimal(15,3)`) on line items, with server-side drawdown
+  validation: an invoice or delivery line cannot draw more than the order line has outstanding
+  (`Support\RemainingQuantity`).
+- **System-check banner** (`Livewire\SystemCheckBanner`), rendered through Filament's
+  `CONTENT_START` hook. Shares core's `system_check_dismissed` key, so a dismissal carries
+  across both UIs.
+- **`LaravelCrmPlugin::allowUnsupportedTenancy()`** to acknowledge and silence the
+  multi-tenancy warning.
+- **`--allow-teams`** flag on `laravelcrm:filament-install`.
+- New `Support\*` classes: `CrmPdf`, `PdfTemplatePreview`, `InvitationUrl`, `InvitableEmail`,
+  `MoneyForm`, `OrderDrawdownPrefill`, `RemainingQuantity`, `TenancyGuard`, `UserGate`,
+  `UserInvitationAcceptor`.
+- `barryvdh/laravel-dompdf` and `spatie/laravel-permission` are now declared dependencies.
+  Both were already used directly (`Concerns\DownloadsPdf`, `RoleResource`) and were only
+  reaching the autoloader transitively.
+
+### Changed
+
+- **PDF rendering goes through one place.** Ten hardcoded `laravel-crm::{x}.pdf` view strings
+  across two parallel implementations collapse into `Support\CrmPdf`, which resolves the view
+  through `PdfTemplateRegistry::viewForModel()` — record choice, then the Settings default,
+  then a legacy view the host published and edited. Storage paths and filenames are unchanged,
+  so the mailers still find their attachments.
+- **PDF logos are inlined** as data URIs via core's `PdfLogo`. DomPDF refuses http(s) URLs
+  unless `dompdf.enable_remote` is on, so the logo used to render as a broken-image box. The
+  browser-facing paths (login, panel brand) still use `asset()`.
+- **Order → Invoice and Order → Delivery prefill the outstanding quantity**, not the full
+  ordered quantity, and drop lines with nothing left to draw. Header totals are recomputed from
+  the prefilled lines so a partial invoice's header matches its own body.
+- **Updates page** splits "Check for updates" (which now populates `version_latest` itself)
+  from "Run update", and passes `--force` when queueing `laravelcrm:update`.
+- **The Dashboard's three data widgets are permission-gated.** The page itself is not — a user
+  who can reach the panel has to land somewhere.
+- **`ChecksCrmPermissions` still fails open**, but logs a memoised warning when it does.
+- `FeatureCommentsRelationManager` passes the moderator flag explicitly to
+  `FeatureService::comment()` rather than letting core re-derive it.
+- `MonitorResource` surfaces `perf_notified_at` / `recovered_notified_at` and documents the
+  `monitoring.*_alert_rate_limit_minutes` config keys.
+- CI runs on every branch, adds a `--prefer-lowest` cell, and a `quality` job running
+  `composer validate --strict`, PHPStan and Pint — none of which were previously exercised.
+
+### Fixed
+
+- **Editing a user stripped their CRM role.** `role_id` and `crm_team_ids` carried
+  `->dehydrated(false)`, and `EditRecord::save()` dehydrates *before*
+  `mutateFormDataBeforeSave()` reads them — so `$this->roleId` was always null and `afterSave()`
+  fell through to `syncRoles([])`. Editing a user's name silently removed their role.
+  **This affects anyone who edited a user through the panel.**
+- **Task edits cleared `start_at`.** Core's `TaskService` writes `start_at` from the request
+  unconditionally, and the plugin's task forms had no such field.
+- **Editing an invoice dropped its order linkage.** `EditInvoice` hydrated `order_product_id`
+  into each line but the repeater had no field for it, so every save re-submitted it absent and
+  `InvoiceService` nulled it — making every subsequent outstanding-quantity calculation wrong.
+- **Line items are rounded per line**, matching core's arithmetic. Without it, two lines of
+  0.5 × $9.99 stored 500 + 500 while the header computed 999, and a perfectly consistent
+  document showed a "broken document" badge with no way to clear it.
+- Delivery line items had no quantity validation at all; they now validate and show the
+  remaining quantity rather than the ordered one.
+- The line-item quantity field is debounced, so typing `0.` no longer fires a recalculation
+  against a non-numeric partial on every keystroke.
+- `OrganizationResource` no longer hardcodes `App\Models\User` for its owner select.
+- `UserResource::syncMorphRows()` uses `Str::uuid()` rather than `Ramsey\Uuid`, which the
+  plugin does not require.
+
+### Removed
+
+- The invite action's `name` field, `crm_access` toggle and `->unique()` email rule, along with
+  `inviteCrmUser()`'s `forceCreate`. Creating the host user up front is exactly what core 2.4.0
+  replaced: a mistyped address left a real account nobody could sign into, burning the unique
+  email index.
+- `UserImporter`'s teams branch, which produced a half-tenanted user — a pivot row and a
+  `current_team_id`, with every subsequent panel query untenanted.
+- The `crm_role` `TernaryFilter` on `RoleResource`, made redundant by the scoped query. It had
+  no `query()` closure, so it SQL-errored on any install without the column.
+- `version_latest_notes` from the Updates page. Nothing in core writes it, and it was rendered
+  unescaped from a settings row whose only conceivable writer is a remote HTTP response.
+
+### Security
+
+- **`Role::assignableBy()` is now the single predicate** for "roles this caller may hand out",
+  shared between every dropdown and — via core's `AssignableRole` rule — every validator, on
+  user create, user edit, the invite action and the CSV importer. A non-Owner can neither see
+  nor submit the `Owner` role. Entitlement is re-checked at the assignment site as well as in
+  the rule, so a rejected escalation leaves no half-created user behind.
+- **`RoleResource` was ungated.** Its `$model` pointed at Spatie's `Role`, but core registers
+  `RolePolicy` for `VentureDrake\LaravelCrm\Models\Role` only, and `Gate::getPolicyFor()` walks
+  child → parent — so no policy resolved and Filament allowed. **Any panel user could edit roles
+  and grant themselves every permission in the system.** It now binds core's `Role`, enforces
+  `RolePolicy`, scopes its query to CRM roles and its permission list to CRM permissions.
+- **CSV import had no authorization at all** — no `->visible()`, no `->authorize()`, no
+  `abort_unless` — and `ListUsers` registered it unconditionally, so **any panel user could
+  bulk-create accounts with `crm_access = 1`.** Each importer now declares the create permission
+  of its own resource, enforced both as visibility and as a server-side `abort_unless`.
+- The invite action enforces `abort_unless` as the first statement of its action closure, not
+  merely `->visible()`. A Livewire action is callable by anyone who can reach the page.
+- Invitation acceptance re-checks the *inviter's* Owner entitlement at redemption time and fails
+  closed, so an invitation minted before that guard existed — or written by any other path —
+  cannot be redeemed into an Owner.
+- The pending-invitations resource registers an index page only. `UserInvitation`'s route key is
+  the 64-character redemption secret; a View or Edit page would put it in a URL, and from there
+  into browser history, referrer headers and access logs.
+- The system-check banner recomputes its dismissal signature server-side. The public Livewire
+  property is client-writable, so persisting it would let a caller pin the banner shut
+  permanently.
+- `UserImporter` no longer hardcodes `App\Models\User`, and dispatches the plugin's own
+  `SendUserInvite` rather than core's `App\Models\User`-bound `SendImportPasswordReset`, which
+  silently mailed nothing on any other host model.
+
+### Previously undocumented
+
+These landed on `develop` after 1.0.0 and were never written up. They ship in 1.1.0.
+
+- Registered the `invoice_payments` migration and made the Record-payment action resilient when
+  it is absent (US-001).
+- `Support\PortalUrl` route-resolves portal preview links and hides the ones core does not
+  register (US-002).
+- Fixed encrypted-table search and the default tax rate (US-003).
+- Gated the seven plugin Pages behind CRM permissions (US-004).
+- Closed relation-manager authorization escape hatches, removed a hardcoded `App\User` and made
+  global search encryption-aware (US-005).
+- Settings and Integrations parity: the `xero_quotes` toggle, logo upload, language options and
+  an editable primary colour (US-006).
+- The original user invite flow (US-007), now replaced by core's invitation lifecycle.
+- Honoured the `dynamic_products` setting and the teams module toggle (US-008).
+- Honoured `show_related_activity` by rolling related contacts' activity up to the parent
+  (US-009).
+- Purchase-order store-multiple, CSV export coverage and convert-to-invoice wiring (US-010).
+
 ## [1.0.0] - 2026-07-21
 
 ### Added
@@ -74,4 +260,5 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.1.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.1.0
 [1.0.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.0.0

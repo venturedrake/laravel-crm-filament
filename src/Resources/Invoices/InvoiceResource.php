@@ -3,7 +3,6 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\Invoices;
 
 use BackedEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -24,11 +23,11 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema as DbSchema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Mail\SendInvoice;
 use VentureDrake\LaravelCrm\Models\Invoice;
+use VentureDrake\LaravelCrm\Models\InvoiceLine;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -57,6 +56,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Invoices\Pages\ViewInvoice;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class InvoiceResource extends Resource
@@ -108,6 +108,7 @@ class InvoiceResource extends Resource
             'terms' => true,
             'stage' => false,
             'owner' => true,
+            'pdfTemplate' => 'invoice',
             'labels' => true,
             'labelsField' => fn () => static::labelsField(),
             'orderLink' => true,
@@ -123,7 +124,14 @@ class InvoiceResource extends Resource
                 Section::make(__('laravel-crm-filament::labels.sections.products'))
                     ->columnSpan(['lg' => 1])
                     ->schema([
-                        LineItemsRepeater::products('invoice_line_id', 'unit_price')->defaultItems(1),
+                        LineItemsRepeater::products(
+                            fkColumn: 'invoice_line_id',
+                            priceField: 'unit_price',
+                            drawdownModel: InvoiceLine::class,
+                            drawdownRelation: 'invoice',
+                            drawdownKey: 'invoice_line_id',
+                            withOrderProductId: true,
+                        )->defaultItems(1),
                         MoneyTotalsRow::make(),
                     ]),
             ]),
@@ -589,30 +597,7 @@ class InvoiceResource extends Resource
 
     protected static function renderInvoicePdfToDisk(Invoice $record): string
     {
-        $settings = app('laravel-crm.settings');
-
-        $data = [
-            'invoice' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
-
-        $relativeDir = 'laravel-crm/invoice/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $filename = 'invoice-' . strtolower((string) ($record->invoice_id ?? $record->external_id)) . '.pdf';
-        $pdfRelative = 'app/' . $relativeDir . '/' . $filename;
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView('laravel-crm::invoices.pdf', $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+        return CrmPdf::renderToDisk($record, 'invoice');
     }
 
     public static function backToIndexAction(): Action

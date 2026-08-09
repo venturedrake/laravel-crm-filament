@@ -1,11 +1,11 @@
 <?php
 
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
-use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrderLine;
 use VentureDrake\LaravelCrmFilament\Resources\Deliveries\Pages\Concerns\HasDeliveryPortalAction;
@@ -24,8 +24,33 @@ function viewPageUsesPortalTrait(string $page, string $trait): bool
     return in_array($trait, class_uses_recursive($page), true);
 }
 
-it('uses the order portal action trait on ViewOrder', function () {
-    expect(viewPageUsesPortalTrait(ViewOrder::class, HasOrderPortalAction::class))->toBeTrue();
+/**
+ * Drop a named route from the router, so a route core registers only while
+ * laravel-crm.user_interface is on can be tested as absent.
+ */
+function forgetPortalRoute(string $name): void
+{
+    $remaining = new RouteCollection;
+
+    foreach (Route::getRoutes() as $route) {
+        if ($route->getName() === $name) {
+            continue;
+        }
+
+        $remaining->add($route);
+    }
+
+    app('router')->setRoutes($remaining);
+}
+
+it('no longer wires the order portal action into ViewOrder', function () {
+    // The Order show-page header was rebuilt around Back / Delivery / Purchase
+    // Order / Download / Edit / Delete, and the portal preview went with it —
+    // core still registers no `laravel-crm.portal.orders.show` route, so the
+    // action could only ever have rendered hidden. The trait ships for hosts
+    // that want to add it back.
+    expect(viewPageUsesPortalTrait(ViewOrder::class, HasOrderPortalAction::class))->toBeFalse();
+    expect(Route::has('laravel-crm.portal.orders.show'))->toBeFalse();
 });
 
 it('uses the delivery portal action trait on ViewDelivery', function () {
@@ -59,7 +84,6 @@ it('gates each portal action behind a visible() callback', function (string $tra
 })->with('portalActionTraits');
 
 dataset('viewPages', [
-    'order' => [ViewOrder::class, 'previewPortal'],
     'delivery' => [ViewDelivery::class, 'previewPortal'],
     'purchaseOrder' => [ViewPurchaseOrder::class, 'previewPortal'],
 ]);
@@ -74,54 +98,6 @@ it('registers the previewPortal action in getHeaderActions', function (string $p
 
     expect($names)->toContain($expectedAction);
 })->with('viewPages');
-
-it('hides the Order portal action when there are no order products', function () {
-    $order = Order::create([
-        'external_id' => (string) Str::uuid(),
-    ]);
-
-    $page = (new ReflectionClass(ViewOrder::class))->newInstanceWithoutConstructor();
-    $page->record = $order;
-
-    $method = new ReflectionMethod(ViewOrder::class, 'getHeaderActions');
-    $method->setAccessible(true);
-    $actions = $method->invoke($page);
-
-    $portal = collect($actions)->first(fn ($a) => $a->getName() === 'previewPortal');
-    $portal->record($order);
-
-    expect($portal->isVisible())->toBeFalse();
-});
-
-it('shows the Order portal action once an order product is attached', function () {
-    Route::get('p/orders/{external_id}', fn () => '')->name('laravel-crm.portal.orders.show');
-    Route::getRoutes()->refreshNameLookups();
-
-    $order = Order::create([
-        'external_id' => (string) Str::uuid(),
-    ]);
-
-    OrderProduct::create([
-        'external_id' => (string) Str::uuid(),
-        'order_id' => $order->id,
-        'quantity' => 1,
-        'unit_price' => 100,
-        'amount' => 100,
-    ]);
-
-    $page = (new ReflectionClass(ViewOrder::class))->newInstanceWithoutConstructor();
-    $page->record = $order;
-
-    $method = new ReflectionMethod(ViewOrder::class, 'getHeaderActions');
-    $method->setAccessible(true);
-    $actions = $method->invoke($page);
-
-    $portal = collect($actions)->first(fn ($a) => $a->getName() === 'previewPortal');
-    $portal->record($order);
-
-    expect($portal->isVisible())->toBeTrue();
-    expect($portal->getUrl())->toContain('p/orders/' . $order->external_id);
-});
 
 it('hides the Delivery portal action when there are no delivery products', function () {
     $delivery = Delivery::create([
@@ -188,9 +164,13 @@ it('hides the PurchaseOrder portal action when there are no purchase order lines
 });
 
 it('hides the PurchaseOrder portal action when base registers no portal route', function () {
-    // The shipping case: laravel-crm registers portal routes for quotes and
-    // invoices only, so a purchase order with lines must still hide the action
-    // rather than render a button whose URL resolves to null.
+    // core 2.4.0 ships `laravel-crm.portal.purchase-orders.show` (the upstream
+    // fix PortalUrl asked for), so the route has to be removed to exercise the
+    // guard. It still matters: the route only loads while
+    // laravel-crm.user_interface is on, which the plugin's own installer turns
+    // off.
+    forgetPortalRoute('laravel-crm.portal.purchase-orders.show');
+
     expect(Route::has('laravel-crm.portal.purchase-orders.show'))->toBeFalse();
 
     $po = PurchaseOrder::create([
@@ -219,9 +199,6 @@ it('hides the PurchaseOrder portal action when base registers no portal route', 
 });
 
 it('shows the PurchaseOrder portal action once a line is attached', function () {
-    Route::get('p/purchase-orders/{external_id}', fn () => '')->name('laravel-crm.portal.purchase-orders.show');
-    Route::getRoutes()->refreshNameLookups();
-
     $po = PurchaseOrder::create([
         'external_id' => (string) Str::uuid(),
     ]);

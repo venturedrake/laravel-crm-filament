@@ -3,7 +3,6 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\Deliveries;
 
 use BackedEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Forms;
@@ -16,13 +15,15 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
 use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Delivery;
+use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
+use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
+use VentureDrake\LaravelCrmFilament\Concerns\Forms\PdfTemplateSelect;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
@@ -42,7 +43,9 @@ use VentureDrake\LaravelCrmFilament\Resources\Deliveries\Pages\ViewDelivery;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
+use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
 
 class DeliveryResource extends Resource
 {
@@ -92,6 +95,8 @@ class DeliveryResource extends Resource
                     ->label(__('laravel-crm-filament::labels.money.delivered_on')),
             ]),
 
+            PdfTemplateSelect::make('delivery'),
+
             // Delivery line items: only order_product_id + quantity per service contract.
             Forms\Components\Repeater::make('products')
                 ->label(__('laravel-crm-filament::labels.money.items_delivered'))
@@ -109,16 +114,30 @@ class DeliveryResource extends Resource
                                 ->with('product')
                                 ->get()
                                 ->mapWithKeys(fn ($op) => [
-                                    $op->id => ($op->product?->name ?? 'Line ' . $op->id) . ' (qty ' . $op->quantity . ')',
+                                    // The *remaining* quantity, not the ordered
+                                    // one: an operator picking a line wants to
+                                    // know what is still outstanding on it.
+                                    $op->id => ($op->product?->name ?? 'Line ' . $op->id)
+                                        . ' (' . Quantity::format(RemainingQuantity::forOrderProduct(
+                                            $op,
+                                            DeliveryProduct::class,
+                                            'delivery',
+                                        )) . ' ' . __('laravel-crm-filament::labels.money.remaining') . ')',
                                 ])
                                 ->all();
                         })
                         ->searchable()
                         ->required(),
+                    // This repeater had no quantity validation at all.
                     Forms\Components\TextInput::make('quantity')
                         ->numeric()
                         ->default(1)
-                        ->minValue(0),
+                        ->step(0.001)
+                        ->minValue(0)
+                        ->required()
+                        ->rules(['decimal:0,3'])
+                        ->rule(RemainingQuantity::rule(DeliveryProduct::class, 'delivery', 'delivery_product_id')),
+                    Forms\Components\Hidden::make('delivery_product_id'),
                 ])
                 ->columns(2)
                 ->addActionLabel('Add line')
@@ -435,32 +454,7 @@ class DeliveryResource extends Resource
 
     protected static function renderDeliveryPdfToDisk(Delivery $record): string
     {
-        $settings = app('laravel-crm.settings');
-        $order = $record->order;
-
-        $data = [
-            'delivery' => $record,
-            'order' => $order,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($order?->person)->getPrimaryEmail(),
-            'phone' => optional($order?->person)->getPrimaryPhone(),
-            'address' => optional($order?->person)->getPrimaryAddress(),
-            'organization_address' => optional($order?->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
-
-        $relativeDir = 'laravel-crm/delivery/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $filename = 'delivery-' . strtolower((string) ($record->delivery_id ?? $record->external_id)) . '.pdf';
-        $pdfRelative = 'app/' . $relativeDir . '/' . $filename;
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView('laravel-crm::deliveries.pdf', $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+        return CrmPdf::renderToDisk($record, 'delivery');
     }
 
     public static function backToIndexAction(): Action

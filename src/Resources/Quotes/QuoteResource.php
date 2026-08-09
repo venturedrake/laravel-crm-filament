@@ -3,7 +3,6 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\Quotes;
 
 use BackedEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -21,7 +20,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendQuote;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
@@ -52,6 +50,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\EditQuote;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ListQuotes;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class QuoteResource extends Resource
@@ -102,6 +101,7 @@ class QuoteResource extends Resource
             'terms' => true,
             'stage' => true,
             'owner' => true,
+            'pdfTemplate' => 'quote',
             'labels' => true,
             'labelsField' => fn () => static::labelsField(),
             'customFields' => static::crmCustomFieldsSection(Quote::class),
@@ -116,7 +116,10 @@ class QuoteResource extends Resource
                 Section::make(__('laravel-crm-filament::labels.sections.products'))
                     ->columnSpan(['lg' => 1])
                     ->schema([
-                        LineItemsRepeater::products('quote_product_id', 'unit_price')->defaultItems(1),
+                        LineItemsRepeater::products(
+                            fkColumn: 'quote_product_id',
+                            priceField: 'unit_price',
+                        )->defaultItems(1),
                         MoneyTotalsRow::make(),
                     ]),
             ]),
@@ -410,30 +413,7 @@ class QuoteResource extends Resource
 
     protected static function renderQuotePdfToDisk(Quote $record): string
     {
-        $settings = app('laravel-crm.settings');
-
-        $data = [
-            'quote' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
-
-        $relativeDir = 'laravel-crm/quote/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $filename = 'quote-' . strtolower((string) ($record->quote_id ?? $record->external_id)) . '.pdf';
-        $pdfRelative = 'app/' . $relativeDir . '/' . $filename;
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView('laravel-crm::quotes.pdf', $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+        return CrmPdf::renderToDisk($record, 'quote');
     }
 
     public static function acceptAction(): Action

@@ -39,7 +39,7 @@ dataset('crmRmParents', [
     'Organization' => [OrganizationResource::class],
 ]);
 
-it('attaches the Crm* family (Activities/Notes/Tasks/Calls/Meetings/Lunches/Files) plus Audits RM to every primary parent resource', function (string $resource) {
+it('attaches the Crm* family (Activities/Notes/Tasks/Calls/Meetings/Lunches/Files) to every primary parent resource', function (string $resource) {
     $relations = $resource::getRelations();
     expect($relations)->toContain(CrmActivitiesRelationManager::class);
     expect($relations)->toContain(CrmNotesRelationManager::class);
@@ -48,7 +48,9 @@ it('attaches the Crm* family (Activities/Notes/Tasks/Calls/Meetings/Lunches/File
     expect($relations)->toContain(CrmMeetingsRelationManager::class);
     expect($relations)->toContain(CrmLunchesRelationManager::class);
     expect($relations)->toContain(CrmFilesRelationManager::class);
-    expect($relations)->toContain(AuditsRelationManager::class);
+    // AuditsRelationManager is deliberately absent — the History tab was
+    // removed from the primary resources. See AuditsRelationManagerTest.
+    expect($relations)->not->toContain(AuditsRelationManager::class);
 
     // The non-Crm parent RMs must NOT be registered alongside the Crm subclasses.
     expect($relations)->not->toContain(NotesRelationManager::class);

@@ -10,6 +10,11 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class PersonImporter extends Importer
 {
+    public function permission(): ?string
+    {
+        return 'create crm people';
+    }
+
     public function columns(): array
     {
         return [

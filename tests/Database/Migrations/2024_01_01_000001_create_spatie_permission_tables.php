@@ -119,6 +119,19 @@ return new class extends Migration
             $table->primary([$pivotPermission, $pivotRole], 'role_has_permissions_permission_id_role_id_primary');
         });
 
+        // Core adds these two flags in its own migrations and every CRM query
+        // for roles and permissions is scoped by them — Role::crm(),
+        // Role::assignable(), Role::assignableBy(), Permission::crm(). Without
+        // the columns those scopes SQL-error; seeded without the flag set they
+        // return an empty set and assertions pass vacuously. See RoleSeeder.
+        Schema::table($tableNames['roles'], static function (Blueprint $table) {
+            $table->boolean('crm_role')->default(false);
+        });
+
+        Schema::table($tableNames['permissions'], static function (Blueprint $table) {
+            $table->boolean('crm_permission')->default(false);
+        });
+
         app('cache')
             ->store(config('permission.cache.store') != 'default' ? config('permission.cache.store') : null)
             ->forget(config('permission.cache.key'));

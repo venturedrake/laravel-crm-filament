@@ -19,6 +19,8 @@ class TestSchema
                 $table->timestamp('email_verified_at')->nullable();
                 $table->string('password')->nullable();
                 $table->boolean('crm_access')->default(true);
+                // core's users table carries this; UserImporter writes it.
+                $table->boolean('mailing_list')->default(false);
                 $table->timestamp('last_online_at')->nullable();
                 $table->unsignedBigInteger('current_crm_team_id')->nullable();
                 $table->rememberToken();
@@ -305,6 +307,7 @@ class TestSchema
             $table->string('external_id')->nullable();
             $table->string('name');
             $table->text('description')->nullable();
+            $table->datetime('start_at')->nullable();
             $table->datetime('due_at')->nullable();
             $table->datetime('completed_at')->nullable();
             $table->nullableMorphs('taskable');
@@ -515,7 +518,10 @@ class TestSchema
             $table->text('comments')->nullable();
             $table->integer('order')->nullable();
             $table->integer('price')->nullable();
-            $table->integer('quantity')->nullable();
+            // decimal(15,3) as of core 2.4.0 — SQLite stores this as NUMERIC and
+            // ignores the precision, so a fractional round-trip still needs a
+            // manual MySQL check before tagging.
+            $table->decimal('quantity', 15, 3)->nullable();
             $table->decimal('tax_rate')->nullable();
             $table->integer('tax_amount')->nullable();
             $table->integer('amount')->nullable();
@@ -570,7 +576,10 @@ class TestSchema
             $table->text('comments')->nullable();
             $table->integer('order')->nullable();
             $table->integer('price')->nullable();
-            $table->integer('quantity')->nullable();
+            // decimal(15,3) as of core 2.4.0 — SQLite stores this as NUMERIC and
+            // ignores the precision, so a fractional round-trip still needs a
+            // manual MySQL check before tagging.
+            $table->decimal('quantity', 15, 3)->nullable();
             $table->decimal('tax_rate')->nullable();
             $table->integer('tax_amount')->nullable();
             $table->integer('amount')->nullable();
@@ -628,7 +637,10 @@ class TestSchema
             $table->text('comments')->nullable();
             $table->integer('order')->nullable();
             $table->integer('price')->nullable();
-            $table->integer('quantity')->nullable();
+            // decimal(15,3) as of core 2.4.0 — SQLite stores this as NUMERIC and
+            // ignores the precision, so a fractional round-trip still needs a
+            // manual MySQL check before tagging.
+            $table->decimal('quantity', 15, 3)->nullable();
             $table->decimal('tax_rate')->nullable();
             $table->integer('tax_amount')->nullable();
             $table->integer('amount')->nullable();

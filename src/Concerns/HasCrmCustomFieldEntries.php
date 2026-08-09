@@ -77,22 +77,48 @@ trait HasCrmCustomFieldEntries
 
                     case 'select':
                     case 'radio':
-                        $option = $field->fieldOptions->firstWhere('id', $raw);
-
-                        return $option?->label;
+                        return self::crmCustomFieldOption($field, $raw)?->label;
 
                     case 'checkbox_multiple':
+                    case 'select_multiple':
                         $values = is_string($raw) ? json_decode($raw, true) : $raw;
                         $values = is_array($values) ? $values : [];
 
-                        return $field->fieldOptions
-                            ->whereIn('id', $values)
-                            ->pluck('label')
+                        return collect($values)
+                            ->map(fn ($value) => self::crmCustomFieldOption($field, $value)?->label)
+                            ->filter()
                             ->implode(', ');
 
                     default:
                         return $raw;
                 }
             });
+    }
+
+    /**
+     * Resolve a stored value to its FieldOption, by id first and then by the
+     * option's `value` string.
+     *
+     * The second lookup is the legacy path: rows written before core 2.4.0
+     * stored the option's value rather than its id, and matching on id alone
+     * renders those as blank. Mirrors core's
+     * HasCustomFormFields::customFieldOptionId().
+     *
+     * @param  mixed  $value
+     */
+    protected static function crmCustomFieldOption($field, $value)
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $options = $field?->fieldOptions;
+
+        if ($options === null) {
+            return null;
+        }
+
+        return $options->first(fn ($option) => (string) $option->id === (string) $value)
+            ?? $options->firstWhere('value', $value);
     }
 }

@@ -3,7 +3,6 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\Orders;
 
 use BackedEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\TextEntry;
@@ -16,11 +15,12 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
+use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -51,7 +51,9 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 class OrderResource extends Resource
 {
@@ -102,6 +104,7 @@ class OrderResource extends Resource
             'terms' => false,
             'stage' => false,
             'owner' => true,
+            'pdfTemplate' => 'order',
             'labels' => true,
             'labelsField' => fn () => static::labelsField(),
             'customFields' => static::crmCustomFieldsSection(Order::class),
@@ -119,7 +122,10 @@ class OrderResource extends Resource
                 Section::make(__('laravel-crm-filament::labels.sections.products'))
                     ->columnSpan(['lg' => 1])
                     ->schema([
-                        LineItemsRepeater::products('order_product_id', 'unit_price')->defaultItems(1),
+                        LineItemsRepeater::products(
+                            fkColumn: 'order_product_id',
+                            priceField: 'unit_price',
+                        )->defaultItems(1),
                         MoneyTotalsRow::make(),
                     ]),
             ]),
@@ -381,8 +387,21 @@ class OrderResource extends Resource
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Create delivery from order')
-            ->modalDescription('Pre-fills the full ordered quantity for every line item.')
+            ->modalDescription('Pre-fills the quantity still outstanding on each line item.')
             ->action(function (Order $record, DeliveryService $deliveryService): void {
+                // Same guard as the page header action: an order with nothing
+                // outstanding prefills no lines, and an empty Delivery is not a
+                // document anyone asked for.
+                if (! OrderDrawdownPrefill::hasRemaining($record, DeliveryProduct::class, 'delivery')) {
+                    Notification::make()
+                        ->title(__('laravel-crm-filament::labels.notifications.nothing_left_to_deliver'))
+                        ->body(__('laravel-crm-filament::labels.notifications.nothing_left_to_deliver_body'))
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 $payload = static::buildDeliveryPayloadFromOrderStatic($record);
 
                 $delivery = $deliveryService->create(
@@ -455,23 +474,18 @@ class OrderResource extends Resource
             });
     }
 
+    /**
+     * Delegates to the one shared drawdown helper — the table row action and
+     * the page header action must not disagree about what is outstanding.
+     */
     protected static function buildDeliveryPayloadFromOrderStatic(Order $record): array
     {
-        $products = [];
-
-        foreach ($record->orderProducts as $orderProduct) {
-            $products[] = [
-                'order_product_id' => $orderProduct->id,
-                'quantity' => $orderProduct->quantity,
-            ];
-        }
-
         return [
             'order_id' => $record->id,
             'delivery_expected' => now(),
             'delivered_on' => null,
             'user_owner_id' => $record->user_owner_id,
-            'products' => $products,
+            'products' => OrderDrawdownPrefill::deliveryProducts($record),
             'addresses' => [],
         ];
     }
@@ -482,7 +496,7 @@ class OrderResource extends Resource
 
         foreach ($record->orderProducts as $orderProduct) {
             $unitPrice = static::resolveSupplierUnitPriceStatic($orderProduct->product_id, $orderProduct->price);
-            $quantity = (float) $orderProduct->quantity;
+            $quantity = Quantity::toFloat($orderProduct->quantity);
             $amount = $unitPrice * $quantity;
 
             $products[] = [
@@ -528,30 +542,7 @@ class OrderResource extends Resource
 
     protected static function renderOrderPdfToDisk(Order $record): string
     {
-        $settings = app('laravel-crm.settings');
-
-        $data = [
-            'order' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
-
-        $relativeDir = 'laravel-crm/order/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $filename = 'order-' . strtolower((string) ($record->order_id ?? $record->external_id)) . '.pdf';
-        $pdfRelative = 'app/' . $relativeDir . '/' . $filename;
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView('laravel-crm::orders.pdf', $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+        return CrmPdf::renderToDisk($record, 'order');
     }
 
     public static function backToIndexAction(): Action

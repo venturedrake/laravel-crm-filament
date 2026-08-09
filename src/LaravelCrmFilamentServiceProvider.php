@@ -3,10 +3,13 @@
 namespace VentureDrake\LaravelCrmFilament;
 
 use Filament\Actions\EditAction;
+use Filament\Facades\Filament;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Schema;
+use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
+use Throwable;
 use VentureDrake\LaravelCrm\Models\Activity;
 use VentureDrake\LaravelCrm\Models\Address;
 use VentureDrake\LaravelCrm\Models\Contact;
@@ -32,7 +35,9 @@ use VentureDrake\LaravelCrm\Models\SmsCampaignClick;
 use VentureDrake\LaravelCrm\Models\SmsCampaignRecipient;
 use VentureDrake\LaravelCrm\Models\Team;
 use VentureDrake\LaravelCrmFilament\Console\InstallCommand;
+use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Models\Audit;
+use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 
 class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
 {
@@ -80,6 +85,22 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        // Warn, never throw. Throwing from a provider would break config:cache,
+        // migrate and queue:work, and would brick a host that flipped
+        // laravel-crm.teams on after installing. The installer is where the
+        // refusal belongs — see TenancyGuard and InstallCommand.
+        if ($this->app->runningInConsole()) {
+            // The acknowledgement has to be passed through, or
+            // allowUnsupportedTenancy() silences the render-hook banner but not
+            // this — and the whole point of the opt-in is that a host who has
+            // recorded the decision stops being told.
+            TenancyGuard::warnOnce($this->tenancyAcknowledged());
+        }
+
+        // Register the system-check banner component under a stable alias so
+        // the render hook can resolve it by name.
+        Livewire::component(SystemCheckBanner::NAME, SystemCheckBanner::class);
+
         // Apply consistent gray styling to every EditAction across the panel,
         // so Edit pills match the gray Back-to-index pill.
         EditAction::configureUsing(fn (EditAction $action) => $action->color('gray'));
@@ -311,9 +332,42 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
             $table = (new Team)->getTable();
 
             return Schema::hasTable($table) && Schema::hasColumn($table, 'user_owner_id');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Whether any registered panel has called
+     * {@see LaravelCrmPlugin::allowUnsupportedTenancy()}.
+     *
+     * Every lookup is guarded: packageBooted() also runs for `config:cache`,
+     * `migrate` and `queue:work`, where Filament may have no current panel and
+     * the plugin may not be registered at all — and a warning helper must never
+     * be the thing that breaks those commands.
+     */
+    protected function tenancyAcknowledged(): bool
+    {
+        try {
+            $panels = Filament::getPanels();
+            $pluginId = app(LaravelCrmPlugin::class)->getId();
+        } catch (Throwable) {
+            return false;
+        }
+
+        foreach ($panels as $panel) {
+            try {
+                $plugin = $panel->getPlugin($pluginId);
+            } catch (Throwable) {
+                continue;
+            }
+
+            if ($plugin instanceof LaravelCrmPlugin && $plugin->allowsUnsupportedTenancy()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

@@ -60,6 +60,22 @@ class FeatureCommentsRelationManager extends RelationManager
     }
 
     /**
+     * Whether the acting user is a CRM moderator.
+     *
+     * Also handed to FeatureService::comment() as its is_admin_reply flag, so
+     * the "team" badge on a comment and the moderation buttons beside it are
+     * decided by one predicate rather than two.
+     */
+    public function userIsFeatureModerator(): bool
+    {
+        $user = auth()->user();
+
+        return $user !== null
+            && method_exists($user, 'hasRole')
+            && $user->hasRole(static::MODERATOR_ROLES);
+    }
+
+    /**
      * A comment belongs to the user recorded in `user_created_id` (set by
      * FeatureService::comment()); everyone else needs a moderator role.
      */
@@ -77,7 +93,7 @@ class FeatureCommentsRelationManager extends RelationManager
             return true;
         }
 
-        return method_exists($user, 'hasRole') && $user->hasRole(static::MODERATOR_ROLES);
+        return $this->userIsFeatureModerator();
     }
 
     public function form(Schema $schema): Schema
@@ -154,10 +170,16 @@ class FeatureCommentsRelationManager extends RelationManager
                     ->using(function (array $data, RelationManager $livewire): FeatureComment {
                         $feature = $livewire->getOwnerRecord();
 
+                        // core 2.4.0 gave comment() an optional 4th param for
+                        // the admin-reply flag. This RM already decides who is
+                        // a moderator for its own UI, so pass that decision in
+                        // rather than letting core re-derive it and risk the
+                        // badge disagreeing with the buttons beside it.
                         $comment = app(FeatureService::class)->comment(
                             $feature,
                             auth()->user(),
-                            $data['body']
+                            $data['body'],
+                            $livewire->userIsFeatureModerator(),
                         );
 
                         if (! empty($data['parent_id'])) {

@@ -53,13 +53,7 @@ trait HasQuoteSendAction
     protected function quoteDownloadPdfAction(): Action
     {
         return $this->downloadPdfAction(
-            fn (Quote $record) => $this->streamPdfDownload(
-                $record,
-                'quote',
-                'quote',
-                'laravel-crm::quotes.pdf',
-                $this->quotePdfViewData($record),
-            ),
+            fn (Quote $record) => $this->streamPdfDownload($record, 'quote'),
         );
     }
 
@@ -85,28 +79,6 @@ trait HasQuoteSendAction
 
     protected function generateQuotePdf(Quote $record): string
     {
-        return $this->renderPdfToDisk(
-            $record,
-            'quote',
-            'quote',
-            'laravel-crm::quotes.pdf',
-            $this->quotePdfViewData($record),
-        );
-    }
-
-    protected function quotePdfViewData(Quote $record): array
-    {
-        $settings = app('laravel-crm.settings');
-
-        return [
-            'quote' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
+        return $this->renderPdfToDisk($record, 'quote');
     }
 }

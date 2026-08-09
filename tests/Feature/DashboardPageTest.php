@@ -5,6 +5,8 @@ use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Panel;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Pages\Dashboard;
+use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
+use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 use VentureDrake\LaravelCrmFilament\Widgets\CampaignPerformanceChart;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
@@ -39,6 +41,26 @@ function us008WithPanel(array $modules, callable $fn)
         Filament::setCurrentPanel(null);
     }
 }
+
+/**
+ * The three data widgets are permission-gated as of 1.1.0 — with ActivityPolicy
+ * now registered in core 2.4.0, "intentionally ungated" was no longer
+ * defensible for RecentActivityList, and the same argument applies to the
+ * tasks list and the contacts stat. Every widget-layout assertion therefore
+ * needs an authenticated user who holds them.
+ */
+beforeEach(function () {
+    RoleSeeder::seed();
+
+    $user = User::create([
+        'name' => 'Dashboard Tester',
+        'email' => 'dashboard-' . uniqid() . '@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+    $user->assignRole('Owner');
+
+    $this->actingAs($user->fresh());
+});
 
 it('plugin Dashboard page extends the Filament Dashboard base', function () {
     expect(is_subclass_of(Dashboard::class, BaseDashboard::class))->toBeTrue();
@@ -79,7 +101,7 @@ it('returns the 9-widget layout matching the core /crm/dashboard when every gate
         ->and($widgets)->not->toContain(CampaignPerformanceChart::class);
 });
 
-it('surfaces only the ungated widgets when every module is disabled', function () {
+it('surfaces only the module-independent widgets when every module is disabled', function () {
     $widgets = us008WithPanel([
         'leads' => false,
         'deals' => false,

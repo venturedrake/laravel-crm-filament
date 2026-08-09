@@ -89,14 +89,16 @@ it('ViewQuote header actions render in the documented order with Edit at gray co
     $actions = showActionOrderInvokeHeaderActions(ViewQuote::class);
 
     $names = array_map(fn ($a) => $a->getName(), $actions);
+    // Send sits directly after Back-to-index — it is the action an operator
+    // reaches for most often on a quote they are looking at.
     expect($names)->toBe([
         'backToIndex',
+        'send',
         'accept',
         'reject',
         'unaccept',
         'unreject',
         'convertToOrder',
-        'send',
         'previewPortal',
         'downloadPdf',
         'edit',

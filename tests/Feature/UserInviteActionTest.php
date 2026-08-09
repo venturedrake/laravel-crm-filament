@@ -2,20 +2,23 @@
 
 use Filament\Facades\Filament;
 use Filament\Schemas\Schema as FilamentSchema;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Routing\RouteCollection;
-use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use VentureDrake\LaravelCrm\Mail\WelcomeImportedUser;
+use VentureDrake\LaravelCrm\Models\Role;
+use VentureDrake\LaravelCrm\Models\UserInvitation;
 use VentureDrake\LaravelCrmFilament\Jobs\SendUserInvite;
+use VentureDrake\LaravelCrmFilament\Notifications\UserInvitationNotification;
 use VentureDrake\LaravelCrmFilament\Resources\Users\Pages\Concerns\HasUserInviteAction;
 use VentureDrake\LaravelCrmFilament\Resources\Users\Pages\ListUsers;
+use VentureDrake\LaravelCrmFilament\Support\InvitableEmail;
+use VentureDrake\LaravelCrmFilament\Support\InvitationUrl;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\HostUser;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
@@ -23,11 +26,15 @@ use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 use function Pest\Livewire\livewire;
 
 /**
- * US-007 — the invite flow core CRM exposes at `laravel-crm.users.invite`
- * had no Filament equivalent at all. These lock in the three things that
- * matter: the invite really creates + roles + queues, only holders of
- * `create crm users` can see it, and the mail job resolves the host's
- * configured user model instead of a hardcoded `App\Models\User`.
+ * The invite action, on core 2.4.0's UserInvitation lifecycle.
+ *
+ * The plugin used to create the host user up front with a random password;
+ * 2.4.0 replaced that with an invitation the invitee redeems. These lock in
+ * what that swap has to preserve: an invitation and no user, the role vetted
+ * through Role::assignableBy() at both the dropdown and the validator, and a
+ * server-side refusal that does not depend on the button having been hidden.
+ *
+ * The SendUserInvite job tests below stay — UserImporter still uses it.
  */
 beforeEach(function () {
     RoleSeeder::seed();
@@ -94,9 +101,20 @@ function inviteActionHost(): object
         /**
          * @param  array<string, mixed>  $data
          */
-        public function invite(array $data): Model
+        public function invite(array $data): UserInvitation
         {
             return $this->inviteCrmUser($data);
+        }
+
+        /**
+         * Run the action body itself, bypassing ->visible(). That bypass is
+         * the point: it is what a hand-rolled Livewire call does.
+         *
+         * @param  array<string, mixed>  $data
+         */
+        public function runInviteAction(array $data): void
+        {
+            ($this->userInviteAction()->getActionFunction())($data);
         }
     };
 }
@@ -116,7 +134,10 @@ it('wires the invite action into the Users list page header', function () {
     expect(class_uses_recursive(ListUsers::class))->toContain(HasUserInviteAction::class);
 });
 
-it('collects name, email, role and crm_access in the invite modal', function () {
+it('collects only email and role in the invite modal', function () {
+    // The name field, the crm_access toggle and the ->unique() email rule all
+    // went with inviteCrmUser()'s forceCreate: the invitee supplies their own
+    // name and password at acceptance, and acceptance sets crm_access.
     $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
 
     /** @var ListUsers $instance */
@@ -128,85 +149,48 @@ it('collects name, email, role and crm_access in the invite modal', function () 
         $action->getSchema(FilamentSchema::make($instance))->getComponents(withHidden: true),
     );
 
-    expect($names)->toBe(['name', 'email', 'role_id', 'crm_access']);
+    expect($names)->toBe(['email', 'role_id']);
 });
 
 // ----------------------------------------------------------------------------
-// Happy path
+// Happy path — an invitation, not a user
 // ----------------------------------------------------------------------------
 
-it('creates the user with a random password, assigns the role and dispatches the invite', function () {
-    Bus::fake();
+it('creates a pending invitation and mails it, without creating a user', function () {
+    NotificationFacade::fake();
 
-    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+    $this->actingAs($inviter = inviteActionUser(['view crm users', 'create crm users']));
 
     $role = Role::findByName('Manager');
 
     livewire(ListUsers::class)
         ->callAction('invite', [
-            'name' => 'Invitee One',
             'email' => 'Invitee.One@Example.COM',
             'role_id' => $role->id,
-            'crm_access' => true,
         ])
         ->assertHasNoActionErrors();
 
-    $invited = User::where('email', 'invitee.one@example.com')->first();
+    $invitation = UserInvitation::where('email', 'invitee.one@example.com')->first();
 
-    expect($invited)->not->toBeNull()
-        ->and($invited->name)->toBe('Invitee One')
-        ->and((bool) $invited->crm_access)->toBeTrue()
-        ->and($invited->roles->pluck('name')->all())->toBe(['Manager']);
+    expect($invitation)->not->toBeNull()
+        ->and($invitation->role_id)->toBe($role->id)
+        ->and($invitation->invited_by)->toBe($inviter->id)
+        ->and($invitation->last_sent_at)->not->toBeNull()
+        // The observer mints both of these; a builder insert would not.
+        ->and($invitation->external_id)->not->toBeEmpty()
+        ->and(strlen((string) $invitation->code))->toBe(64)
+        // Core's invitations are open-ended, and the plugin is single-tenant.
+        ->and($invitation->expires_at)->toBeNull()
+        ->and($invitation->team_id)->toBeNull();
 
-    Bus::assertDispatched(
-        SendUserInvite::class,
-        fn (SendUserInvite $job) => $job->email === 'invitee.one@example.com',
-    );
-});
+    // No host user until the invitation is redeemed.
+    expect(User::where('email', 'invitee.one@example.com')->exists())->toBeFalse();
 
-it('hashes a random password rather than storing anything guessable', function () {
-    Bus::fake();
-
-    $host = inviteActionHost();
-
-    $first = $host->invite(['name' => 'Random One', 'email' => 'random.one@example.com', 'crm_access' => true]);
-    $second = $host->invite(['name' => 'Random Two', 'email' => 'random.two@example.com', 'crm_access' => true]);
-
-    expect($first->password)->not->toBeEmpty()
-        ->and($first->password)->not->toBe($second->password)
-        ->and(Hash::isHashed($first->password))->toBeTrue()
-        ->and(Str::startsWith($first->password, '$'))->toBeTrue();
-});
-
-it('stores crm_access off when the toggle is cleared', function () {
-    Bus::fake();
-
-    $invited = inviteActionHost()->invite([
-        'name' => 'No Panel',
-        'email' => 'no.panel@example.com',
-        'crm_access' => false,
-    ]);
-
-    expect((bool) $invited->fresh()->crm_access)->toBeFalse();
-});
-
-it('invites without a role when none is chosen', function () {
-    Bus::fake();
-
-    $invited = inviteActionHost()->invite([
-        'name' => 'Roleless',
-        'email' => 'roleless@example.com',
-        'role_id' => null,
-        'crm_access' => true,
-    ]);
-
-    expect($invited->roles)->toHaveCount(0);
-
-    Bus::assertDispatched(SendUserInvite::class);
+    NotificationFacade::assertSentOnDemand(UserInvitationNotification::class);
 });
 
 it('rejects an email that already belongs to a user', function () {
-    Bus::fake();
+    NotificationFacade::fake();
 
     User::create([
         'name' => 'Already Here',
@@ -218,13 +202,66 @@ it('rejects an email that already belongs to a user', function () {
 
     livewire(ListUsers::class)
         ->callAction('invite', [
-            'name' => 'Duplicate',
             'email' => 'already.here@example.com',
-            'crm_access' => true,
+            'role_id' => Role::findByName('Manager')->id,
         ])
         ->assertHasActionErrors(['email']);
 
-    Bus::assertNotDispatched(SendUserInvite::class);
+    expect(UserInvitation::where('email', 'already.here@example.com')->exists())->toBeFalse();
+    NotificationFacade::assertNothingSent();
+});
+
+it('rejects a second invitation while one is still pending', function () {
+    NotificationFacade::fake();
+
+    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+
+    UserInvitation::create([
+        'email' => 'pending@example.com',
+        'role_id' => Role::findByName('Manager')->id,
+        'last_sent_at' => now(),
+    ]);
+
+    livewire(ListUsers::class)
+        ->callAction('invite', [
+            'email' => 'pending@example.com',
+            'role_id' => Role::findByName('Manager')->id,
+        ])
+        ->assertHasActionErrors(['email']);
+
+    expect(UserInvitation::where('email', 'pending@example.com')->count())->toBe(1);
+});
+
+it('rejects a role the caller is not entitled to hand out', function () {
+    NotificationFacade::fake();
+
+    // A non-Owner may not mint an Owner invitation. AssignableRole rejects the
+    // payload before anything is written.
+    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+
+    livewire(ListUsers::class)
+        ->callAction('invite', [
+            'email' => 'escalation@example.com',
+            'role_id' => Role::findByName('Owner')->id,
+        ])
+        ->assertHasActionErrors(['role_id']);
+
+    expect(UserInvitation::where('email', 'escalation@example.com')->exists())->toBeFalse();
+});
+
+it('never offers Owner in the invite role dropdown to a non-Owner', function () {
+    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+
+    /** @var ListUsers $instance */
+    $instance = livewire(ListUsers::class)->instance();
+
+    $components = $instance->getAction('invite')
+        ->getSchema(FilamentSchema::make($instance))
+        ->getComponents(withHidden: true);
+
+    $roleSelect = collect($components)->firstWhere(fn ($c) => $c->getName() === 'role_id');
+
+    expect($roleSelect->getOptions())->not->toContain('Owner');
 });
 
 // ----------------------------------------------------------------------------
@@ -251,6 +288,46 @@ it('hides the invite action from a user without create crm users', function () {
     expect($user->fresh()->hasPermissionTo('view crm users'))->toBeTrue();
 
     livewire(ListUsers::class)->assertActionHidden('invite');
+});
+
+it('refuses the invite server-side for a caller without create crm users', function () {
+    // ->visible() hides a button; the abort_unless as the action closure's
+    // first statement is what stops a hand-rolled Livewire call, which does
+    // not go anywhere near ->visible().
+    $user = User::create([
+        'name' => 'Employee Caller',
+        'email' => 'employee-caller-' . Str::random(8) . '@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+    $user->assignRole('Employee');
+
+    $this->actingAs($user->fresh());
+
+    expect(fn () => inviteActionHost()->runInviteAction([
+        'email' => 'sneaky@example.com',
+        'role_id' => Role::findByName('Manager')->id,
+    ]))->toThrow(HttpException::class);
+
+    expect(UserInvitation::where('email', 'sneaky@example.com')->exists())->toBeFalse();
+});
+
+it('refuses the invite server-side under multi-tenancy, not just in the UI', function () {
+    // The tenancy check used to live only in ->visible(), which hides a button
+    // and stops nothing. A holder of `create crm users` could still mint an
+    // untenanted invitation through a hand-rolled Livewire call — on a panel
+    // whose whole posture is "we do not scope, so we do not pretend to".
+    config()->set('laravel-crm.teams', true);
+
+    $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
+
+    livewire(ListUsers::class)->assertActionHidden('invite');
+
+    expect(fn () => inviteActionHost()->runInviteAction([
+        'email' => 'untenanted@example.com',
+        'role_id' => Role::findByName('Manager')->id,
+    ]))->toThrow(HttpException::class);
+
+    expect(UserInvitation::where('email', 'untenanted@example.com')->exists())->toBeFalse();
 });
 
 it('gates on the create crm users permission name', function () {
@@ -312,22 +389,23 @@ it('resolves a host user model that is not App\\Models\\User', function () {
         && $mail->recipientEmail === 'host.invitee@example.com');
 });
 
-it('creates the invited user through the host\'s configured model', function () {
-    Bus::fake();
+it('vets the invite email against the host\'s configured model, not App\\Models\\User', function () {
     createHostUsersTable();
 
     config()->set('auth.providers.users.model', HostUser::class);
 
-    $invited = inviteActionHost()->invite([
-        'name' => 'Host Created',
-        'email' => 'host.created@example.com',
-        'crm_access' => true,
+    HostUser::forceCreate([
+        'name' => 'Host Occupant',
+        'email' => 'host.occupant@example.com',
+        'password' => bcrypt('secret'),
     ]);
 
-    expect($invited)->toBeInstanceOf(HostUser::class)
-        ->and(HostUser::where('email', 'host.created@example.com')->exists())->toBeTrue()
-        // The record must NOT have landed in the package's default users table.
-        ->and(User::where('email', 'host.created@example.com')->exists())->toBeFalse();
+    $failures = [];
+    (new InvitableEmail)->validate('email', 'host.occupant@example.com', function ($message) use (&$failures) {
+        $failures[] = $message;
+    });
+
+    expect($failures)->toHaveCount(1);
 });
 
 it('never hardcodes a user model in the invite job or action', function () {
@@ -432,20 +510,38 @@ it('mails nothing rather than a dead link when no reset route exists at all', fu
     Mail::assertNothingSent();
 });
 
-it('refuses to create the account when no set-password link can be built', function () {
-    Bus::fake();
+it('mints no invitation when there is nowhere to accept it', function () {
+    // With neither the panel route nor base's, the invitee would get a mail
+    // with a dead link. The pre-flight refuses before anything is committed.
+    NotificationFacade::fake();
 
-    forgetInviteRoute('laravel-crm.password.reset');
+    forgetInviteRoute('laravel-crm.users.invitations.accept');
+    forgetInviteRoute('filament.admin.invitations.accept');
+
+    expect(InvitationUrl::exists())->toBeFalse();
 
     $this->actingAs(inviteActionUser(['view crm users', 'create crm users']));
 
     livewire(ListUsers::class)
         ->callAction('invite', [
-            'name' => 'Never Created',
-            'email' => 'never.created@example.com',
-            'crm_access' => true,
+            'email' => 'never.invited@example.com',
+            'role_id' => Role::findByName('Manager')->id,
         ]);
 
-    expect(User::where('email', 'never.created@example.com')->exists())->toBeFalse();
-    Bus::assertNotDispatched(SendUserInvite::class);
+    expect(UserInvitation::where('email', 'never.invited@example.com')->exists())->toBeFalse();
+    NotificationFacade::assertNothingSent();
+});
+
+it('prefers the panel accept route over base\'s', function () {
+    // Base's route only exists while laravel-crm.user_interface is on; the
+    // panel's is the one that works in the plugin's recommended install.
+    expect(InvitationUrl::panelRouteName())->toBe('filament.admin.invitations.accept');
+
+    $invitation = UserInvitation::create([
+        'email' => 'route.check@example.com',
+        'last_sent_at' => now(),
+    ]);
+
+    expect(InvitationUrl::acceptUrl($invitation))
+        ->toContain('admin/invitations/accept/' . $invitation->code);
 });

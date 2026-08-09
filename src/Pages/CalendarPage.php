@@ -77,17 +77,27 @@ class CalendarPage extends Page
         $events = [];
 
         if ($this->typeFilters['task'] ?? false) {
+            // A task that starts before the window but is due inside it (or the
+            // reverse) still belongs on the calendar, so match on either end of
+            // the span rather than on due_at alone.
             $tasks = Task::query()
-                ->whereNotNull('due_at')
-                ->whereBetween('due_at', [$startCarbon, $endCarbon])
+                ->where(function ($q) use ($startCarbon, $endCarbon) {
+                    $q->whereBetween('due_at', [$startCarbon, $endCarbon])
+                        ->orWhereBetween('start_at', [$startCarbon, $endCarbon]);
+                })
                 ->when($this->ownerFilter, fn ($q) => $q->where('user_owner_id', $this->ownerFilter))
                 ->limit(1000)
                 ->get();
             foreach ($tasks as $task) {
+                // With both ends set the task renders as a span; with only one it
+                // stays the single-point event it has always been.
+                $hasSpan = $task->start_at !== null && $task->due_at !== null;
+
                 $events[] = [
                     'id' => 'task:' . $task->external_id,
                     'title' => $task->name,
-                    'start' => optional($task->due_at)->toIso8601String(),
+                    'start' => optional($task->start_at ?? $task->due_at)->toIso8601String(),
+                    'end' => $hasSpan ? optional($task->due_at)->toIso8601String() : null,
                     'allDay' => false,
                     'extendedProps' => [
                         'type' => 'task',
@@ -154,8 +164,28 @@ class CalendarPage extends Page
             return;
         }
 
-        $column = $type === 'task' ? 'due_at' : 'start_at';
-        $record->forceFill([$column => $newDate])->save();
+        if ($type === 'task') {
+            // getEventsForRange() renders a task from start_at when it has one,
+            // so $newDate is the new start of the span. Shifting due_at by the
+            // same delta moves the task; writing only due_at would collapse the
+            // span onto the drop point.
+            if ($record->start_at !== null) {
+                $target = Carbon::parse($newDate);
+                $shift = $record->start_at->diffInSeconds($target, false);
+
+                $attributes = ['start_at' => $target];
+
+                if ($record->due_at !== null) {
+                    $attributes['due_at'] = $record->due_at->copy()->addSeconds($shift);
+                }
+
+                $record->forceFill($attributes)->save();
+            } else {
+                $record->forceFill(['due_at' => $newDate])->save();
+            }
+        } else {
+            $record->forceFill(['start_at' => $newDate])->save();
+        }
 
         $user = auth()->user();
         if ($user && method_exists($record, 'getMorphClass')) {

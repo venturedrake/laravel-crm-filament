@@ -2,59 +2,41 @@
 
 namespace VentureDrake\LaravelCrmFilament\Concerns;
 
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\Action;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 
 /**
- * Shared PDF generation + download trait for Quote / Invoice / PurchaseOrder
- * documents. Send concerns delegate file-on-disk generation here; ViewRecord
- * pages also use it to expose a standalone "Download PDF" header action.
+ * Shared PDF generation + download trait for the document ViewRecord pages and
+ * their Send concerns.
  *
- * Subdirectory convention mirrors the original Send concerns
- * (storage_path('app/laravel-crm/{type}/{id}/{prefix}-{number}.pdf')) so
- * existing mailers keep finding their attachment in the same location.
+ * The rendering itself lives in {@see CrmPdf}, which the Resources' static
+ * row-action renderers also call — page header actions are instance-bound and
+ * table row actions are static, so both entry points have to exist, but there
+ * is only one implementation behind them.
+ *
+ * The $view/$data parameters these methods used to take are gone on purpose:
+ * they were how ten hardcoded `laravel-crm::{x}.pdf` strings bypassed core
+ * 2.4.0's template picker.
  */
 trait DownloadsPdf
 {
     /**
-     * Render the given Blade view to disk and return the storage-path-relative
+     * Render the record's PDF to disk and return the storage-path-relative
      * location (e.g. `app/laravel-crm/quote/42/quote-q1042.pdf`).
      */
-    protected function renderPdfToDisk(
-        Model $record,
-        string $type,
-        string $prefix,
-        string $view,
-        array $data,
-    ): string {
-        $relativeDir = 'laravel-crm/' . $type . '/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $pdfRelative = 'app/' . $relativeDir . '/' . $this->pdfFilename($record, $type, $prefix);
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView($view, $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+    protected function renderPdfToDisk(Model $record, string $type): string
+    {
+        return CrmPdf::renderToDisk($record, $type);
     }
 
     /**
      * Stream the generated PDF as an HTTP download response.
      */
-    protected function streamPdfDownload(
-        Model $record,
-        string $type,
-        string $prefix,
-        string $view,
-        array $data,
-    ) {
-        $pdfRelative = $this->renderPdfToDisk($record, $type, $prefix, $view, $data);
-
-        return Response::download(storage_path($pdfRelative), $this->pdfFilename($record, $type, $prefix));
+    protected function streamPdfDownload(Model $record, string $type): BinaryFileResponse
+    {
+        return CrmPdf::download($record, $type);
     }
 
     /**
@@ -69,19 +51,5 @@ trait DownloadsPdf
             ->icon('heroicon-o-arrow-down-tray')
             ->color('gray')
             ->action($build);
-    }
-
-    private function pdfFilename(Model $record, string $type, string $prefix): string
-    {
-        $numberAttr = match ($type) {
-            'delivery' => 'delivery_id',
-            'order' => 'order_id',
-            'quote' => 'quote_id',
-            'invoice' => 'invoice_id',
-            'purchaseorder' => 'purchase_order_id',
-            default => 'id',
-        };
-
-        return $prefix . '-' . strtolower((string) ($record->{$numberAttr} ?? $record->external_id)) . '.pdf';
     }
 }

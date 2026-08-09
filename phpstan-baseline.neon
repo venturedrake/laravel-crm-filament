@@ -97,14 +97,26 @@ parameters:
 			path: src/Concerns/Imports/PersonImporter.php
 
 		-
-			message: '#^Call to static method forceCreate\(\) on an unknown class App\\Models\\User\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$email\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Concerns/Imports/UserImporter.php
 
 		-
-			message: '#^Call to static method where\(\) on an unknown class App\\Models\\User\.$#'
-			identifier: class.notFound
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:assignRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Concerns/Imports/UserImporter.php
+
+		-
+			message: '#^Call to function is_a\(\) with arguments class\-string\<Illuminate\\Database\\Eloquent\\Model\>, ''Illuminate\\\\Database\\\\Eloquent\\\\Model'' and true will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/Concerns/Imports/UserImporter.php
+
+		-
+			message: '#^Call to function is_string\(\) with class\-string\<Illuminate\\Database\\Eloquent\\Model\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
 			count: 1
 			path: src/Concerns/Imports/UserImporter.php
 
@@ -121,16 +133,22 @@ parameters:
 			path: src/Concerns/ImportsCsv.php
 
 		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Models\\Feature not found\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/LaravelCrmFilamentServiceProvider.php
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Notifications/UserInvitationNotification.php
 
 		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Models\\Monitor not found\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$expires_at\.$#'
+			identifier: property.notFound
 			count: 1
-			path: src/LaravelCrmFilamentServiceProvider.php
+			path: src/Notifications/UserInvitationNotification.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Pages/AcceptInvitation.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Call\:\:\$external_id\.$#'
@@ -145,6 +163,18 @@ parameters:
 			path: src/Pages/CalendarPage.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Call\|VentureDrake\\LaravelCrm\\Models\\Lunch\|VentureDrake\\LaravelCrm\\Models\\Meeting\|VentureDrake\\LaravelCrm\\Models\\Task\:\:\$due_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Pages/CalendarPage.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Call\|VentureDrake\\LaravelCrm\\Models\\Lunch\|VentureDrake\\LaravelCrm\\Models\\Meeting\|VentureDrake\\LaravelCrm\\Models\\Task\:\:\$start_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Pages/CalendarPage.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Task\:\:\$completed_at\.$#'
 			identifier: property.notFound
 			count: 1
@@ -153,7 +183,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Task\:\:\$due_at\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Pages/CalendarPage.php
 
 		-
@@ -164,6 +194,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Task\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Pages/CalendarPage.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Task\:\:\$start_at\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Pages/CalendarPage.php
@@ -331,6 +367,12 @@ parameters:
 			path: src/Pages/Reminders.php
 
 		-
+			message: '#^Using nullsafe method call on non\-nullable type VentureDrake\\LaravelCrm\\Models\\Setting\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Pages/Updates.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$created_at\.$#'
 			identifier: property.notFound
 			count: 1
@@ -349,6 +391,12 @@ parameters:
 			path: src/RelationManagers/CallsRelationManager.php
 
 		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmActivitiesRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/RelationManagers/CrmActivitiesRelationManager.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmCallsRelationManager\:\:\$form\.$#'
 			identifier: property.notFound
 			count: 8
@@ -358,6 +406,12 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:calls\(\)\.$#'
 			identifier: method.notFound
 			count: 4
+			path: src/RelationManagers/CrmCallsRelationManager.php
+
+		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmCallsRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
 			path: src/RelationManagers/CrmCallsRelationManager.php
 
 		-
@@ -391,6 +445,12 @@ parameters:
 			path: src/RelationManagers/CrmFilesRelationManager.php
 
 		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmFilesRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/RelationManagers/CrmFilesRelationManager.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
 			count: 2
@@ -409,6 +469,12 @@ parameters:
 			path: src/RelationManagers/CrmLunchesRelationManager.php
 
 		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmLunchesRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/RelationManagers/CrmLunchesRelationManager.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmMeetingsRelationManager\:\:\$form\.$#'
 			identifier: property.notFound
 			count: 8
@@ -418,6 +484,12 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:meetings\(\)\.$#'
 			identifier: method.notFound
 			count: 4
+			path: src/RelationManagers/CrmMeetingsRelationManager.php
+
+		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmMeetingsRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
 			path: src/RelationManagers/CrmMeetingsRelationManager.php
 
 		-
@@ -433,6 +505,12 @@ parameters:
 			path: src/RelationManagers/CrmNotesRelationManager.php
 
 		-
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmNotesRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/RelationManagers/CrmNotesRelationManager.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmTasksRelationManager\:\:\$form\.$#'
 			identifier: property.notFound
 			count: 8
@@ -445,56 +523,32 @@ parameters:
 			path: src/RelationManagers/CrmTasksRelationManager.php
 
 		-
-			message: '#^Access to property \$body on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
+			message: '#^Property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmTasksRelationManager\:\:\$view \(view\-string\) does not accept default value of type string\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: src/RelationManagers/CrmTasksRelationManager.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\FeatureComment\:\:\$body\.$#'
+			identifier: property.notFound
 			count: 3
 			path: src/RelationManagers/FeatureCommentsRelationManager.php
 
 		-
-			message: '#^Access to property \$created_at on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\FeatureComment\:\:\$created_at\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/RelationManagers/FeatureCommentsRelationManager.php
 
 		-
-			message: '#^Access to property \$id on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/RelationManagers/FeatureCommentsRelationManager.php
-
-		-
-			message: '#^Anonymous function has invalid return type VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
+			message: '#^Call to an undefined method Filament\\Resources\\RelationManagers\\RelationManager\:\:userIsFeatureModerator\(\)\.$#'
+			identifier: method.notFound
 			count: 1
 			path: src/RelationManagers/FeatureCommentsRelationManager.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:comments\(\)\.$#'
 			identifier: method.notFound
-			count: 2
-			path: src/RelationManagers/FeatureCommentsRelationManager.php
-
-		-
-			message: '#^Call to method comment\(\) on an unknown class VentureDrake\\LaravelCrm\\Services\\FeatureService\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/RelationManagers/FeatureCommentsRelationManager.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Services\\FeatureService not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/RelationManagers/FeatureCommentsRelationManager.php
-
-		-
-			message: '#^Parameter \$c of anonymous function has invalid type VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/RelationManagers/FeatureCommentsRelationManager.php
-
-		-
-			message: '#^Parameter \$record of anonymous function has invalid type VentureDrake\\LaravelCrm\\Models\\FeatureComment\.$#'
-			identifier: class.notFound
 			count: 2
 			path: src/RelationManagers/FeatureCommentsRelationManager.php
 
@@ -813,13 +867,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$external_id\.$#'
 			identifier: property.notFound
-			count: 3
-			path: src/Resources/Deliveries/DeliveryResource.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$order\.$#'
-			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Resources/Deliveries/DeliveryResource.php
 
 		-
@@ -842,12 +890,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Field\:\:\$type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deliveries/DeliveryResource.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$quantity\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Deliveries/DeliveryResource.php
@@ -913,25 +955,7 @@ parameters:
 			path: src/Resources/Deliveries/Pages/EditDelivery.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deliveries/Pages/ViewDelivery.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deliveries/Pages/ViewDelivery.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deliveries/Pages/ViewDelivery.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$order\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Deliveries/Pages/ViewDelivery.php
@@ -997,18 +1021,6 @@ parameters:
 			path: src/Resources/EmailCampaigns/RelationManagers/RecipientsRelationManager.php
 
 		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Models\\FeatureStatus not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/FeatureStatuses/FeatureStatusResource.php
-
-		-
-			message: '#^Static property VentureDrake\\LaravelCrmFilament\\Resources\\FeatureStatuses\\FeatureStatusResource\:\:\$model \(class\-string\<Illuminate\\Database\\Eloquent\\Model\>\|null\) does not accept default value of type string\.$#'
-			identifier: property.defaultValue
-			count: 1
-			path: src/Resources/FeatureStatuses/FeatureStatusResource.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$feature_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1028,6 +1040,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_owner_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Features/FeatureResource.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\FeatureStatus\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Features/FeatureResource.php
@@ -1069,39 +1087,9 @@ parameters:
 			path: src/Resources/Features/FeatureResource.php
 
 		-
-			message: '#^Call to method fields\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/FeatureResource.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/FeatureResource.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureStatus\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Resources/Features/FeatureResource.php
-
-		-
 			message: '#^Cannot access property \$id on class\-string\|object\.$#'
 			identifier: property.nonObject
 			count: 1
-			path: src/Resources/Features/FeatureResource.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Models\\Feature not found\.$#'
-			identifier: class.notFound
-			count: 3
-			path: src/Resources/Features/FeatureResource.php
-
-		-
-			message: '#^Parameter \$record of anonymous function has invalid type VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
 			path: src/Resources/Features/FeatureResource.php
 
 		-
@@ -1111,104 +1099,26 @@ parameters:
 			path: src/Resources/Features/FeatureResource.php
 
 		-
-			message: '#^Static property VentureDrake\\LaravelCrmFilament\\Resources\\Features\\FeatureResource\:\:\$model \(class\-string\<Illuminate\\Database\\Eloquent\\Model\>\|null\) does not accept default value of type string\.$#'
-			identifier: property.defaultValue
-			count: 1
-			path: src/Resources/Features/FeatureResource.php
-
-		-
-			message: '#^Call to method create\(\) on an unknown class VentureDrake\\LaravelCrm\\Services\\FeatureService\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/CreateFeature.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureStatus\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/CreateFeature.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Services\\FeatureService not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/CreateFeature.php
-
-		-
-			message: '#^Call to method refresh\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/EditFeature.php
-
-		-
-			message: '#^Call to method update\(\) on an unknown class VentureDrake\\LaravelCrm\\Services\\FeatureService\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/EditFeature.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Services\\FeatureService not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/EditFeature.php
-
-		-
-			message: '#^PHPDoc tag @var for variable \$record contains unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/EditFeature.php
-
-		-
-			message: '#^PHPDoc tag @var with type VentureDrake\\LaravelCrm\\Models\\Feature is not subtype of native type Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: varTag.nativeType
-			count: 1
-			path: src/Resources/Features/Pages/EditFeature.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Resources/Features/Pages/FeatureKanban.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureStatus\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$feature_status_id\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Features/Pages/FeatureKanban.php
 
 		-
-			message: '#^Method VentureDrake\\LaravelCrmFilament\\Resources\\Features\\Pages\\FeatureKanban\:\:getFeaturesByStatus\(\) has invalid return type VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/FeatureKanban.php
-
-		-
-			message: '#^Method VentureDrake\\LaravelCrmFilament\\Resources\\Features\\Pages\\FeatureKanban\:\:getStatuses\(\) has invalid return type VentureDrake\\LaravelCrm\\Models\\FeatureStatus\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/FeatureKanban.php
-
-		-
-			message: '#^Type VentureDrake\\LaravelCrm\\Models\\Feature in generic type Illuminate\\Database\\Eloquent\\Collection\<int, VentureDrake\\LaravelCrm\\Models\\Feature\> in PHPDoc tag @return is not subtype of template type TModel of Illuminate\\Database\\Eloquent\\Model of class Illuminate\\Database\\Eloquent\\Collection\.$#'
-			identifier: generics.notSubtype
-			count: 1
-			path: src/Resources/Features/Pages/FeatureKanban.php
-
-		-
-			message: '#^Access to property \$external_id on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$external_id\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Features/Pages/ViewFeature.php
 
 		-
-			message: '#^Access to property \$is_public on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$is_public\.$#'
+			identifier: property.notFound
 			count: 2
 			path: src/Resources/Features/Pages/ViewFeature.php
 
 		-
-			message: '#^Access to property \$status on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$status\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Features/Pages/ViewFeature.php
 
@@ -1216,18 +1126,6 @@ parameters:
 			message: '#^Cannot access property \$title on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 1
-			path: src/Resources/Features/Pages/ViewFeature.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Models\\Feature not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Features/Pages/ViewFeature.php
-
-		-
-			message: '#^Parameter \$r of anonymous function has invalid type VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
 			path: src/Resources/Features/Pages/ViewFeature.php
 
 		-
@@ -1377,7 +1275,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$external_id\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
@@ -1387,15 +1285,9 @@ parameters:
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/InvoiceResource.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 4
+			count: 1
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
@@ -1447,18 +1339,6 @@ parameters:
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/EditInvoice.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/EditInvoice.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$invoiceLines\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1467,32 +1347,14 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Invoices/Pages/EditInvoice.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 2
 			path: src/Resources/Invoices/Pages/EditInvoice.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: src/Resources/Invoices/Pages/EditInvoice.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/ViewInvoice.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/ViewInvoice.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$due_date\.$#'
@@ -1507,15 +1369,9 @@ parameters:
 			path: src/Resources/Invoices/Pages/ViewInvoice.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$organization\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/ViewInvoice.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 4
+			count: 1
 			path: src/Resources/Invoices/Pages/ViewInvoice.php
 
 		-
@@ -1717,86 +1573,26 @@ parameters:
 			path: src/Resources/Leads/Pages/ViewLead.php
 
 		-
-			message: '#^Call to method create\(\) on an unknown class VentureDrake\\LaravelCrm\\Services\\MonitorService\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/CreateMonitor.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Services\\MonitorService not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/CreateMonitor.php
-
-		-
-			message: '#^Call to method refresh\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/EditMonitor.php
-
-		-
-			message: '#^Call to method update\(\) on an unknown class VentureDrake\\LaravelCrm\\Services\\MonitorService\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/EditMonitor.php
-
-		-
-			message: '#^Class VentureDrake\\LaravelCrm\\Services\\MonitorService not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/EditMonitor.php
-
-		-
-			message: '#^PHPDoc tag @var for variable \$record contains unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/EditMonitor.php
-
-		-
-			message: '#^PHPDoc tag @var with type VentureDrake\\LaravelCrm\\Models\\Monitor is not subtype of native type Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: varTag.nativeType
-			count: 1
-			path: src/Resources/Monitors/Pages/EditMonitor.php
-
-		-
-			message: '#^Access to property \$host on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$host\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Monitors/Pages/ViewMonitor.php
 
 		-
-			message: '#^Access to property \$monitor_id on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$monitor_id\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Monitors/Pages/ViewMonitor.php
 
 		-
-			message: '#^Access to property \$name on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$name\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Monitors/Pages/ViewMonitor.php
 
 		-
-			message: '#^Access to property \$url on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Resources/Monitors/Pages/ViewMonitor.php
-
-		-
-			message: '#^Call to method getKey\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Resources/Monitors/Pages/ViewMonitor.php
-
-		-
-			message: '#^PHPDoc tag @var for variable \$record contains unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Resources/Monitors/Pages/ViewMonitor.php
-
-		-
-			message: '#^PHPDoc tag @var with type VentureDrake\\LaravelCrm\\Models\\Monitor\|null is not subtype of native type Illuminate\\Database\\Eloquent\\Model\|int\|string\|null\.$#'
-			identifier: varTag.nativeType
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$url\.$#'
+			identifier: property.notFound
 			count: 2
 			path: src/Resources/Monitors/Pages/ViewMonitor.php
 
@@ -1857,25 +1653,25 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$external_id\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 3
+			count: 2
 			path: src/Resources/Orders/OrderResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 2
 			path: src/Resources/Orders/OrderResource.php
 
 		-
@@ -1969,24 +1765,6 @@ parameters:
 			path: src/Resources/Orders/Pages/EditOrder.php
 
 		-
-			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: src/Resources/Orders/Pages/EditOrder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/Pages/ViewOrder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/Pages/ViewOrder.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$currency\.$#'
 			identifier: property.notFound
 			count: 2
@@ -1995,19 +1773,19 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
 			identifier: property.notFound
-			count: 4
+			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 4
+			count: 3
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 6
+			count: 3
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
@@ -2020,24 +1798,6 @@ parameters:
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$user_owner_id\.$#'
 			identifier: property.notFound
 			count: 3
-			path: src/Resources/Orders/Pages/ViewOrder.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$subtotal\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/Pages/ViewOrder.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$tax\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/Pages/ViewOrder.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$total\.$#'
-			identifier: property.notFound
-			count: 1
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
@@ -2115,12 +1875,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Organization\:\:\$phones\.$#'
 			identifier: property.notFound
-			count: 1
-			path: src/Resources/Organizations/OrganizationResource.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class App\\Models\\User\.$#'
-			identifier: class.notFound
 			count: 1
 			path: src/Resources/Organizations/OrganizationResource.php
 
@@ -2401,18 +2155,6 @@ parameters:
 			path: src/Resources/Products/ProductResource.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$organization\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2429,24 +2171,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/ViewPurchaseOrder.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/ViewPurchaseOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$external_id\.$#'
@@ -2517,7 +2241,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$external_id\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
 
 		-
@@ -2563,18 +2287,6 @@ parameters:
 			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/EditQuote.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/EditQuote.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$client\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2583,24 +2295,18 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Quotes/Pages/EditQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 2
 			path: src/Resources/Quotes/Pages/EditQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$quoteProducts\.$#'
 			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/EditQuote.php
-
-		-
-			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
-			identifier: notIdentical.alwaysTrue
 			count: 1
 			path: src/Resources/Quotes/Pages/EditQuote.php
 
@@ -2633,18 +2339,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/QuoteKanban.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/ViewQuote.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$accepted_at\.$#'
@@ -2691,13 +2385,13 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$organization\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 5
+			count: 2
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
@@ -2811,19 +2505,13 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$external_id\.$#'
 			identifier: property.notFound
-			count: 2
-			path: src/Resources/Quotes/QuoteResource.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$organization\.$#'
-			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/QuoteResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 4
+			count: 1
 			path: src/Resources/Quotes/QuoteResource.php
 
 		-
@@ -2878,6 +2566,12 @@ parameters:
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 2
+			path: src/Resources/Roles/RoleResource.php
+
+		-
+			message: '#^Method VentureDrake\\LaravelCrmFilament\\Resources\\Roles\\RoleResource\:\:getEloquentQuery\(\) should return Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\> but returns Illuminate\\Database\\Eloquent\\Builder\<VentureDrake\\LaravelCrm\\Models\\Role\>\.$#'
+			identifier: return.type
+			count: 1
 			path: src/Resources/Roles/RoleResource.php
 
 		-
@@ -2983,6 +2677,12 @@ parameters:
 			path: src/Resources/Tasks/TaskResource.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Task\:\:\$start_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Resources/Tasks/TaskResource.php
+
+		-
 			message: '#^Cannot access property \$id on class\-string\|object\.$#'
 			identifier: property.nonObject
 			count: 1
@@ -3031,6 +2731,18 @@ parameters:
 			path: src/Resources/Teams/Pages/ViewCrmTeam.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/UserInvitations/UserInvitationResource.php
+
+		-
+			message: '#^Method VentureDrake\\LaravelCrmFilament\\Resources\\UserInvitations\\UserInvitationResource\:\:getEloquentQuery\(\) should return Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\> but returns Illuminate\\Database\\Eloquent\\Builder\<VentureDrake\\LaravelCrm\\Models\\UserInvitation\>\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Resources/UserInvitations/UserInvitationResource.php
+
+		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:syncRoles\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -3059,6 +2771,108 @@ parameters:
 			identifier: class.notFound
 			count: 1
 			path: src/Resources/Users/UserResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/CrmPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/CrmPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$order\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/CrmPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$organization\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/CrmPdf.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$person\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Support/CrmPdf.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/InvitationUrl.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Support/OrderDrawdownPrefill.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/RemainingQuantity.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Foundation\\Auth\\User\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$invited_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$role_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|Illuminate\\Database\\Eloquent\\Model\:\:hasRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:assignRole\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:removeRole\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:roles\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Support/UserInvitationAcceptor.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\EmailCampaign\:\:\$scheduled_at\.$#'
@@ -3103,62 +2917,32 @@ parameters:
 			path: src/Widgets/EmailCampaignStatsWidget.php
 
 		-
-			message: '#^Access to property \$comments_count on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureActivityStatsWidget.php
-
-		-
-			message: '#^Access to property \$views_count on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureActivityStatsWidget.php
-
-		-
-			message: '#^Access to property \$votes_count on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureActivityStatsWidget.php
-
-		-
-			message: '#^Property VentureDrake\\LaravelCrmFilament\\Widgets\\FeatureActivityStatsWidget\:\:\$record has unknown class VentureDrake\\LaravelCrm\\Models\\Feature as its type\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$comments_count\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/FeatureActivityStatsWidget.php
 
 		-
-			message: '#^Access to property \$id on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureViewsChart.php
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$views_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Widgets/FeatureActivityStatsWidget.php
 
 		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureView\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureViewsChart.php
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Feature\:\:\$votes_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Widgets/FeatureActivityStatsWidget.php
 
 		-
-			message: '#^Property VentureDrake\\LaravelCrmFilament\\Widgets\\FeatureViewsChart\:\:\$record has unknown class VentureDrake\\LaravelCrm\\Models\\Feature as its type\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\FeatureView\:\:\$viewed_at\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/FeatureViewsChart.php
 
 		-
-			message: '#^Access to property \$id on an unknown class VentureDrake\\LaravelCrm\\Models\\Feature\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureVotesChart.php
-
-		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\FeatureVote\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/FeatureVotesChart.php
-
-		-
-			message: '#^Property VentureDrake\\LaravelCrmFilament\\Widgets\\FeatureVotesChart\:\:\$record has unknown class VentureDrake\\LaravelCrm\\Models\\Feature as its type\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\FeatureVote\:\:\$created_at\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/FeatureVotesChart.php
 
@@ -3175,56 +2959,38 @@ parameters:
 			path: src/Widgets/LeadsVsDealsChart.php
 
 		-
-			message: '#^Access to property \$id on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/MonitorResponseTimeChart.php
-
-		-
-			message: '#^Access to property \$perf_threshold_ms on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\MonitorCheck\:\:\$checked_at\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/MonitorResponseTimeChart.php
 
 		-
-			message: '#^Call to static method query\(\) on an unknown class VentureDrake\\LaravelCrm\\Models\\MonitorCheck\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/MonitorResponseTimeChart.php
-
-		-
-			message: '#^Property VentureDrake\\LaravelCrmFilament\\Widgets\\MonitorResponseTimeChart\:\:\$record has unknown class VentureDrake\\LaravelCrm\\Models\\Monitor as its type\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\MonitorCheck\:\:\$response_time\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/MonitorResponseTimeChart.php
 
 		-
-			message: '#^Access to property \$last_checked_at on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$last_checked_at\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/MonitorStatsWidget.php
 
 		-
-			message: '#^Access to property \$last_response_time on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$last_response_time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Widgets/MonitorStatsWidget.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$last_status\.$#'
+			identifier: property.notFound
 			count: 2
 			path: src/Widgets/MonitorStatsWidget.php
 
 		-
-			message: '#^Access to property \$last_status on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 3
-			path: src/Widgets/MonitorStatsWidget.php
-
-		-
-			message: '#^Access to property \$last_status_code on an unknown class VentureDrake\\LaravelCrm\\Models\\Monitor\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Widgets/MonitorStatsWidget.php
-
-		-
-			message: '#^Property VentureDrake\\LaravelCrmFilament\\Widgets\\MonitorStatsWidget\:\:\$record has unknown class VentureDrake\\LaravelCrm\\Models\\Monitor as its type\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$last_status_code\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Widgets/MonitorStatsWidget.php
 

@@ -9,6 +9,7 @@ use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\ProductService;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class EditProduct extends EditRecord
 {
@@ -35,7 +36,7 @@ class EditProduct extends EditRecord
 
         $defaultPrice = $product->getDefaultPrice();
         if ($defaultPrice) {
-            $data['unit_price'] = $defaultPrice->price !== null ? $defaultPrice->price / 100 : null;
+            $data['unit_price'] = MoneyForm::centsToForm($defaultPrice->price);
             $data['currency'] = $defaultPrice->currency ?: $data['currency'] ?? config('laravel-crm.default_currency', 'USD');
         }
 

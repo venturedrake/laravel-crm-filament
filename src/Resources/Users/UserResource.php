@@ -15,10 +15,12 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
-use Ramsey\Uuid\Uuid;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Str;
+use VentureDrake\LaravelCrm\Http\Rules\AssignableRole;
+use VentureDrake\LaravelCrm\Models\Role;
 use VentureDrake\LaravelCrm\Models\Team;
 use VentureDrake\LaravelCrmFilament\Concerns\ContactFieldsSchema;
+use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Users\Pages\CreateUser;
 use VentureDrake\LaravelCrmFilament\Resources\Users\Pages\EditUser;
 use VentureDrake\LaravelCrmFilament\Resources\Users\Pages\ListUsers;
@@ -85,12 +87,23 @@ class UserResource extends Resource
                 ->helperText('Required for the user to reach the Filament panel.')
                 ->default(true),
 
+            // No ->dehydrated(false) on either of these. EditRecord::save()
+            // dehydrates the form *before* mutateFormDataBeforeSave() reads the
+            // state, so a non-dehydrated key is Arr::forget'd and arrives as
+            // null — which made afterSave() call syncRoles([]) and strip the
+            // role off every user that was edited. Both keys are unset() in
+            // mutateFormDataBefore{Create,Save} instead, so nothing tries to
+            // write them as columns. See UserRoleRetainedTest.
             Forms\Components\Select::make('role_id')
                 ->label(__('laravel-crm-filament::labels.fields.role'))
-                ->options(fn () => Role::query()->orderBy('name')->pluck('name', 'id'))
+                // Role::assignableBy() is core's single predicate for "roles this
+                // caller may hand out". The rule object shares it with the
+                // dropdown so the options offered and the values accepted can
+                // never diverge — a tampered payload cannot escalate to Owner.
+                ->options(fn () => Role::assignableBy()->orderBy('name')->pluck('name', 'id'))
+                ->rules([new AssignableRole])
                 ->searchable()
                 ->preload()
-                ->dehydrated(false)
                 ->columnSpanFull(),
 
             Forms\Components\Select::make('crm_team_ids')
@@ -99,7 +112,10 @@ class UserResource extends Resource
                 ->options(fn () => Team::query()->orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->preload()
-                ->dehydrated(false)
+                // The CRM teams *module* (a grouping entity), not the
+                // laravel-crm.teams multi-tenancy flag — same gate
+                // CrmTeamResource is registered behind.
+                ->visible(fn (): bool => LaravelCrmPlugin::get()->isModuleEnabled('teams'))
                 ->columnSpanFull(),
 
             ContactFieldsSchema::phonesRepeater(),
@@ -236,7 +252,7 @@ class UserResource extends Resource
                 $existing->update($rowData);
                 $seenIds[] = (int) $existing->id;
             } elseif (! empty(array_filter($rowData, fn ($v) => $v !== null && $v !== false && $v !== ''))) {
-                $rowData['external_id'] = (string) Uuid::uuid4();
+                $rowData['external_id'] = (string) Str::uuid();
                 $created = $record->{$relation}()->create($rowData);
                 $seenIds[] = (int) $created->id;
             }

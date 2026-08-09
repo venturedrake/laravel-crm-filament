@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
@@ -7,26 +8,59 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResour
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 /**
- * laravel-crm registers portal routes for quotes and invoices only. Base's
- * `SendPurchaseOrder` mailable expands `[Online Purchase Order Link]`
- * unconditionally, so handing it an empty link mails `<a href=""></a>` — an
- * anchor with neither an href nor visible text. These lock in that the
- * placeholder is only ever offered, and only ever expanded, when the route
- * actually resolves.
+ * core 2.4.0 ships `laravel-crm.portal.purchase-orders.show` — the upstream fix
+ * PortalUrl asked for — but only inside the `laravel-crm.user_interface` gate,
+ * which the plugin's own installer turns off. Base's `SendPurchaseOrder`
+ * mailable expands `[Online Purchase Order Link]` unconditionally, so handing
+ * it an empty link mails `<a href=""></a>` — an anchor with neither an href nor
+ * visible text. These lock in that the placeholder is only ever offered, and
+ * only ever expanded, when the route actually resolves.
  */
 function purchaseOrderPortalRoute(): void
 {
+    if (Route::has(PurchaseOrderPortalLink::ROUTE)) {
+        return;
+    }
+
     Route::get('p/purchase-orders/{external_id}', fn () => '')
         ->name(PurchaseOrderPortalLink::ROUTE);
     Route::getRoutes()->refreshNameLookups();
 }
 
-it('reports the portal as unavailable on a stock install', function () {
+/**
+ * Reproduce a panel-only install, where core's portal routes never load.
+ */
+function withoutPurchaseOrderPortalRoute(): void
+{
+    $remaining = new RouteCollection;
+
+    foreach (Route::getRoutes() as $route) {
+        if ($route->getName() === PurchaseOrderPortalLink::ROUTE) {
+            continue;
+        }
+
+        $remaining->add($route);
+    }
+
+    app('router')->setRoutes($remaining);
+}
+
+it('reports the portal as unavailable when the route is not registered', function () {
+    withoutPurchaseOrderPortalRoute();
+
     expect(Route::has(PurchaseOrderPortalLink::ROUTE))->toBeFalse();
     expect(PurchaseOrderPortalLink::available())->toBeFalse();
 });
 
+it('reports the portal as available once core registers the route', function () {
+    purchaseOrderPortalRoute();
+
+    expect(PurchaseOrderPortalLink::available())->toBeTrue();
+});
+
 it('omits the placeholder from the default message when there is no portal route', function () {
+    withoutPurchaseOrderPortalRoute();
+
     $message = PurchaseOrderPortalLink::defaultMessage();
 
     expect($message)->not->toContain(PurchaseOrderPortalLink::PLACEHOLDER);
@@ -42,6 +76,8 @@ it('offers the placeholder in the default message once the route exists', functi
 });
 
 it('returns null rather than an empty string when the route is missing', function () {
+    withoutPurchaseOrderPortalRoute();
+
     $po = PurchaseOrder::create(['external_id' => (string) Str::uuid()]);
 
     expect(PurchaseOrderPortalLink::signedFor($po))->toBeNull();
@@ -107,6 +143,8 @@ it('gates both purchase-order send paths on the shared support class', function 
 ]);
 
 it('hides the resource-level preview action while the route is missing', function () {
+    withoutPurchaseOrderPortalRoute();
+
     $action = PurchaseOrderResource::purchaseOrderPortalActionFactory();
     $action->record(PurchaseOrder::create(['external_id' => (string) Str::uuid()]));
 

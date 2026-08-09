@@ -2,6 +2,7 @@
 
 namespace VentureDrake\LaravelCrmFilament\Concerns;
 
+use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
@@ -40,11 +41,16 @@ class ImportsCsv
 {
     /**
      * @param  class-string<Importer>  $importerClass
+     * @param  Closure|null  $visible  an extra visibility condition ANDed with the
+     *                                 importer's permission check — never a
+     *                                 replacement for it
      */
-    public static function action(string $importerClass, ?string $label = null): Action
+    public static function action(string $importerClass, ?string $label = null, ?Closure $visible = null): Action
     {
         $importer = new $importerClass;
         $label ??= 'Import CSV';
+
+        $permission = $importer->permission();
 
         return Action::make('importCsv')
             ->label($label)
@@ -57,9 +63,34 @@ class ImportsCsv
                 self::sampleDownloadAction($importer),
             ])
             ->schema(self::schema($importer))
-            ->action(function (array $data) use ($importer): void {
+            // Hiding the button is presentation; the abort_unless inside the
+            // action is the authorization. Both, because a Livewire action is
+            // callable by anyone who can reach the page whether or not the
+            // button ever rendered.
+            ->visible(fn (): bool => self::allows($permission) && ($visible === null || $visible()))
+            ->action(function (array $data) use ($importer, $permission): void {
+                abort_unless(self::allows($permission), 403);
+
                 self::runImport($importer, $data);
             });
+    }
+
+    /**
+     * Whether the current user holds $permission.
+     *
+     * Deliberately not ChecksCrmPermissions: that trait fails *open* on a
+     * missing permission row, which is defensible for a settings page and is
+     * not defensible for bulk user creation.
+     */
+    protected static function allows(?string $permission): bool
+    {
+        if ($permission === null) {
+            return true;
+        }
+
+        $user = auth()->user();
+
+        return $user !== null && $user->can($permission);
     }
 
     /**

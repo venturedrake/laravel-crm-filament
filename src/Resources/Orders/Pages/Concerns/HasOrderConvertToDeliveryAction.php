@@ -4,15 +4,19 @@ namespace VentureDrake\LaravelCrmFilament\Resources\Orders\Pages\Concerns;
 
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrmFilament\Resources\Deliveries\DeliveryResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 /**
- * Convert-to-Delivery action on Order view page. Pre-fills the full ordered
- * quantity for every line item (no per-line outstanding-quantity math here:
- * Delivery::deliveryProducts is built straight from order line quantities).
+ * Convert-to-Delivery action on the Order view page.
+ *
+ * Pre-fills the quantity still *outstanding* on each line, not the full
+ * ordered quantity — see OrderDrawdownPrefill. Lines with nothing left to
+ * deliver are dropped.
  */
 trait HasOrderConvertToDeliveryAction
 {
@@ -24,8 +28,21 @@ trait HasOrderConvertToDeliveryAction
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Create delivery from order')
-            ->modalDescription('Pre-fills the full ordered quantity for every line item.')
+            ->modalDescription('Pre-fills the quantity still outstanding on each line item.')
             ->action(function (Order $record, DeliveryService $deliveryService): void {
+                // Every line is already fully delivered, so the prefill is
+                // empty. Without this the service still writes a Delivery — a
+                // document with no lines, announced with a success toast.
+                if (! OrderDrawdownPrefill::hasRemaining($record, DeliveryProduct::class, 'delivery')) {
+                    Notification::make()
+                        ->title(__('laravel-crm-filament::labels.notifications.nothing_left_to_deliver'))
+                        ->body(__('laravel-crm-filament::labels.notifications.nothing_left_to_deliver_body'))
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 $payload = $this->buildDeliveryPayloadFromOrder($record);
 
                 $delivery = $deliveryService->create(
@@ -51,21 +68,12 @@ trait HasOrderConvertToDeliveryAction
 
     protected function buildDeliveryPayloadFromOrder(Order $record): array
     {
-        $products = [];
-
-        foreach ($record->orderProducts as $orderProduct) {
-            $products[] = [
-                'order_product_id' => $orderProduct->id,
-                'quantity' => $orderProduct->quantity,
-            ];
-        }
-
         return [
             'order_id' => $record->id,
             'delivery_expected' => now(),
             'delivered_on' => null,
             'user_owner_id' => $record->user_owner_id,
-            'products' => $products,
+            'products' => OrderDrawdownPrefill::deliveryProducts($record),
             'addresses' => [],
         ];
     }

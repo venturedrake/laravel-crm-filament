@@ -52,13 +52,7 @@ trait HasPurchaseOrderSendAction
     protected function purchaseOrderDownloadPdfAction(): Action
     {
         return $this->downloadPdfAction(
-            fn (PurchaseOrder $record) => $this->streamPdfDownload(
-                $record,
-                'purchaseorder',
-                'purchase-order',
-                'laravel-crm::purchase-orders.pdf',
-                $this->purchaseOrderPdfViewData($record),
-            ),
+            fn (PurchaseOrder $record) => $this->streamPdfDownload($record, 'purchaseorder'),
         );
     }
 
@@ -86,24 +80,6 @@ trait HasPurchaseOrderSendAction
 
     protected function generatePurchaseOrderPdf(PurchaseOrder $record): string
     {
-        return $this->renderPdfToDisk(
-            $record,
-            'purchaseorder',
-            'purchase-order',
-            'laravel-crm::purchase-orders.pdf',
-            $this->purchaseOrderPdfViewData($record),
-        );
-    }
-
-    protected function purchaseOrderPdfViewData(PurchaseOrder $record): array
-    {
-        $settings = app('laravel-crm.settings');
-
-        return [
-            'purchaseOrder' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
+        return $this->renderPdfToDisk($record, 'purchaseorder');
     }
 }

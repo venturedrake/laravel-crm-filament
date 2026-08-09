@@ -14,6 +14,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\Concerns\HasDealMarkLo
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\Concerns\HasDealMarkWonAction;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\Concerns\HasDealReopenAction;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class EditDeal extends EditRecord
 {
@@ -49,14 +50,14 @@ class EditDeal extends EditRecord
         $data['products'] = $this->record->dealProducts()->get()->map(fn ($line) => [
             'deal_product_id' => $line->id,
             'id' => $line->product_id,
-            'price' => ($line->price ?? 0) / 100,
+            'price' => MoneyForm::centsToForm($line->price) ?? 0,
             'quantity' => $line->quantity,
-            'amount' => ($line->amount ?? 0) / 100,
+            'amount' => MoneyForm::centsToForm($line->amount) ?? 0,
         ])->toArray();
 
         // Surface money fields as dollars
         if (! is_null($data['amount'] ?? null)) {
-            $data['amount'] = $data['amount'] / 100;
+            $data['amount'] = MoneyForm::centsToForm($data['amount']);
         }
 
         return $data;

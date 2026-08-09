@@ -11,24 +11,26 @@ use Illuminate\Support\Facades\URL;
  * Resolves public portal links through the base package's named routes
  * instead of hard-coding the `p/…` prefix.
  *
- * laravel-crm registers only two record portal routes — `quotes` and
- * `invoices` (vendor/venturedrake/laravel-crm/src/Http/routes.php) — and the
- * `p/` prefix itself sits behind the base package's `route_prefix` (default
- * `crm`), so a hard-coded `p/orders/…` link is a guaranteed 404. Call sites
- * resolve the URL with {@see self::for()} — null when the route is missing —
- * and gate their visibility with {@see self::exists()}.
+ * As of core 2.4.0 laravel-crm registers three record portal routes — `quotes`,
+ * `invoices` and `purchase-orders`
+ * (vendor/venturedrake/laravel-crm/src/Http/portal-routes.php) — and the `p/`
+ * prefix sits outside the CRM auth stack. There is still no
+ * `laravel-crm.portal.orders.show` or `…deliveries.show`, so a hard-coded
+ * `p/orders/…` link is a guaranteed 404. Call sites resolve the URL with
+ * {@see self::for()} — null when the route is missing — and gate their
+ * visibility with {@see self::exists()}.
  *
- * Upstream recommendation: laravel-crm should register
- * `p/orders/{order:external_id}` as `laravel-crm.portal.orders.show`,
- * `p/deliveries/{delivery:external_id}` as `laravel-crm.portal.deliveries.show`,
- * and `p/purchase-orders/{purchaseOrder:external_id}` as
- * `laravel-crm.portal.purchase-orders.show`. Until it does, those three
- * preview actions stay hidden — a plugin can only route-guard, not add the
- * base package's portal pages.
+ * Upstream recommendation (partly landed): laravel-crm should also register
+ * `p/orders/{order:external_id}` as `laravel-crm.portal.orders.show` and
+ * `p/deliveries/{delivery:external_id}` as
+ * `laravel-crm.portal.deliveries.show`. Until it does, those two preview
+ * actions stay hidden — a plugin can only route-guard, not add the base
+ * package's portal pages.
  *
- * Note that quotes and invoices also disappear when the host sets
- * `laravel-crm.user_interface=false`, since that unloads `routes.php`
- * entirely; the same `exists()` gate covers that case.
+ * All of them disappear when the host sets `laravel-crm.user_interface=false`,
+ * because that unloads `portal-routes.php` along with the rest of the web UI —
+ * and that is precisely the configuration this plugin's own installer
+ * recommends. The same `exists()` gate covers that case.
  */
 class PortalUrl
 {

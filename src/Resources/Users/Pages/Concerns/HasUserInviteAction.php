@@ -5,31 +5,35 @@ namespace VentureDrake\LaravelCrmFilament\Resources\Users\Pages\Concerns;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Spatie\Permission\Models\Role;
-use VentureDrake\LaravelCrmFilament\Concerns\ChecksCrmPermissions;
-use VentureDrake\LaravelCrmFilament\Jobs\SendUserInvite;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
+use VentureDrake\LaravelCrm\Http\Rules\AssignableRole;
+use VentureDrake\LaravelCrm\Models\Role;
+use VentureDrake\LaravelCrm\Models\UserInvitation;
+use VentureDrake\LaravelCrmFilament\Notifications\UserInvitationNotification;
 use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
+use VentureDrake\LaravelCrmFilament\Support\InvitableEmail;
+use VentureDrake\LaravelCrmFilament\Support\InvitationUrl;
+use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
+use VentureDrake\LaravelCrmFilament\Support\UserGate;
+use VentureDrake\LaravelCrmFilament\Support\UserInvitationAcceptor;
 
 /**
  * Invite-a-user header action — the Filament equivalent of core CRM's
- * `laravel-crm.users.invite` / `laravel-crm.users.sendinvite` pair, so an
- * administrator can onboard someone without leaving the panel.
+ * `Livewire\Users\UserInvite`.
  *
- * Core's `UserController@sendInvite` only flashes a message; here the invite
- * actually creates the user (random password, no password ever shown or
- * emailed), assigns the chosen Spatie role, and dispatches the plugin's
- * `SendUserInvite` job — which mails core's `WelcomeImportedUser` carrying a
- * password-reset link the invitee uses to set their own password.
+ * This used to create the host user up front with a random password and a
+ * synced role, which is exactly what core 2.4.0 replaced: a mistyped address
+ * left a real account nobody could sign into, burning the unique email index,
+ * and the role was assigned before anyone proved they controlled the mailbox.
+ * Now it mints a {@see UserInvitation} and mails a one-time code; the account
+ * is created (or granted CRM access) only at redemption — see
+ * {@see UserInvitationAcceptor}.
  */
 trait HasUserInviteAction
 {
-    use ChecksCrmPermissions;
-
     /**
      * Core CRM's UserPolicy::create() permission, seeded by
      * LaravelCrmTablesSeeder.
@@ -44,36 +48,46 @@ trait HasUserInviteAction
             ->color('gray')
             ->modalHeading(__('laravel-crm-filament::labels.actions.invite_user'))
             ->modalSubmitActionLabel(__('laravel-crm-filament::labels.actions.send_invite'))
-            ->visible(fn (): bool => static::canInviteCrmUsers())
+            // Runs core's UserPolicy rather than a raw permission string
+            // through the fail-open ChecksCrmPermissions trait — see UserGate
+            // for why it is not a bare Gate::allows(). ->authorize() is
+            // enforced server-side on mount and on call, not merely hidden.
+            // The tenancy check belongs in authorize(), not only in visible():
+            // ->visible() hides a button, it does not stop a hand-rolled
+            // Livewire call, and a holder of `create crm users` could otherwise
+            // still mint an untenanted invitation on a teams install.
+            ->authorize(fn (): bool => static::canInviteCrmUsers() && ! TenancyGuard::isEnabled())
+            ->visible(fn (): bool => static::canInviteCrmUsers() && ! TenancyGuard::isEnabled())
             ->schema([
-                TextInput::make('name')
-                    ->label(__('laravel-crm-filament::labels.fields.name'))
-                    ->required()
-                    ->maxLength(255),
-
                 TextInput::make('email')
                     ->label(__('laravel-crm-filament::labels.fields.email'))
                     ->email()
                     ->required()
                     ->maxLength(255)
-                    ->unique(table: static::inviteUserTable(), column: 'email'),
+                    // Core's UserInvite::rules() — reject an address that is
+                    // already a host user, and reject a second invitation while
+                    // one is still pending. No ->unique(): the invitation, not
+                    // the user row, is what is being created here.
+                    ->rules([new InvitableEmail]),
 
                 Select::make('role_id')
                     ->label(__('laravel-crm-filament::labels.fields.role'))
-                    ->options(fn () => Role::query()->orderBy('name')->pluck('name', 'id'))
+                    ->options(fn () => Role::assignableBy()->orderBy('name')->pluck('name', 'id'))
+                    ->rules([new AssignableRole])
+                    ->required()
                     ->searchable()
                     ->preload(),
-
-                Toggle::make('crm_access')
-                    ->label(__('laravel-crm-filament::labels.misc.crm_access'))
-                    ->helperText(__('laravel-crm-filament::labels.misc.crm_access_helper'))
-                    ->default(true),
             ])
             ->action(function (array $data): void {
-                // Pre-flight: without a reachable password-reset route the
-                // invitee could never set a password, so refuse before an
-                // unusable account is committed rather than after.
-                if (! SendUserInvite::canBuildSetPasswordUrl()) {
+                // The Gate again, as the first statement of the closure. A
+                // Livewire action is callable by anyone who can reach the page,
+                // whether or not ->visible() ever rendered the button.
+                abort_unless(static::canInviteCrmUsers() && ! TenancyGuard::isEnabled(), 403);
+
+                // Pre-flight: without a reachable acceptance route the invitee
+                // would receive a mail with a dead link, so refuse before the
+                // invitation is committed rather than after.
+                if (! InvitationUrl::exists()) {
                     Notification::make()
                         ->title(__('laravel-crm-filament::labels.notifications.user_invite_unavailable'))
                         ->body(__('laravel-crm-filament::labels.notifications.user_invite_unavailable_body'))
@@ -94,45 +108,38 @@ trait HasUserInviteAction
     }
 
     /**
-     * Create the invited user and queue their welcome / set-password mail.
+     * Mint the invitation and mail it.
+     *
+     * Created through the model rather than a query builder insert so the
+     * UserInvitationObserver mints `external_id` and the 64-character `code`.
+     * `team_id` is omitted (core's BelongsToTeams stamps it only when teams are
+     * on, and the plugin is single-tenant) and so is `expires_at` — core's
+     * invitations are open-ended.
      *
      * @param  array<string, mixed>  $data
      */
-    protected function inviteCrmUser(array $data): Model
+    protected function inviteCrmUser(array $data): UserInvitation
     {
-        $model = static::inviteUserModel();
+        $email = strtolower(trim((string) ($data['email'] ?? '')));
 
-        $user = $model::forceCreate([
-            'name' => trim((string) ($data['name'] ?? '')),
-            'email' => strtolower(trim((string) ($data['email'] ?? ''))),
-            // Never surfaced to anyone — the invitee sets their own password
-            // through the reset link in the invite mail.
-            'password' => Hash::make(Str::password(
-                length: 32,
-                letters: true,
-                numbers: true,
-                symbols: true,
-                spaces: false,
-            )),
-            'crm_access' => empty($data['crm_access']) ? 0 : 1,
-        ]);
+        return DB::transaction(function () use ($data, $email): UserInvitation {
+            $invitation = UserInvitation::create([
+                'email' => $email,
+                'role_id' => $data['role_id'] ?? null,
+                'invited_by' => auth()->id(),
+                'last_sent_at' => now(),
+            ]);
 
-        if (filled($data['role_id'] ?? null) && method_exists($user, 'syncRoles')) {
-            $role = Role::query()->find($data['role_id']);
+            NotificationFacade::route('mail', $email)
+                ->notify(new UserInvitationNotification($invitation));
 
-            if ($role) {
-                $user->syncRoles([$role]);
-            }
-        }
-
-        SendUserInvite::dispatch((string) $user->getAttribute('email'));
-
-        return $user;
+            return $invitation;
+        });
     }
 
     protected static function canInviteCrmUsers(): bool
     {
-        return static::userHasCrmPermission(self::INVITE_PERMISSION);
+        return UserGate::allows('create', self::INVITE_PERMISSION);
     }
 
     /**

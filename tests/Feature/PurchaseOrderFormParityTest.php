@@ -49,7 +49,7 @@ it('PurchaseOrderResource source uses the shared form concerns + delivery sectio
     expect($source)->toContain("Grid::make(['default' => 1, 'lg' => 2])");
     expect($source)->toContain('SalesDetailsSection::make([');
     expect($source)->toContain('PurchaseOrderDeliverySection::make()');
-    expect($source)->toContain("LineItemsRepeater::products('purchase_order_line_id', 'unit_price')");
+    expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'purchase_order_line_id',");
     expect($source)->toContain('MoneyTotalsRow::make()');
     expect($source)->toContain("'orderLink' => true");
     expect($source)->toContain("'expiryDateKey' => 'delivery_date'");

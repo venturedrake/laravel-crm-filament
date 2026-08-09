@@ -3,7 +3,6 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders;
 
 use BackedEnum;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Checkbox;
@@ -19,7 +18,6 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
@@ -49,6 +47,7 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\CreatePurchas
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\EditPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
+use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
@@ -100,6 +99,7 @@ class PurchaseOrderResource extends Resource
             'terms' => true,
             'stage' => false,
             'owner' => true,
+            'pdfTemplate' => 'purchase-order',
             'labels' => true,
             'labelsField' => fn () => static::labelsField(),
             'orderLink' => true,
@@ -118,7 +118,10 @@ class PurchaseOrderResource extends Resource
                 Section::make(__('laravel-crm-filament::labels.sections.products'))
                     ->columnSpan(['lg' => 1])
                     ->schema([
-                        LineItemsRepeater::products('purchase_order_line_id', 'unit_price')->defaultItems(1),
+                        LineItemsRepeater::products(
+                            fkColumn: 'purchase_order_line_id',
+                            priceField: 'unit_price',
+                        )->defaultItems(1),
                         MoneyTotalsRow::make(),
                     ]),
             ]),
@@ -439,26 +442,7 @@ class PurchaseOrderResource extends Resource
 
     protected static function renderPurchaseOrderPdfToDisk(PurchaseOrder $record): string
     {
-        $settings = app('laravel-crm.settings');
-
-        $data = [
-            'purchaseOrder' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
-
-        $relativeDir = 'laravel-crm/purchaseorder/' . $record->id;
-        Storage::makeDirectory($relativeDir);
-
-        $filename = 'purchase-order-' . strtolower((string) ($record->purchase_order_id ?? $record->external_id)) . '.pdf';
-        $pdfRelative = 'app/' . $relativeDir . '/' . $filename;
-
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView('laravel-crm::purchase-orders.pdf', $data)
-            ->save(storage_path($pdfRelative));
-
-        return $pdfRelative;
+        return CrmPdf::renderToDisk($record, 'purchaseorder');
     }
 
     public static function backToIndexAction(): Action

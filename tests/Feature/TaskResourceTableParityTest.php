@@ -24,7 +24,7 @@ beforeEach(function () {
     $this->actingAs($this->user);
 });
 
-it('renders the AC-named 7-column list in the prescribed order', function () {
+it('renders the AC-named 8-column list in the prescribed order', function () {
     $names = array_keys(livewire(ListTasks::class)->instance()->getTable()->getColumns());
 
     expect($names)->toBe([
@@ -32,6 +32,9 @@ it('renders the AC-named 7-column list in the prescribed order', function () {
         'status',
         'name',
         'description',
+        // start_at joins the table as of core 2.4.0 — toggled off by default,
+        // but getColumns() lists it. See TaskStartAtTest.
+        'start_at',
         'due_at',
         'ownerUser.name',
         'assignedToUser.name',

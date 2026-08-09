@@ -37,8 +37,12 @@ dataset('auditedResources', [
     'product' => [ProductResource::class, Product::class],
 ]);
 
-it('registers AuditsRelationManager on every primary resource', function (string $resource) {
-    expect($resource::getRelations())->toContain(AuditsRelationManager::class);
+it('is not registered on the primary resources — the History tab was removed', function (string $resource) {
+    // The audit trail is still recorded and the relation manager still ships
+    // (FeatureResource uses it); it was deliberately dropped from the primary
+    // resources' show pages along with the History tab. This assertion is
+    // inverted rather than deleted so re-adding it is a conscious act.
+    expect($resource::getRelations())->not->toContain(AuditsRelationManager::class);
 })->with('auditedResources');
 
 it('declares the relationship as audits', function () {

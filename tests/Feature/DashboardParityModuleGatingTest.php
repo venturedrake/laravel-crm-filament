@@ -4,6 +4,8 @@ use Filament\Facades\Filament;
 use Filament\Panel;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Pages\Dashboard;
+use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
+use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 use VentureDrake\LaravelCrmFilament\Widgets\CampaignPerformanceChart;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
@@ -59,6 +61,26 @@ dataset('parity_module_gates', [
 // ----------------------------------------------------------------------------
 // Single-module gate parametric tests
 // ----------------------------------------------------------------------------
+
+/**
+ * The three data widgets are permission-gated as of 1.1.0 — with ActivityPolicy
+ * now registered in core 2.4.0, "intentionally ungated" was no longer
+ * defensible for RecentActivityList, and the same argument applies to the
+ * tasks list and the contacts stat. Every widget-layout assertion therefore
+ * needs an authenticated user who holds them.
+ */
+beforeEach(function () {
+    RoleSeeder::seed();
+
+    $user = User::create([
+        'name' => 'Dashboard Tester',
+        'email' => 'dashboard-' . uniqid() . '@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+    $user->assignRole('Owner');
+
+    $this->actingAs($user->fresh());
+});
 
 it('gated widgets are absent from Dashboard::getWidgets() when the module is disabled', function (string $module, array $gatedWidgets) {
     // Start with everything ON so unrelated OR-gated widgets stay present.
@@ -208,10 +230,11 @@ it('MonthlyRevenueChart stays present when either invoices OR orders is enabled'
 });
 
 // ----------------------------------------------------------------------------
-// Ungated widgets — always present regardless of module state.
+// Module-independent widgets — present regardless of module state for a user
+// who holds the permissions they read against.
 // ----------------------------------------------------------------------------
 
-it('ContactsStatsOverview, TasksDueTodayList, RecentActivityList are ungated', function () {
+it('ContactsStatsOverview, TasksDueTodayList, RecentActivityList ignore module state', function () {
     $everythingOff = parityGatingWithPanel([
         'leads' => false, 'deals' => false, 'quotes' => false, 'orders' => false,
         'invoices' => false, 'email-marketing' => false,
@@ -220,4 +243,26 @@ it('ContactsStatsOverview, TasksDueTodayList, RecentActivityList are ungated', f
     expect($everythingOff)->toContain(ContactsStatsOverview::class)
         ->toContain(TasksDueTodayList::class)
         ->toContain(RecentActivityList::class);
+});
+
+it('drops the three data widgets for a user without the permissions they read', function () {
+    $employee = User::create([
+        'name' => 'No Permissions',
+        'email' => 'no-perms-' . uniqid() . '@example.com',
+        'password' => bcrypt('secret'),
+    ]);
+
+    $this->actingAs($employee->fresh());
+
+    $widgets = parityGatingWithPanel([
+        'leads' => true, 'deals' => true, 'quotes' => true, 'orders' => true,
+        'invoices' => true, 'email-marketing' => true,
+    ], fn () => (new Dashboard)->getWidgets());
+
+    expect($widgets)->not->toContain(ContactsStatsOverview::class)
+        ->not->toContain(TasksDueTodayList::class)
+        ->not->toContain(RecentActivityList::class)
+        // The module-gated charts are unaffected — the Dashboard page itself
+        // stays reachable, because a user who can log in has to land somewhere.
+        ->toContain(CrmStatsOverview::class);
 });

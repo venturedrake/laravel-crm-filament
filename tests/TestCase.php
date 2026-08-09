@@ -2,6 +2,7 @@
 
 namespace VentureDrake\LaravelCrmFilament\Tests;
 
+use Barryvdh\DomPDF\ServiceProvider as DomPdfServiceProvider;
 use BladeUI\Heroicons\BladeHeroiconsServiceProvider;
 use BladeUI\Icons\BladeIconsServiceProvider;
 use Codeat3\BladeForkAwesome\BladeForkAwesomeServiceProvider;
@@ -64,6 +65,9 @@ class TestCase extends Orchestra
     {
         $providers = [
             ActionsServiceProvider::class,
+            // The plugin renders PDFs directly (CrmPdf, PdfTemplatePreview), so
+            // the dompdf.wrapper binding has to exist in the harness too.
+            DomPdfServiceProvider::class,
             FilamentServiceProvider::class,
             FormsServiceProvider::class,
             InfolistsServiceProvider::class,
@@ -110,6 +114,16 @@ class TestCase extends Orchestra
         $app['config']->set('laravel-crm.encrypt_db_fields', false);
         $app['config']->set('laravel-crm.route_prefix', 'crm');
         $app['config']->set('laravel-crm.user_interface', true);
+
+        // cknow/laravel-money reads this path when a PDF template formats an
+        // amount. Its own provider is not registered in the harness, so the
+        // config key is absent and ISOCurrencies throws "Failed to load
+        // currency ISO codes." — which surfaces as a broken PDF, not a
+        // missing-provider error.
+        $app['config']->set(
+            'money.isoCurrenciesPath',
+            dirname(__DIR__) . '/vendor/moneyphp/money/resources/currency.php',
+        );
 
         // Spatie permissions in testing mode (sqlite) — see
         // create_permission_tables migration.

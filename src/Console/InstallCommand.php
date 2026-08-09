@@ -10,6 +10,7 @@ use Illuminate\Filesystem\Filesystem;
 use ReflectionClass;
 use Throwable;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
+use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 
 class InstallCommand extends Command
 {
@@ -25,12 +26,17 @@ class InstallCommand extends Command
         {--panel= : Target panel id when using --mode=inject.}
         {--force : Overwrite an existing CrmPanelProvider.}
         {--modules= : Comma separated module list forwarded to laravelcrm:install (requires laravel-crm 2.3.0+).}
-        {--skip-crm-install : Skip the venturedrake/laravel-crm install check (assume it is already installed).}';
+        {--skip-crm-install : Skip the venturedrake/laravel-crm install check (assume it is already installed).}
+        {--allow-teams : Install anyway when laravel-crm.teams is on. The panel is not tenant-aware; see the README.}';
 
     protected $description = 'Install the Laravel CRM Filament panel (publishes CrmPanelProvider at app/Providers/Filament/CrmPanelProvider.php).';
 
     public function handle(Filesystem $files): int
     {
+        if (! $this->ensureTenancySupported()) {
+            return self::FAILURE;
+        }
+
         if (! $this->ensureLaravelCrmInstalled()) {
             return self::FAILURE;
         }
@@ -49,6 +55,27 @@ class InstallCommand extends Command
         }
 
         return $this->installCrmMode($files);
+    }
+
+    /**
+     * Refuse to install onto a multi-tenant CRM.
+     *
+     * The panel is not tenant-aware — its role, permission and user queries are
+     * not team-scoped — and half-scoping is worse than not scoping, because it
+     * looks tenanted right up to the row that isn't. Install is the one moment
+     * that is interactive and trivially reversible, so it is the one place a
+     * refusal belongs; at runtime the plugin warns instead. See TenancyGuard.
+     */
+    private function ensureTenancySupported(): bool
+    {
+        if (! TenancyGuard::isEnabled() || $this->option('allow-teams')) {
+            return true;
+        }
+
+        $this->components->error(TenancyGuard::message());
+        $this->components->warn('Pass --allow-teams to install anyway.');
+
+        return false;
     }
 
     private function ensureLaravelCrmInstalled(): bool

@@ -53,13 +53,7 @@ trait HasInvoiceSendAction
     protected function invoiceDownloadPdfAction(): Action
     {
         return $this->downloadPdfAction(
-            fn (Invoice $record) => $this->streamPdfDownload(
-                $record,
-                'invoice',
-                'invoice',
-                'laravel-crm::invoices.pdf',
-                $this->invoicePdfViewData($record),
-            ),
+            fn (Invoice $record) => $this->streamPdfDownload($record, 'invoice'),
         );
     }
 
@@ -85,28 +79,6 @@ trait HasInvoiceSendAction
 
     protected function generateInvoicePdf(Invoice $record): string
     {
-        return $this->renderPdfToDisk(
-            $record,
-            'invoice',
-            'invoice',
-            'laravel-crm::invoices.pdf',
-            $this->invoicePdfViewData($record),
-        );
-    }
-
-    protected function invoicePdfViewData(Invoice $record): array
-    {
-        $settings = app('laravel-crm.settings');
-
-        return [
-            'invoice' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
-        ];
+        return $this->renderPdfToDisk($record, 'invoice');
     }
 }

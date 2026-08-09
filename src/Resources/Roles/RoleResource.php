@@ -9,9 +9,10 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
+use VentureDrake\LaravelCrm\Models\Permission;
+use VentureDrake\LaravelCrm\Models\Role;
 use VentureDrake\LaravelCrmFilament\Resources\Roles\Pages\CreateRole;
 use VentureDrake\LaravelCrmFilament\Resources\Roles\Pages\EditRole;
 use VentureDrake\LaravelCrmFilament\Resources\Roles\Pages\ListRoles;
@@ -19,6 +20,16 @@ use VentureDrake\LaravelCrmFilament\Resources\Roles\Pages\ViewRole;
 
 class RoleResource extends Resource
 {
+    /**
+     * Core's Role, not Spatie's.
+     *
+     * Core registers RolePolicy against VentureDrake\LaravelCrm\Models\Role
+     * only, and Gate::getPolicyFor() walks child -> parent, so pointing this at
+     * the Spatie parent resolved no policy at all — and Filament allows when it
+     * finds none, which left every panel user able to edit roles and grant
+     * themselves every permission. RolePolicy::view() also type-hints core's
+     * Role, so a Spatie instance would TypeError even once a policy resolved.
+     */
     protected static ?string $model = Role::class;
 
     protected static ?string $slug = 'roles';
@@ -41,7 +52,10 @@ class RoleResource extends Resource
                 ->maxLength(255),
             Forms\Components\CheckboxList::make('permissions')
                 ->relationship('permissions', 'name')
-                ->options(fn () => Permission::query()->orderBy('name')->pluck('name', 'id'))
+                // Scoped to CRM permissions: the host's own Spatie permissions
+                // are none of this screen's business, and offering them here
+                // grants them.
+                ->options(fn () => Permission::crm()->orderBy('name')->pluck('name', 'id'))
                 ->columns(3)
                 ->searchable()
                 ->bulkToggleable()
@@ -76,10 +90,6 @@ class RoleResource extends Resource
                     ->toggleable(),
             ])
             ->defaultSort('name')
-            ->filters([
-                Tables\Filters\TernaryFilter::make('crm_role')
-                    ->label(__('laravel-crm-filament::labels.misc.crm')),
-            ])
             ->recordActions([
                 Actions\ViewAction::make()
                     ->button()
@@ -97,6 +107,16 @@ class RoleResource extends Resource
             ->toolbarActions([
                 Actions\BulkActionGroup::make([Actions\DeleteBulkAction::make()]),
             ]);
+    }
+
+    /**
+     * CRM roles only. The host application's own Spatie roles are not this
+     * screen's to list, and the crm_role filter this replaces had no query()
+     * closure, so it SQL-errored on any install without the column.
+     */
+    public static function getEloquentQuery(): Builder
+    {
+        return Role::crm();
     }
 
     public static function canEdit(Model $record): bool

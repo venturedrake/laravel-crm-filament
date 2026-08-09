@@ -3,9 +3,9 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\Users\Pages;
 
 use Filament\Resources\Pages\CreateRecord;
-use Spatie\Permission\Models\Role;
 use VentureDrake\LaravelCrm\Models\Address;
 use VentureDrake\LaravelCrm\Models\Phone;
+use VentureDrake\LaravelCrm\Models\Role;
 use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
 
 class CreateUser extends CreateRecord
@@ -14,8 +14,8 @@ class CreateUser extends CreateRecord
 
     protected ?int $roleId = null;
 
-    /** @var array<int, int> */
-    protected array $crmTeamIds = [];
+    /** @var array<int, int>|null */
+    protected ?array $crmTeamIds = null;
 
     /** @var array<int, array<string, mixed>> */
     protected array $phonesPayload = [];
@@ -26,10 +26,11 @@ class CreateUser extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $this->roleId = isset($data['role_id']) ? (int) $data['role_id'] : null;
-        $this->crmTeamIds = collect($data['crm_team_ids'] ?? [])
-            ->filter()
-            ->map(fn ($id) => (int) $id)
-            ->all();
+
+        // See EditUser: absent means the teams module is off, not "no teams".
+        $this->crmTeamIds = array_key_exists('crm_team_ids', $data)
+            ? collect($data['crm_team_ids'] ?? [])->filter()->map(fn ($id) => (int) $id)->all()
+            : null;
         $this->phonesPayload = $data['phones'] ?? [];
         $this->addressesPayload = $data['addresses'] ?? [];
 
@@ -42,14 +43,15 @@ class CreateUser extends CreateRecord
     {
         $record = $this->record;
 
+        // Re-checked here as well as in the AssignableRole rule — see EditUser.
         if ($this->roleId !== null) {
-            $role = Role::query()->find($this->roleId);
+            $role = Role::assignableBy()->whereKey($this->roleId)->first();
             if ($role) {
                 $record->syncRoles([$role]);
             }
         }
 
-        if (method_exists($record, 'crmTeams')) {
+        if ($this->crmTeamIds !== null && method_exists($record, 'crmTeams')) {
             $record->crmTeams()->sync($this->crmTeamIds);
         }
 

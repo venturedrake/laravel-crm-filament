@@ -124,7 +124,12 @@ class MonitorResource extends Resource
                     Forms\Components\TextInput::make('downtime_minutes_before_alert')
                         ->label(__('laravel-crm-filament::labels.sales.minutes_downtime_before_alert'))
                         ->suffix(__('laravel-crm-filament::labels.sales.minutes'))
-                        ->helperText(__('laravel-crm-filament::labels.sales.downtime_helper'))
+                        // Core reads monitoring.perf_alert_rate_limit_minutes and
+                        // monitoring.recovered_alert_rate_limit_minutes with
+                        // inline defaults but does not ship them in
+                        // config/laravel-crm.php, so they are invisible to an
+                        // operator unless something says so. Filed upstream.
+                        ->helperText(__('laravel-crm-filament::labels.sales.downtime_helper') . ' ' . __('laravel-crm-filament::labels.sales.alert_rate_limit_helper'))
                         ->numeric()
                         ->minValue(0)
                         ->default(5),
@@ -324,6 +329,21 @@ class MonitorResource extends Resource
                         ->state(fn (?Monitor $record): string => $record?->perf_threshold_ms !== null
                             ? $record->perf_threshold_ms . ' ms'
                             : '—'),
+
+                    // core 2.4.0 rate-limits performance and recovery alerts
+                    // off these two stamps. Without them on screen, "why did I
+                    // not get an alert?" has no answer in the UI.
+                    TextEntry::make('perf_notified_at')
+                        ->label(__('laravel-crm-filament::labels.fields.perf_notified_at'))
+                        ->dateTime()
+                        ->since()
+                        ->placeholder('—'),
+
+                    TextEntry::make('recovered_notified_at')
+                        ->label(__('laravel-crm-filament::labels.fields.recovered_notified_at'))
+                        ->dateTime()
+                        ->since()
+                        ->placeholder('—'),
 
                     TextEntry::make('ownerUser.name')
                         ->label(__('laravel-crm-filament::labels.fields.owner'))

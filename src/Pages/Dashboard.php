@@ -6,6 +6,7 @@ use Filament\Facades\Filament;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Widgets\Widget;
 use Filament\Widgets\WidgetConfiguration;
+use VentureDrake\LaravelCrmFilament\Concerns\ChecksCrmPermissions;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
@@ -19,6 +20,8 @@ use VentureDrake\LaravelCrmFilament\Widgets\TasksDueTodayList;
 
 class Dashboard extends BaseDashboard
 {
+    use ChecksCrmPermissions;
+
     /**
      * Layout mirrors the core `laravel-crm` package's /crm/dashboard exactly:
      *   Sales stats → Finance stats → Contacts stat → Revenue Trend →
@@ -29,7 +32,12 @@ class Dashboard extends BaseDashboard
      * are intentionally omitted so the Filament dashboard stays feature-parity with
      * the Livewire dashboard.
      *
-     * ContactsStatsOverview, TasksDueTodayList, RecentActivityList are ungated.
+     * The Dashboard page itself stays ungated — a user who can reach the panel
+     * has to land somewhere, and gating it means a 403 immediately after login.
+     * The three widgets that read CRM data are not: with ActivityPolicy now
+     * registered in core 2.4.0, "intentionally ungated" is no longer defensible
+     * for RecentActivityList, and the same argument applies to the tasks list
+     * and the contacts stat.
      *
      * @return array<class-string<Widget> | WidgetConfiguration>
      */
@@ -50,8 +58,9 @@ class Dashboard extends BaseDashboard
             $widgets[] = DealsValueStat::class;
         }
 
-        // Contacts stat — ungated per AC.
-        $widgets[] = ContactsStatsOverview::class;
+        if (static::userCan('view crm contacts')) {
+            $widgets[] = ContactsStatsOverview::class;
+        }
 
         // Revenue Trend charts paid invoices + orders together.
         if (static::moduleEnabled('invoices') || static::moduleEnabled('orders')) {
@@ -72,11 +81,28 @@ class Dashboard extends BaseDashboard
             $widgets[] = DealStatusDoughnutChart::class;
         }
 
-        // Upcoming Tasks + Recent Activity — ungated per AC.
-        $widgets[] = TasksDueTodayList::class;
-        $widgets[] = RecentActivityList::class;
+        if (static::userCan('view crm tasks')) {
+            $widgets[] = TasksDueTodayList::class;
+        }
+
+        if (static::userCan('view crm activities')) {
+            $widgets[] = RecentActivityList::class;
+        }
 
         return $widgets;
+    }
+
+    /**
+     * Whether the current user holds a CRM permission.
+     *
+     * Uses ChecksCrmPermissions' fail-open semantics deliberately: a dashboard
+     * widget is a read-only summary, and an install that never seeded these
+     * permissions should keep the dashboard it has always had rather than
+     * losing half of it to a silent 403.
+     */
+    protected static function userCan(string $permission): bool
+    {
+        return static::userHasCrmPermission($permission);
     }
 
     /**

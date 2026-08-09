@@ -28,6 +28,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $this->form->fill([
             'name' => null,
             'description' => null,
+            'start_at' => null,
             'due_at' => now(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
@@ -48,6 +49,12 @@ class CrmTasksRelationManager extends TasksRelationManager
                     ->label(__('laravel-crm-filament::labels.fields.further_details'))
                     ->rows(3)
                     ->columnSpanFull(),
+                // core's TaskService writes start_at unconditionally, so this
+                // field has to exist or every save through here clears it.
+                Forms\Components\DateTimePicker::make('start_at')
+                    ->label(__('laravel-crm-filament::labels.fields.when_does_it_start'))
+                    ->seconds(false)
+                    ->minutesStep(15),
                 Forms\Components\DateTimePicker::make('due_at')
                     ->label(__('laravel-crm-filament::labels.fields.whens_it_due')),
                 Grid::make(2)->schema([
@@ -72,6 +79,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $task = $this->getOwnerRecord()->tasks()->create([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'start_at' => $data['start_at'] ?? null,
             'due_at' => $data['due_at'] ?? null,
             'user_owner_id' => $data['user_owner_id'] ?? auth()->id(),
             'user_assigned_id' => $data['user_assigned_id'] ?? null,
@@ -83,6 +91,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $this->form->fill([
             'name' => null,
             'description' => null,
+            'start_at' => null,
             'due_at' => now(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
@@ -107,6 +116,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $this->form->fill([
             'name' => $task->name,
             'description' => $task->description,
+            'start_at' => $task->start_at,
             'due_at' => $task->due_at,
             'user_owner_id' => $task->user_owner_id,
             'user_assigned_id' => $task->user_assigned_id,
@@ -120,6 +130,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $this->form->fill([
             'name' => null,
             'description' => null,
+            'start_at' => null,
             'due_at' => now(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
@@ -145,6 +156,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $task->update([
             'name' => $data['name'],
             'description' => $data['description'] ?? null,
+            'start_at' => $data['start_at'] ?? null,
             'due_at' => $data['due_at'] ?? null,
             'user_owner_id' => $data['user_owner_id'] ?? null,
             'user_assigned_id' => $data['user_assigned_id'] ?? null,
@@ -158,6 +170,7 @@ class CrmTasksRelationManager extends TasksRelationManager
         $this->form->fill([
             'name' => null,
             'description' => null,
+            'start_at' => null,
             'due_at' => now(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,

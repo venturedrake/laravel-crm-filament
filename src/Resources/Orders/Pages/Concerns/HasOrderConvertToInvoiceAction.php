@@ -8,6 +8,7 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 /**
  * Convert-to-Invoice action on Order view page. Hidden when an invoice already
@@ -24,7 +25,7 @@ trait HasOrderConvertToInvoiceAction
             ->color('success')
             ->requiresConfirmation()
             ->modalHeading('Convert order to invoice')
-            ->modalDescription('Creates a new invoice from this order with all line items.')
+            ->modalDescription('Creates a new invoice for the quantities still outstanding on this order.')
             ->visible(fn (Order $record): bool => $record->invoices()->count() === 0)
             ->action(function (Order $record, InvoiceService $invoiceService): void {
                 $payload = $this->buildInvoicePayloadFromOrder($record);
@@ -52,18 +53,11 @@ trait HasOrderConvertToInvoiceAction
 
     protected function buildInvoicePayloadFromOrder(Order $record): array
     {
-        $products = [];
-
-        foreach ($record->orderProducts as $orderProduct) {
-            $products[] = [
-                'id' => $orderProduct->product_id,
-                'order_product_id' => $orderProduct->id,
-                'quantity' => $orderProduct->quantity,
-                'unit_price' => $orderProduct->price !== null ? $orderProduct->price / 100 : 0,
-                'amount' => $orderProduct->amount !== null ? $orderProduct->amount / 100 : 0,
-                'comments' => $orderProduct->comments,
-            ];
-        }
+        // The remainder, not the full ordered quantity — see
+        // OrderDrawdownPrefill. Totals are recomputed from the prefilled lines
+        // so a partial invoice's header matches its own body.
+        $products = OrderDrawdownPrefill::invoiceProducts($record);
+        $totals = OrderDrawdownPrefill::totalsFor($products);
 
         return [
             'order_id' => $record->id,
@@ -72,9 +66,12 @@ trait HasOrderConvertToInvoiceAction
             'due_date' => now()->addDays((int) (app('laravel-crm.settings')->get('invoice_due_days', 30))),
             'currency' => $record->currency,
             'terms' => null,
-            'sub_total' => $record->subtotal !== null ? $record->subtotal / 100 : null,
-            'tax' => $record->tax !== null ? $record->tax / 100 : null,
-            'total' => $record->total !== null ? $record->total / 100 : null,
+            'sub_total' => $totals['sub_total'],
+            // Derived from the prefilled lines, not copied off the order: on a
+            // partial conversion the order's own tax covers quantities this
+            // invoice does not bill.
+            'tax' => $totals['tax'],
+            'total' => $totals['total'],
             'user_owner_id' => $record->user_owner_id,
             'products' => $products,
         ];

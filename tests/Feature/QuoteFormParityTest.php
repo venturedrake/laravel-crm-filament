@@ -50,7 +50,7 @@ it('QuoteResource source uses the shared form concerns and the 2-col Grid', func
     $source = file_get_contents(__DIR__ . '/../../src/Resources/Quotes/QuoteResource.php');
     expect($source)->toContain("Grid::make(['default' => 1, 'lg' => 2])");
     expect($source)->toContain('SalesDetailsSection::make([');
-    expect($source)->toContain("LineItemsRepeater::products('quote_product_id', 'unit_price')");
+    expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'quote_product_id',");
     expect($source)->toContain('MoneyTotalsRow::make()');
     expect($source)->toContain("'issueDateKey' => 'issue_at'");
     expect($source)->toContain("'expiryDateKey' => 'expire_at'");

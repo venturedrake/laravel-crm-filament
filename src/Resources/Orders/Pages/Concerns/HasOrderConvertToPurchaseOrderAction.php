@@ -14,6 +14,7 @@ use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
@@ -141,7 +142,10 @@ trait HasOrderConvertToPurchaseOrderAction
         foreach ($record->orderProducts as $orderProduct) {
             $name = optional($orderProduct->product)->name ?? '#' . $orderProduct->id;
 
-            $options[$orderProduct->id] = $name . ' × ' . (float) $orderProduct->quantity;
+            // Quantity::format drops trailing zeros, so 2.000 reads "2"
+            // and 3.500 reads "3.5" — a (float) cast renders 3.5 as "3.5" but
+            // 0.1+0.2 as "0.30000000000000004".
+            $options[$orderProduct->id] = $name . ' × ' . Quantity::format($orderProduct->quantity);
         }
 
         return $options;
@@ -228,7 +232,7 @@ trait HasOrderConvertToPurchaseOrderAction
     protected function purchaseOrderLineFromOrderProduct(OrderProduct $orderProduct): array
     {
         $unitPrice = $this->resolveSupplierUnitPrice($orderProduct->product_id, $orderProduct->price);
-        $quantity = (float) $orderProduct->quantity;
+        $quantity = Quantity::toFloat($orderProduct->quantity);
 
         return [
             'id' => $orderProduct->product_id,

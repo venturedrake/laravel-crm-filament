@@ -47,6 +47,21 @@ abstract class Importer
     abstract public function importRow(array $row): bool;
 
     /**
+     * The CRM permission required to run this import, or null when the
+     * importer is deliberately unrestricted.
+     *
+     * Importing is a create — an import that bypasses the permission its
+     * resource's Create action enforces is a hole, and for UserImporter it was
+     * a hole that let any panel user bulk-create accounts with crm_access = 1.
+     * ImportsCsv applies this both as ->visible() and as a server-side
+     * abort_unless(), because hiding a button is not authorization.
+     */
+    public function permission(): ?string
+    {
+        return null;
+    }
+
+    /**
      * Filename stem (no extension) used for the sample CSV download.
      */
     public function sampleFilename(): string

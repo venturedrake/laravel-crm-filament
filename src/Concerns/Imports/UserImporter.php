@@ -2,16 +2,21 @@
 
 namespace VentureDrake\LaravelCrmFilament\Concerns\Imports;
 
-use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use VentureDrake\LaravelCrm\Jobs\SendImportPasswordReset;
 use VentureDrake\LaravelCrm\Models\Role;
+use VentureDrake\LaravelCrmFilament\Jobs\SendUserInvite;
+use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
 
 class UserImporter extends Importer
 {
+    public function permission(): ?string
+    {
+        return 'create crm users';
+    }
+
     public function columns(): array
     {
         return [
@@ -45,12 +50,26 @@ class UserImporter extends Importer
             return false;
         }
 
-        if (User::where('email', $email)->exists()) {
+        $model = $this->userModel();
+
+        if ($model === null) {
             return false;
         }
 
+        if ($model::where('email', $email)->exists()) {
+            return false;
+        }
+
+        // Resolve and vet the role BEFORE the user row is written. An
+        // unassignable role is dropped rather than failing the row — core's
+        // behaviour: the user still gets created, an Owner can set their role
+        // afterwards, and a rejected escalation leaves nothing half-created.
+        $role = $roleName !== ''
+            ? Role::assignableBy()->where('name', $roleName)->first()
+            : null;
+
         try {
-            $user = User::forceCreate([
+            $user = $model::forceCreate([
                 'name' => $name,
                 'email' => $email,
                 'password' => Hash::make(Str::password(
@@ -67,27 +86,30 @@ class UserImporter extends Importer
             return false;
         }
 
-        if ($roleName !== '') {
-            $role = Role::crm()->where('name', $roleName)->first();
-            if ($role) {
-                $user->assignRole($role);
-            }
+        if ($role) {
+            $user->assignRole($role);
         }
 
-        if (config('laravel-crm.teams')) {
-            $team = optional(auth()->user())->currentTeam;
-            if ($team) {
-                DB::table('team_user')->insert([
-                    'team_id' => $team->id,
-                    'user_id' => $user->id,
-                    'role' => 'editor',
-                ]);
-                $user->forceFill(['current_team_id' => $team->id])->save();
-            }
-        }
-
-        SendImportPasswordReset::dispatch($user->email);
+        // The plugin's own job, not core's SendImportPasswordReset — core's is
+        // bound to App\Models\User and silently mails nothing on a host whose
+        // user model lives anywhere else. See SendUserInvite.
+        SendUserInvite::dispatch($user->email);
 
         return true;
+    }
+
+    /**
+     * The host's configured user model.
+     *
+     * Resolved through UserResource rather than a hardcoded App\Models\User so
+     * an import lands in whatever table the host actually authenticates against.
+     *
+     * @return class-string<Model>|null
+     */
+    protected function userModel(): ?string
+    {
+        $model = UserResource::getModel();
+
+        return is_string($model) && is_a($model, Model::class, true) ? $model : null;
     }
 }

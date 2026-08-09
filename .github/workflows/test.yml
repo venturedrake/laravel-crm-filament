@@ -1,8 +1,10 @@
 name: Tests
 
 on:
+  # Every branch, not just main/develop: a feature branch used to get no
+  # feedback at all until its PR opened.
   push:
-    branches: [main, develop]
+    branches: ['**']
   pull_request:
     branches: [main, develop]
 
@@ -14,8 +16,15 @@ jobs:
       matrix:
         php: ['8.2', '8.3', '8.4']
         filament: ['4.*', '5.*']
+        dependency-version: [prefer-stable]
+        include:
+          # Installs exactly the floor of every constraint — which is how a
+          # symbol that only exists on core's develop branch gets caught.
+          - php: '8.4'
+            filament: '5.*'
+            dependency-version: prefer-lowest
 
-    name: PHP ${{ matrix.php }} / Filament ${{ matrix.filament }}
+    name: PHP ${{ matrix.php }} / Filament ${{ matrix.filament }} / ${{ matrix.dependency-version }}
 
     steps:
       - name: Checkout
@@ -37,14 +46,44 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: composer-${{ matrix.php }}-filament-${{ matrix.filament }}-${{ hashFiles('**/composer.json') }}
-          restore-keys: composer-${{ matrix.php }}-filament-${{ matrix.filament }}-
+          key: composer-${{ matrix.php }}-filament-${{ matrix.filament }}-${{ matrix.dependency-version }}-${{ hashFiles('**/composer.json') }}
+          restore-keys: composer-${{ matrix.php }}-filament-${{ matrix.filament }}-${{ matrix.dependency-version }}-
 
       - name: Pin Filament version
         run: composer require "filament/filament:${{ matrix.filament }}" "filament/forms:${{ matrix.filament }}" "filament/tables:${{ matrix.filament }}" --no-update --no-interaction
 
       - name: Install dependencies
-        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+        run: composer update --${{ matrix.dependency-version }} --prefer-dist --no-interaction --no-progress --with-all-dependencies
 
       - name: Run Pest
         run: ./vendor/bin/pest --no-coverage
+
+  quality:
+    runs-on: ubuntu-latest
+    name: Static analysis and style
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, intl, gd
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction --no-progress --with-all-dependencies
+
+      # phpstan.neon.dist, the baseline, pint.json and rector.php all ship in
+      # this repo and none of them were exercised by CI before now.
+      - name: PHPStan
+        run: composer analyse
+
+      - name: Pint
+        run: composer test:lint

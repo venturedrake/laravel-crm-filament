@@ -25,12 +25,14 @@
     ],
     "require": {
         "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^3.1",
         "filament/filament": "^4.0|^5.0",
         "filament/forms": "^4.0|^5.0",
         "filament/tables": "^4.0|^5.0",
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "spatie/laravel-package-tools": "^1.15.0",
-        "venturedrake/laravel-crm": "^2.0"
+        "spatie/laravel-permission": "^6.0",
+        "venturedrake/laravel-crm": "^2.4"
     },
     "require-dev": {
         "larastan/larastan": "^3.0",
@@ -56,7 +58,7 @@
     },
     "scripts": {
         "post-autoload-dump": "@php ./vendor/bin/testbench package:discover --ansi",
-        "analyse": "phpstan analyse",
+        "analyse": "phpstan analyse --memory-limit=1G",
         "lint": "pint",
         "refactor": "rector",
         "test": "pest",

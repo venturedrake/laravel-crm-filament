@@ -4,7 +4,7 @@ use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Notification as NotificationFacade;
 use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Models\Monitor;
 use VentureDrake\LaravelCrmFilament\RelationManagers\MonitorChecksRelationManager;
@@ -153,7 +153,11 @@ it('runCheckNow dispatches RunMonitorCheck and creates a MonitorCheck row when i
     $monitorClass = 'VentureDrake\\LaravelCrm\\Models\\Monitor';
     $checkClass = 'VentureDrake\\LaravelCrm\\Models\\MonitorCheck';
 
-    Queue::fake();
+    // Notification::fake(), not Queue::fake(): Bus\Dispatcher::dispatchSync()
+    // routes a ShouldQueue job through the 'sync' connection, which QueueFake
+    // swallows — so faking the queue here would stop the very job this test
+    // exists to prove runs.
+    NotificationFacade::fake();
     Http::fake([
         '*' => Http::response('OK', 200),
     ]);

@@ -10,6 +10,11 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class ProductImporter extends Importer
 {
+    public function permission(): ?string
+    {
+        return 'create crm products';
+    }
+
     public function columns(): array
     {
         return [

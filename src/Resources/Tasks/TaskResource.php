@@ -70,6 +70,14 @@ class TaskResource extends Resource
                 ->rows(3)
                 ->columnSpanFull(),
 
+            // core's TaskService::create()/update() write 'start_at' from the
+            // request unconditionally, so a form without this field silently
+            // clears it on every save. See TaskStartAtTest.
+            Forms\Components\DateTimePicker::make('start_at')
+                ->label(__('laravel-crm-filament::labels.money.start_at'))
+                ->seconds(false)
+                ->minutesStep(15),
+
             Forms\Components\DateTimePicker::make('due_at')
                 ->label(__('laravel-crm-filament::labels.money.due_at')),
 
@@ -119,6 +127,12 @@ class TaskResource extends Resource
                             'Pending' => 'warning',
                             default => 'gray',
                         }),
+
+                    TextEntry::make('start_at')
+                        ->label(__('laravel-crm-filament::labels.money.start_at'))
+                        ->since()
+                        ->tooltip(fn (?Task $r): ?string => optional($r?->start_at)->format('M d, Y H:i'))
+                        ->placeholder('—'),
 
                     TextEntry::make('due_at')
                         ->label(__('laravel-crm-filament::labels.money.due_at'))
@@ -187,6 +201,14 @@ class TaskResource extends Resource
                     ->limit(60)
                     ->tooltip(fn (Task $record): ?string => $record->description)
                     ->toggleable(),
+
+                Tables\Columns\TextColumn::make('start_at')
+                    ->label(__('laravel-crm-filament::labels.money.start_at'))
+                    ->since()
+                    ->tooltip(fn (Task $record): ?string => optional($record->start_at)->format('M d, Y H:i'))
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make('due_at')
                     ->since()
@@ -270,6 +292,7 @@ class TaskResource extends Resource
                             'Name' => fn ($r) => $r->name,
                             'Description' => fn ($r) => $r->description,
                             'Status' => fn ($r) => $r->completed_at ? 'Completed' : 'Pending',
+                            'Start' => fn ($r) => $r->start_at,
                             'Due' => fn ($r) => $r->due_at,
                             'Completed' => fn ($r) => $r->completed_at,
                             'Owner' => fn ($r) => optional($r->ownerUser)->name,

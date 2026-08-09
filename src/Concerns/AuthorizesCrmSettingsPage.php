@@ -12,8 +12,8 @@ use Filament\Pages\Page;
  * otherwise. Core CRM gates the equivalent screens behind `view crm settings` /
  * `edit crm settings` / `view crm updates` (see
  * vendor/venturedrake/laravel-crm/resources/views/layouts/partials/nav.blade.php
- * and Http/Middleware/SystemCheck.php), so the plugin pages mirror those
- * permission names.
+ * and Services/SystemCheckService.php — the SystemCheck middleware it replaced
+ * was removed in 2.4.0), so the plugin pages mirror those permission names.
  *
  * Using classes MUST declare the permission they require:
  *

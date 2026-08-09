@@ -273,7 +273,7 @@ return new class extends Migration
                 $table->unsignedBigInteger('delivery_id');
                 $table->unsignedBigInteger('product_id')->nullable();
                 $table->unsignedBigInteger('order_product_id')->nullable();
-                $table->integer('quantity')->default(1);
+                $table->decimal('quantity', 15, 3)->default(1);
                 $table->text('comments')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
@@ -320,7 +320,7 @@ return new class extends Migration
                 $table->string('external_id')->nullable();
                 $table->unsignedBigInteger('purchase_order_id');
                 $table->unsignedBigInteger('product_id')->nullable();
-                $table->integer('quantity')->default(1);
+                $table->decimal('quantity', 15, 3)->default(1);
                 $table->decimal('unit_price', 15, 2)->nullable();
                 $table->decimal('amount', 15, 2)->nullable();
                 $table->string('currency')->nullable();
@@ -480,7 +480,7 @@ return new class extends Migration
                 $table->unsignedBigInteger('product_id')->nullable();
                 $table->unsignedBigInteger('product_variation_id')->nullable();
                 $table->bigInteger('price')->nullable();
-                $table->integer('quantity')->nullable();
+                $table->decimal('quantity', 15, 3)->nullable();
                 $table->decimal('tax_rate')->nullable();
                 $table->bigInteger('tax_amount')->nullable();
                 $table->bigInteger('amount')->nullable();
@@ -947,6 +947,56 @@ return new class extends Migration
 
                 $table->index(['team_id', 'last_checked_at']);
             });
+        }
+
+        // The host users table may come from testbench's own migrations rather
+        // than TestSchema, so add the CRM columns the importers write here.
+        foreach (['crm_access', 'mailing_list'] as $userColumn) {
+            if (Schema::hasTable('users') && ! Schema::hasColumn('users', $userColumn)) {
+                Schema::table('users', function (Blueprint $table) use ($userColumn) {
+                    $table->boolean($userColumn)->default(false);
+                });
+            }
+        }
+
+        // core 2.4.0: the invitation lifecycle. Mirrors
+        // database/updates/2026_07_26_111131_create_crm_user_invitations_table
+        // plus the soft-deletes/last_sent_at follow-up. The ->foreign() calls
+        // are dropped deliberately — the harness runs with
+        // foreign_key_constraints => false.
+        if (! Schema::hasTable($prefix . 'user_invitations')) {
+            Schema::create($prefix . 'user_invitations', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('external_id');
+                $table->string('code', 64)->unique();
+                $table->unsignedBigInteger('team_id')->index()->nullable();
+                $table->string('email');
+                $table->unsignedBigInteger('role_id')->nullable();
+                $table->unsignedBigInteger('invited_by')->nullable();
+                $table->timestamp('expires_at')->nullable();
+                $table->timestamp('accepted_at')->nullable();
+                $table->timestamp('last_sent_at')->nullable();
+                $table->timestamps();
+                $table->softDeletes();
+            });
+        }
+
+        // core 2.4.0: the per-record PDF template picker.
+        foreach (['quotes', 'orders', 'purchase_orders', 'deliveries', 'invoices'] as $documentTable) {
+            if (Schema::hasTable($prefix . $documentTable) && ! Schema::hasColumn($prefix . $documentTable, 'pdf_template')) {
+                Schema::table($prefix . $documentTable, function (Blueprint $table) {
+                    $table->string('pdf_template')->nullable();
+                });
+            }
+        }
+
+        // core 2.4.0: performance / recovery alert rate limiting.
+        foreach (['perf_notified_at', 'recovered_notified_at'] as $monitorColumn) {
+            if (Schema::hasTable($prefix . 'monitors') && ! Schema::hasColumn($prefix . 'monitors', $monitorColumn)) {
+                Schema::table($prefix . 'monitors', function (Blueprint $table) use ($monitorColumn) {
+                    $table->timestamp($monitorColumn)->nullable();
+                });
+            }
         }
 
         if (! Schema::hasTable($prefix . 'monitor_checks')) {

@@ -3,7 +3,9 @@
 namespace VentureDrake\LaravelCrmFilament\Concerns;
 
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Log;
 use Spatie\Permission\Exceptions\PermissionDoesNotExist;
+use Throwable;
 
 /**
  * Resolves a core CRM Spatie permission check for the authenticated user.
@@ -14,6 +16,13 @@ use Spatie\Permission\Exceptions\PermissionDoesNotExist;
  */
 trait ChecksCrmPermissions
 {
+    /**
+     * Permissions already warned about this process.
+     *
+     * @var array<string, true>
+     */
+    protected static array $warnedPermissions = [];
+
     /**
      * Resolve a Spatie permission check for the authenticated user.
      *
@@ -48,8 +57,38 @@ trait ChecksCrmPermissions
             }
 
             return (bool) $user->can($permission);
-        } catch (PermissionDoesNotExist | QueryException) {
+        } catch (PermissionDoesNotExist | QueryException $e) {
+            // Fail open, but never silently: an install that is missing CRM
+            // permissions looks exactly like one that is correctly configured
+            // until somebody reads a log line.
+            self::warnAboutMissingPermission($permission, $e);
+
             return true;
         }
+    }
+
+    /**
+     * Memoised per process — a settings page can check the same permission
+     * many times per request, and a warning per check is noise, not signal.
+     */
+    protected static function warnAboutMissingPermission(string $permission, Throwable $e): void
+    {
+        if (isset(self::$warnedPermissions[$permission])) {
+            return;
+        }
+
+        self::$warnedPermissions[$permission] = true;
+
+        Log::warning('[laravel-crm-filament] Allowing access because the CRM permission "' . $permission . '" is not present in this install. Re-seed the CRM permissions (php artisan laravelcrm:update) to enforce it.', [
+            'exception' => $e::class,
+        ]);
+    }
+
+    /**
+     * For tests.
+     */
+    public static function forgetPermissionWarnings(): void
+    {
+        self::$warnedPermissions = [];
     }
 }

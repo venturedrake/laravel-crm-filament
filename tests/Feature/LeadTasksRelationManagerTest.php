@@ -137,9 +137,9 @@ it('overrides the $view property to point at the lead-tasks Blade template', fun
     expect($prop->getValue($rm))->toBe('laravel-crm-filament::crm-tasks');
 });
 
-// AC (3) form() returns name/description/due_at + owner/assigned grid.
+// AC (3) form() returns name/description/start_at/due_at + owner/assigned grid.
 
-it('returns the expected form schema with name, description, due_at, owner, assigned', function () {
+it('returns the expected form schema with name, description, start_at, due_at, owner, assigned', function () {
     $rm = (new ReflectionClass(CrmTasksRelationManager::class))->newInstanceWithoutConstructor();
     $schema = $rm->form(Schema::make($rm));
 
@@ -150,14 +150,18 @@ it('returns the expected form schema with name, description, due_at, owner, assi
     expect($components[0]->getName())->toBe('name');
     expect($components[1])->toBeInstanceOf(Forms\Components\Textarea::class);
     expect($components[1]->getName())->toBe('description');
+    // start_at leads due_at: core's TaskService writes it unconditionally, so
+    // the field has to exist or every save through here clears it.
     expect($components[2])->toBeInstanceOf(Forms\Components\DateTimePicker::class);
-    expect($components[2]->getName())->toBe('due_at');
-    expect($components[3])->toBeInstanceOf(Grid::class);
+    expect($components[2]->getName())->toBe('start_at');
+    expect($components[3])->toBeInstanceOf(Forms\Components\DateTimePicker::class);
+    expect($components[3]->getName())->toBe('due_at');
+    expect($components[4])->toBeInstanceOf(Grid::class);
 
     // Walk into the Grid to confirm the owner + assigned selects are inside it.
     $gridProp = new ReflectionProperty(Grid::class, 'childComponents');
     $gridProp->setAccessible(true);
-    $gridChildren = $gridProp->getValue($components[3]);
+    $gridChildren = $gridProp->getValue($components[4]);
     $children = $gridChildren['default'] ?? $gridChildren;
 
     $childNames = array_values(array_map(fn ($c) => $c->getName(), $children));

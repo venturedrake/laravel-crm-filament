@@ -29,7 +29,13 @@ class TasksRelationManager extends RelationManager
             Forms\Components\Textarea::make('description')
                 ->rows(2)
                 ->columnSpanFull(),
-            Grid::make(2)->schema([
+            Grid::make(3)->schema([
+                // Omitting start_at here would clear it on every edit — core's
+                // TaskService::update() writes $request->start_at unconditionally.
+                Forms\Components\DateTimePicker::make('start_at')
+                    ->label(__('laravel-crm-filament::labels.money.start_at'))
+                    ->seconds(false)
+                    ->minutesStep(15),
                 Forms\Components\DateTimePicker::make('due_at')->label(__('laravel-crm-filament::labels.money.due')),
                 Forms\Components\DateTimePicker::make('completed_at')->label(__('laravel-crm-filament::labels.money.completed')),
             ]),

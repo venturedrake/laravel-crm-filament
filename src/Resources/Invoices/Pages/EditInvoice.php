@@ -11,6 +11,7 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class EditInvoice extends EditRecord
 {
@@ -46,13 +47,11 @@ class EditInvoice extends EditRecord
         foreach (['sub_total', 'discount', 'tax', 'total'] as $field) {
             $value = $data[$field] ?? null;
             if ($value !== null) {
-                $data[$field] = $value / 100;
+                $data[$field] = MoneyForm::centsToForm($value);
             }
         }
 
-        $data['adjustment'] = isset($data['adjustments']) && $data['adjustments'] !== null
-            ? $data['adjustments'] / 100
-            : null;
+        $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
         $data['products'] = $invoice->invoiceLines
             ->map(fn ($line) => [
@@ -60,9 +59,9 @@ class EditInvoice extends EditRecord
                 'order_product_id' => $line->order_product_id,
                 'id' => $line->product_id,
                 'quantity' => $line->quantity,
-                'unit_price' => $line->price !== null ? $line->price / 100 : 0,
-                'tax_amount' => $line->tax_amount !== null ? $line->tax_amount / 100 : 0,
-                'amount' => $line->amount !== null ? $line->amount / 100 : 0,
+                'unit_price' => MoneyForm::centsToForm($line->price) ?? 0,
+                'tax_amount' => MoneyForm::centsToForm($line->tax_amount) ?? 0,
+                'amount' => MoneyForm::centsToForm($line->amount) ?? 0,
                 'comments' => $line->comments,
             ])
             ->all();

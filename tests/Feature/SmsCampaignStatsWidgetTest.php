@@ -1,5 +1,6 @@
 <?php
 
+use Filament\Panel;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use VentureDrake\LaravelCrm\Models\SmsCampaign;
@@ -117,7 +118,7 @@ it('lives under the VentureDrake\\LaravelCrmFilament\\Widgets namespace', functi
 
 it('is NOT registered on the panel — referenced directly by ViewSmsCampaign::getHeaderWidgets() so it never surfaces on the Dashboard via Filament::getWidgets()', function () {
     $plugin = LaravelCrmPlugin::make();
-    $panel = \Filament\Panel::make()->id('sms-stats-not-registered-' . uniqid());
+    $panel = Panel::make()->id('sms-stats-not-registered-' . uniqid());
     $plugin->register($panel);
 
     expect($panel->getWidgets())->not->toContain(SmsCampaignStatsWidget::class);

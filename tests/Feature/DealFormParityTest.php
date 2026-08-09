@@ -134,7 +134,8 @@ it('CreateDeal resolves person_id and organization_id and persists line items vi
     expect($line->product_id)->toBe($product->getKey());
     // Stored as cents (×100).
     expect($line->price)->toBe(100 * 100);
-    expect($line->quantity)->toBe(3);
+    // decimal(15,3) since core 2.4.0, so this comes back as a float.
+    expect((float) $line->quantity)->toBe(3.0);
     expect($line->amount)->toBe(300 * 100);
 });
 

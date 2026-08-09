@@ -82,14 +82,25 @@ trait HasCrmCustomFields
 
         $data['custom_fields'] = [];
 
-        foreach ($record->fields()->with('field')->get() as $fv) {
+        foreach ($record->fields()->with('field.fieldOptions')->get() as $fv) {
             $value = $fv->value;
-            $type = $fv->field?->type;
+            $field = $fv->field;
+            $type = $field?->type;
+
             if (in_array($type, ['checkbox_multiple', 'select_multiple'], true) && $value !== null) {
                 $value = json_decode($value, true) ?: [];
+                // Legacy rows hold option value strings; the form is keyed by
+                // option id. See crmCustomFieldOptionId().
+                $value = array_values(array_filter(array_map(
+                    fn ($item) => static::crmCustomFieldOptionId($field, $item),
+                    (array) $value,
+                ), fn ($item) => $item !== null));
             } elseif ($type === 'checkbox') {
                 $value = (bool) $value;
+            } elseif (in_array($type, ['select', 'radio'], true)) {
+                $value = static::crmCustomFieldOptionId($field, $value);
             }
+
             $data['custom_fields'][$fv->field_id] = $value;
         }
 
@@ -119,5 +130,39 @@ trait HasCrmCustomFields
                 ['value' => $value],
             );
         }
+    }
+
+    /**
+     * Map a stored custom-field value onto the FieldOption id the form expects.
+     *
+     * Ported from core's HasCustomFormFields::customFieldOptionId(). As of
+     * 2.4.0 option-backed fields are keyed by the option's id, but rows written
+     * before that hold the option's `value` string instead. Hydrating those
+     * unmapped matches no Select option, so the field renders blank — and then
+     * saves blank, quietly destroying the value.
+     *
+     * @param  mixed  $value
+     */
+    protected static function crmCustomFieldOptionId($field, $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $options = $field?->fieldOptions;
+
+        if ($options === null) {
+            return (string) $value;
+        }
+
+        if ($options->contains(fn ($option) => (string) $option->id === (string) $value)) {
+            return (string) $value;
+        }
+
+        if ($option = $options->firstWhere('value', $value)) {
+            return (string) $option->id;
+        }
+
+        return (string) $value;
     }
 }

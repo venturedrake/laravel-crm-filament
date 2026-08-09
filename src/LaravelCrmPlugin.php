@@ -4,6 +4,10 @@ namespace VentureDrake\LaravelCrmFilament;
 
 use Filament\Contracts\Plugin;
 use Filament\Panel;
+use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
+use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
+use VentureDrake\LaravelCrmFilament\Pages\AcceptInvitation;
 use VentureDrake\LaravelCrmFilament\Pages\ActivityFeed;
 use VentureDrake\LaravelCrmFilament\Pages\CalendarPage;
 use VentureDrake\LaravelCrmFilament\Pages\ClickSendIntegration;
@@ -11,6 +15,7 @@ use VentureDrake\LaravelCrmFilament\Pages\Dashboard;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 use VentureDrake\LaravelCrmFilament\Pages\Integrations;
 use VentureDrake\LaravelCrmFilament\Pages\Reminders;
+use VentureDrake\LaravelCrmFilament\Pages\TemplateSettings;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
 use VentureDrake\LaravelCrmFilament\Resources\Activities\ActivityResource;
 use VentureDrake\LaravelCrmFilament\Resources\AddressTypes\AddressTypeResource;
@@ -57,12 +62,14 @@ use VentureDrake\LaravelCrmFilament\Resources\Tasks\TaskResource;
 use VentureDrake\LaravelCrmFilament\Resources\TaxRates\TaxRateResource;
 use VentureDrake\LaravelCrmFilament\Resources\Teams\CrmTeamResource;
 use VentureDrake\LaravelCrmFilament\Resources\Timezones\TimezoneResource;
+use VentureDrake\LaravelCrmFilament\Resources\UserInvitations\UserInvitationResource;
 use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroContactResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroInvoiceResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroItemResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroPurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
+use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\DealsPipelineValueChart;
@@ -94,6 +101,8 @@ class LaravelCrmPlugin implements Plugin
     protected ?string $favicon = null;
 
     protected ?string $primaryColor = null;
+
+    protected bool $allowUnsupportedTenancy = false;
 
     public function getId(): string
     {
@@ -239,6 +248,26 @@ class LaravelCrmPlugin implements Plugin
         return $this;
     }
 
+    /**
+     * Acknowledge that this panel is running with core's multi-tenancy on and
+     * is not tenant-aware, silencing the runtime warning.
+     *
+     * Not a feature switch — nothing changes behaviourally. It exists so that
+     * running anyway is a recorded decision in the panel provider rather than
+     * a banner somebody stopped reading. See TenancyGuard.
+     */
+    public function allowUnsupportedTenancy(bool $allow = true): static
+    {
+        $this->allowUnsupportedTenancy = $allow;
+
+        return $this;
+    }
+
+    public function allowsUnsupportedTenancy(): bool
+    {
+        return $this->allowUnsupportedTenancy;
+    }
+
     public function isModuleEnabled(string $module): bool
     {
         if ($this->modules !== null && array_key_exists($module, $this->modules)) {
@@ -359,6 +388,7 @@ class LaravelCrmPlugin implements Plugin
         $resources[] = FieldResource::class;
         $resources[] = RoleResource::class;
         $resources[] = UserResource::class;
+        $resources[] = UserInvitationResource::class;
 
         if ($this->isModuleEnabled('email-marketing')) {
             $resources[] = EmailTemplateResource::class;
@@ -436,6 +466,7 @@ class LaravelCrmPlugin implements Plugin
             Integrations::class,
             ClickSendIntegration::class,
             Reminders::class,
+            TemplateSettings::class,
             Updates::class,
         ];
 
@@ -463,6 +494,30 @@ class LaravelCrmPlugin implements Plugin
         ];
 
         $panel->widgets($widgets);
+
+        // A render hook, not a widget: a widget attaches per page and renders
+        // inside the content grid, which is the wrong place for a system-wide
+        // alert. See SystemCheckBanner.
+        $panel->renderHook(
+            PanelsRenderHook::CONTENT_START,
+            fn (): string => Blade::render('@livewire(\'' . SystemCheckBanner::NAME . '\')'),
+        );
+
+        $panel->renderHook(
+            PanelsRenderHook::BODY_START,
+            fn (): string => TenancyGuard::shouldWarn($this->allowUnsupportedTenancy)
+                ? Blade::render(
+                    '<div class="fi-banner bg-danger-600 px-4 py-2 text-sm text-white">{{ $message }}</div>',
+                    ['message' => TenancyGuard::message()],
+                )
+                : '',
+        );
+
+        // Registered through routes() rather than pages() so it lands in the
+        // group *before* Route::middleware($panel->getAuthMiddleware()): an
+        // invitee accepting an invitation is by definition not a panel user
+        // yet. See AcceptInvitation and InvitationUrl.
+        $panel->routes(fn (Panel $panel) => AcceptInvitation::registerPanelRoute($panel));
     }
 
     protected function panelHasDashboard(Panel $panel): bool

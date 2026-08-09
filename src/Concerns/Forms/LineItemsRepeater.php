@@ -9,7 +9,11 @@ use Illuminate\Support\Facades\Auth;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
 use VentureDrake\LaravelCrm\Services\ProductService;
+use VentureDrake\LaravelCrm\Support\Money;
+use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
+use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
 
 /**
  * Shared products line-items Repeater used by Deal, Quote, Order, Invoice,
@@ -35,8 +39,27 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
  */
 class LineItemsRepeater
 {
-    public static function products(string $fkColumn = 'deal_product_id', string $priceField = 'price'): Forms\Components\Repeater
-    {
+    /**
+     * @param  string  $fkColumn  the hidden per-entity foreign key
+     * @param  string  $priceField  'price' on Deal, 'unit_price' elsewhere
+     * @param  class-string|null  $drawdownModel  InvoiceLine / DeliveryProduct on
+     *                                            the forms that draw down an
+     *                                            order line; null elsewhere
+     * @param  bool  $withOrderProductId  expose the order_product_id linkage as a
+     *                                    hidden field. Without it every save
+     *                                    re-submits the key absent and
+     *                                    InvoiceService's `?? null` nulls the
+     *                                    linkage — which makes all subsequent
+     *                                    outstanding-quantity maths wrong.
+     */
+    public static function products(
+        string $fkColumn = 'deal_product_id',
+        string $priceField = 'price',
+        ?string $drawdownModel = null,
+        ?string $drawdownRelation = null,
+        ?string $drawdownKey = null,
+        bool $withOrderProductId = false,
+    ): Forms\Components\Repeater {
         $row2Fields = [
             Forms\Components\TextInput::make($priceField)
                 ->label(__('laravel-crm-filament::labels.money.unit_price'))
@@ -48,10 +71,27 @@ class LineItemsRepeater
                 }),
             Forms\Components\TextInput::make('quantity')
                 ->numeric()
+                // decimal(15,3) as of core 2.4.0 — a delivery of 0.5 of a
+                // 3-metre length is a real thing to record.
+                ->step(0.001)
                 ->default(1)
                 ->minValue(0)
-                ->live()
-                ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
+                ->rules(['decimal:0,3'])
+                ->rule(RemainingQuantity::rule($drawdownModel, $drawdownRelation, $drawdownKey))
+                ->helperText(fn ($get) => self::remainingHelperText($get, $drawdownModel, $drawdownRelation, $drawdownKey))
+                // Debounced: typing "0." used to fire a recalc against a
+                // non-numeric partial on every keystroke, across three fields.
+                ->live(debounce: '500ms')
+                ->afterStateUpdated(function ($state, $get, $set) use ($priceField, $drawdownModel, $drawdownRelation, $drawdownKey) {
+                    // Mirrors core's ModelProducts::clampQuantity(). The server
+                    // rule above is the guard; this is the UX.
+                    $max = self::rowRemaining($get, $drawdownModel, $drawdownRelation, $drawdownKey);
+                    $clamped = RemainingQuantity::clamp($state, $max);
+
+                    if ($clamped !== $state) {
+                        $set('quantity', $clamped);
+                    }
+
                     self::recalcRow($get, $set, $priceField);
                     self::recalcFormTotals($get, $set);
                 }),
@@ -73,8 +113,10 @@ class LineItemsRepeater
 
         return Forms\Components\Repeater::make('products')
             ->label(__('laravel-crm-filament::labels.money.line_items'))
-            ->schema([
+            ->schema(array_values(array_filter([
                 Forms\Components\Hidden::make($fkColumn),
+                // Opt-in, because only the drawdown forms carry the linkage.
+                $withOrderProductId ? Forms\Components\Hidden::make('order_product_id') : null,
                 Forms\Components\Select::make('id')
                     ->label(__('laravel-crm-filament::labels.money.product'))
                     ->options(fn () => Product::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
@@ -96,7 +138,7 @@ class LineItemsRepeater
                 Forms\Components\Textarea::make('comments')
                     ->rows(2)
                     ->maxLength(255),
-            ])
+            ])))
             ->columns(1)
             ->addActionLabel(__('laravel-crm-filament::labels.actions.add_line_item'))
             ->defaultItems(0)
@@ -220,17 +262,48 @@ class LineItemsRepeater
      */
     private static function recalcRow($get, $set, string $priceField): void
     {
-        $unitPrice = (float) $get($priceField);
-        $quantity = (float) $get('quantity');
+        // Money::toFloat / Quantity::toFloat rather than a (float) cast: money
+        // inputs arrive masked ("$1,234.56"), a decimal column hands PHP the
+        // string "3.500", and (float) '' is silently 0.
+        $unitPrice = Money::toFloat($get($priceField));
+        $quantity = Quantity::toFloat($get('quantity'));
 
-        $amount = $unitPrice * $quantity;
+        // Rounded per line, exactly as core's ModelProducts does. Without it
+        // two lines of 0.5 x $9.99 store 500 + 500 = 1000 while the header
+        // computes 999, and CheckAmount flags a perfectly consistent document
+        // as broken.
+        $amount = round($unitPrice * $quantity, 2);
         $set('amount', $amount);
 
         if ($priceField === 'unit_price') {
             $productId = $get('id');
             $rate = self::resolveTaxRate($productId !== null ? (int) $productId : null);
-            $set('tax_amount', $amount * ($rate / 100));
+            $set('tax_amount', round($unitPrice * $quantity * $rate / 100, 2));
         }
+    }
+
+    /**
+     * The remainder on the order line this row draws down, or null.
+     */
+    private static function rowRemaining($get, ?string $drawdownModel, ?string $drawdownRelation, ?string $drawdownKey): ?float
+    {
+        if ($drawdownModel === null) {
+            return null;
+        }
+
+        return RemainingQuantity::forRow([
+            'order_product_id' => $get('order_product_id'),
+            $drawdownKey => $drawdownKey ? $get($drawdownKey) : null,
+        ], $drawdownModel, $drawdownRelation, $drawdownKey);
+    }
+
+    private static function remainingHelperText($get, ?string $drawdownModel, ?string $drawdownRelation, ?string $drawdownKey): ?string
+    {
+        $max = self::rowRemaining($get, $drawdownModel, $drawdownRelation, $drawdownKey);
+
+        return $max === null ? null : __('laravel-crm-filament::labels.money.remaining_on_order_line', [
+            'quantity' => Quantity::format($max),
+        ]);
     }
 
     /**
@@ -255,13 +328,17 @@ class LineItemsRepeater
         $tax = 0.0;
 
         foreach ($rows as $row) {
-            $subTotal += (float) ($row['amount'] ?? 0);
-            $tax += (float) ($row['tax_amount'] ?? 0);
+            $subTotal += Money::toFloat($row['amount'] ?? 0);
+            $tax += Money::toFloat($row['tax_amount'] ?? 0);
         }
+
+        // Totals rounded once, as core's ModelProducts does.
+        $subTotal = round($subTotal, 2);
+        $tax = round($tax, 2);
 
         $set('../../../sub_total', $subTotal);
         $set('../../../tax', $tax);
-        $set('../../../total', $subTotal + $tax);
+        $set('../../../total', round($subTotal + $tax, 2));
     }
 
     /**
@@ -276,8 +353,13 @@ class LineItemsRepeater
      * Note: SettingService::get() resolves through Arr::get() on a
      * name => value array, so it returns the scalar value — NOT a Setting
      * model. Reading ->value off it would yield null (0.0 tax on every line).
+     *
+     * Public because {@see OrderDrawdownPrefill}
+     * needs the same chain to state a converted invoice's tax. Core's
+     * InvoiceService applies this chain per line at save time, so a prefill
+     * that guessed differently would state a header the lines contradict.
      */
-    private static function resolveTaxRate(?int $productId): float
+    public static function resolveTaxRate(?int $productId): float
     {
         if ($productId !== null) {
             $product = Product::find($productId);

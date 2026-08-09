@@ -11,12 +11,15 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Schema as DbSchema;
 use VentureDrake\LaravelCrm\Models\ProductAttribute;
+use VentureDrake\LaravelCrmFilament\Concerns\GuardsPoliciedResource;
 use VentureDrake\LaravelCrmFilament\Resources\ProductAttributes\Pages\CreateProductAttribute;
 use VentureDrake\LaravelCrmFilament\Resources\ProductAttributes\Pages\EditProductAttribute;
 use VentureDrake\LaravelCrmFilament\Resources\ProductAttributes\Pages\ListProductAttributes;
 
 class ProductAttributeResource extends Resource
 {
+    use GuardsPoliciedResource;
+
     protected static ?string $model = ProductAttribute::class;
 
     protected static ?string $slug = 'product-attributes';

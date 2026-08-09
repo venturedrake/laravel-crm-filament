@@ -17,6 +17,7 @@ use VentureDrake\LaravelCrm\Models\Lunch;
 use VentureDrake\LaravelCrm\Models\Meeting;
 use VentureDrake\LaravelCrm\Models\Note;
 use VentureDrake\LaravelCrm\Models\Task;
+use VentureDrake\LaravelCrmFilament\Concerns\GuardsPoliciedResource;
 use VentureDrake\LaravelCrmFilament\Concerns\StandaloneActivityResource;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Activities\Pages\ListActivities;
@@ -25,6 +26,7 @@ use VentureDrake\LaravelCrmFilament\Support\ParentTypeOptions;
 
 class ActivityResource extends Resource
 {
+    use GuardsPoliciedResource;
     use StandaloneActivityResource;
 
     protected static ?string $model = Activity::class;

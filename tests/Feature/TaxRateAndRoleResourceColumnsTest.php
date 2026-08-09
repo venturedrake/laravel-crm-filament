@@ -1,7 +1,6 @@
 <?php
 
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\TernaryFilter;
 use VentureDrake\LaravelCrmFilament\Resources\Roles\Pages\ListRoles;
 use VentureDrake\LaravelCrmFilament\Resources\Roles\RoleResource;
 use VentureDrake\LaravelCrmFilament\Resources\TaxRates\Pages\ListTaxRates;
@@ -98,13 +97,17 @@ it('RoleResource table source has description + users_count + permissions_count 
     expect($source)->not->toContain("TextColumn::make('guard_name')");
 });
 
-it('RoleResource source registers a crm_role TernaryFilter', function () {
+it('RoleResource scopes its query to CRM roles instead of offering a crm_role filter', function () {
+    // The TernaryFilter this replaces was redundant once the query is scoped,
+    // and it carried no query() closure, so it SQL-errored on any install
+    // without the column.
     $source = file_get_contents((new ReflectionClass(RoleResource::class))->getFileName());
 
-    expect($source)->toContain("TernaryFilter::make('crm_role')");
+    expect($source)->not->toContain("TernaryFilter::make('crm_role')");
+    expect(RoleResource::getEloquentQuery()->toSql())->toContain('crm_role');
 });
 
-it('RoleResource table registers description column and crm_role TernaryFilter', function () {
+it('RoleResource table registers the description column', function () {
     /** @var ListRoles $instance */
     $instance = livewire(ListRoles::class)->instance();
 
@@ -114,7 +117,5 @@ it('RoleResource table registers description column and crm_role TernaryFilter',
     expect($columns)->toHaveKey('description');
     expect($columns['description'])->toBeInstanceOf(TextColumn::class);
 
-    $filters = $table->getFilters();
-    expect($filters)->toHaveKey('crm_role');
-    expect($filters['crm_role'])->toBeInstanceOf(TernaryFilter::class);
+    expect($table->getFilters())->not->toHaveKey('crm_role');
 });

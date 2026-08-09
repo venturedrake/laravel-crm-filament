@@ -42,7 +42,7 @@ it('InvoiceResource source uses the shared form concerns + order_id orderLink', 
     expect($source)->toContain("Grid::make(['default' => 1, 'lg' => 2])");
     expect($source)->toContain('SalesDetailsSection::make([');
     expect($source)->toContain("'orderLink' => true");
-    expect($source)->toContain("LineItemsRepeater::products('invoice_line_id', 'unit_price')");
+    expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'invoice_line_id',");
     expect($source)->toContain('MoneyTotalsRow::make()');
 });
 

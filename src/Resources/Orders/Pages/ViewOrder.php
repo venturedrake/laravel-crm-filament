@@ -30,13 +30,7 @@ class ViewOrder extends ViewRecord
                 ->label(__('laravel-crm-filament::labels.actions.delivery')),
             $this->orderConvertToPurchaseOrderAction()
                 ->label(__('laravel-crm-filament::labels.actions.purchase_order')),
-            $this->downloadPdfAction(fn (Order $record) => $this->streamPdfDownload(
-                $record,
-                'order',
-                'order',
-                'laravel-crm::orders.pdf',
-                $this->orderPdfViewData($record),
-            ))
+            $this->downloadPdfAction(fn (Order $record) => $this->streamPdfDownload($record, 'order'))
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-arrow-down-tray'),
@@ -48,22 +42,6 @@ class ViewOrder extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-trash'),
-        ];
-    }
-
-    protected function orderPdfViewData(Order $record): array
-    {
-        $settings = app('laravel-crm.settings');
-
-        return [
-            'order' => $record,
-            'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
-            'email' => optional($record->person)->getPrimaryEmail(),
-            'phone' => optional($record->person)->getPrimaryPhone(),
-            'address' => optional($record->person)->getPrimaryAddress(),
-            'organization_address' => optional($record->organization)->getPrimaryAddress(),
-            'fromName' => $settings->get('organization_name'),
-            'logo' => $settings->get('logo_file'),
         ];
     }
 

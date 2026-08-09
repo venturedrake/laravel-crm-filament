@@ -8,6 +8,11 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class OrganizationImporter extends Importer
 {
+    public function permission(): ?string
+    {
+        return 'create crm organizations';
+    }
+
     public function columns(): array
     {
         return [

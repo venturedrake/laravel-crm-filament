@@ -5,7 +5,12 @@ use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Customer;
 use VentureDrake\LaravelCrm\Models\Lead;
 use VentureDrake\LaravelCrmFilament\Concerns\StandaloneActivityResource;
+use VentureDrake\LaravelCrmFilament\Resources\Activities\ActivityResource;
+use VentureDrake\LaravelCrmFilament\Resources\Calls\CallResource;
+use VentureDrake\LaravelCrmFilament\Resources\Files\FileResource;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\LeadResource;
+use VentureDrake\LaravelCrmFilament\Resources\Lunches\LunchResource;
+use VentureDrake\LaravelCrmFilament\Resources\Meetings\MeetingResource;
 use VentureDrake\LaravelCrmFilament\Resources\Notes\NoteResource;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
@@ -47,12 +52,12 @@ function invokeOpenParentAction(string $typeColumn, string $idColumn): Action
 
 it('composes on every standalone activity resource', function () {
     foreach ([
-        \VentureDrake\LaravelCrmFilament\Resources\Notes\NoteResource::class,
-        \VentureDrake\LaravelCrmFilament\Resources\Calls\CallResource::class,
-        \VentureDrake\LaravelCrmFilament\Resources\Meetings\MeetingResource::class,
-        \VentureDrake\LaravelCrmFilament\Resources\Lunches\LunchResource::class,
-        \VentureDrake\LaravelCrmFilament\Resources\Files\FileResource::class,
-        \VentureDrake\LaravelCrmFilament\Resources\Activities\ActivityResource::class,
+        NoteResource::class,
+        CallResource::class,
+        MeetingResource::class,
+        LunchResource::class,
+        FileResource::class,
+        ActivityResource::class,
     ] as $resource) {
         expect(class_uses_recursive($resource))->toContain(StandaloneActivityResource::class);
     }
