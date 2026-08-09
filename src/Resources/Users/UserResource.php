@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Http\Rules\AssignableRole;
@@ -155,6 +156,23 @@ class UserResource extends Resource
             ])
             ->defaultSort('name')
             ->filters([
+                // Mirrors core's UserIndex: whereHas('roles', crm_role = 1 AND
+                // roles.id IN (...)). The closure scopes both the options list
+                // and the whereHas, so a host's own non-CRM Spatie roles never
+                // appear here and never widen the filter.
+                //
+                // Role::crm(), not assignableBy(): that predicate governs which
+                // roles a caller may hand *out*. Filtering is a read, the role
+                // is already on screen in the roles.name column, and hiding
+                // Owner from the dropdown would only stop a Manager narrowing a
+                // list they can already see in full.
+                Tables\Filters\SelectFilter::make('roles')
+                    ->label(__('laravel-crm-filament::labels.fields.role'))
+                    ->multiple()
+                    ->relationship('roles', 'name', fn (Builder $query) => $query->where('crm_role', 1))
+                    ->searchable()
+                    ->preload(),
+
                 Tables\Filters\TernaryFilter::make('crm_access')->label(__('laravel-crm-filament::labels.misc.has_crm_access')),
             ])
             ->recordActions([

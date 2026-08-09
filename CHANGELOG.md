@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- **Role filter on the Users list**, matching core's user index: multi-select, scoped to CRM
+  roles so a host's own Spatie roles neither appear in the dropdown nor widen the results.
 - **Task `start_at`** on the task form, infolist, table (toggled off by default) and CSV
   export, and on both task relation managers. The calendar renders a task with both timestamps
   as a span, includes tasks that start before the visible window, and shifts both ends by the
