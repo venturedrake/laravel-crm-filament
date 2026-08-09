@@ -25,7 +25,7 @@ class StubbedCheckUpdates extends Updates
 }
 
 /**
- * The Updates page: `--force`, and the version_latest gap.
+ * The Updates page: read-only reporting, and the version_latest gap.
  */
 beforeEach(function () {
     RoleSeeder::seed();
@@ -39,16 +39,7 @@ beforeEach(function () {
     $this->actingAs($this->user->fresh());
 });
 
-it('passes --force when queueing the update command', function () {
-    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
-
-    expect($source)->toContain("Artisan::queue('laravelcrm:update', ['--force' => true])")
-        // Artisan::queue() discards the exit code, so the notification must not
-        // claim the update succeeded — only that it was handed to the queue.
-        ->toContain('update_queued_body');
-});
-
-it('splits check-for-updates from run-update', function () {
+it('offers only the read-only check, never a run-update action', function () {
     $instance = livewire(Updates::class)->instance();
 
     $method = new ReflectionMethod(Updates::class, 'getHeaderActions');
@@ -56,15 +47,22 @@ it('splits check-for-updates from run-update', function () {
 
     $names = array_map(fn ($action) => $action->getName(), $method->invoke($instance));
 
-    // "Check for updates" used to run the update. They are different things:
-    // one asks the version API, the other migrates your database.
-    expect($names)->toBe(['checkForUpdates', 'runUpdate']);
+    // Checking the version API and migrating the database are different things,
+    // and only the first belongs on an admin page. Upgrades are a deployment
+    // step run from the console.
+    expect($names)->toBe(['checkForUpdates']);
 });
 
-it('requires confirmation before running the update', function () {
-    $instance = livewire(Updates::class)->instance();
+it('never triggers laravelcrm:update from the panel', function () {
+    // The page reports; it does not upgrade. `laravelcrm:update` publishes
+    // assets, migrates and reseeds the live database, and runs one-shot data
+    // backfills — no admin-panel click should be able to start that.
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
 
-    expect($instance->getAction('runUpdate')->isConfirmationRequired())->toBeTrue();
+    // Asserted on the code, not just the header actions: no dispatch path of
+    // any kind — action, queued job, or direct call.
+    expect($source)->not->toContain('Artisan::')
+        ->not->toContain('runUpdate');
 });
 
 it('populates version_latest itself rather than waiting for core middleware', function () {
@@ -229,7 +227,7 @@ it('bounds the version API call so a hung endpoint cannot hang the page', functi
         ->toContain("'timeout' => self::VERSION_API_TIMEOUT");
 });
 
-it('denies both actions to a user without view crm updates', function () {
+it('denies the page to a user without view crm updates', function () {
     $stranger = User::create([
         'name' => 'Stranger',
         'email' => 'stranger-' . Str::random(6) . '@example.com',

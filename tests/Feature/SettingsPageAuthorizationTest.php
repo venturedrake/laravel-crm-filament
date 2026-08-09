@@ -19,7 +19,7 @@ use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 /**
  * The seven plugin Pages were entirely ungated before US-004 — every
  * authenticated panel user could edit org-wide settings, read/write Xero and
- * ClickSend credentials, and queue `laravelcrm:update`. These tests lock the
+ * ClickSend credentials, and reach the Updates page. These tests lock the
  * permission map in, page by page.
  */
 beforeEach(function (): void {

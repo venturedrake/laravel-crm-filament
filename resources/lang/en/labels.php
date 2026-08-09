@@ -502,7 +502,6 @@ return [
         'download_pdf' => 'Download PDF',
         'download_sample_csv' => 'Download sample CSV',
         'check_for_updates' => 'Check for updates',
-        'run_update' => 'Run update',
         'dismiss' => 'Dismiss',
         'connect_xero' => 'Connect Xero',
         'disconnect_xero' => 'Disconnect Xero',
@@ -654,8 +653,6 @@ return [
     ],
 
     'notifications' => [
-        'update_queued' => 'Update queued',
-        'update_queued_body' => 'laravelcrm:update has been queued. Check your queue logs to confirm it completed.',
         'update_check_failed' => 'Could not check for updates',
         'update_check_failed_body' => 'The version service could not be reached. Try again shortly.',
         'update_check_up_to_date' => 'You are running the latest version',

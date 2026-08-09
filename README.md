@@ -159,7 +159,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **LeadStatus** + **PipelineStageProbability** lookup resources in the Settings cluster.
 - **`lead_status_id`** Select on the Lead form; **`pipeline_stage_probability_id`** Select on the Pipeline Stage form.
 - **CrmTeams** resource in the Settings cluster with a **TeamMembersRelationManager** for attaching multiple users via `crm_team_user`.
-- **Updates** page (Settings cluster) showing current vs latest version + a **Check for updates** action that queues `laravelcrm:update`.
+- **Updates** page (Settings cluster) showing current vs latest version + a read-only **Check for updates** action. The page reports; it never runs `laravelcrm:update` — upgrades stay a console step.
 
 ### v0.10 — Calendar, Task kanban, Reminders settings
 
@@ -344,7 +344,7 @@ Paths below assume the default `/crm` mount from the published `CrmPanelProvider
 - General settings page (key/value via `SettingService`).
 - Integrations page (Xero connect/disconnect + sync toggles, ClickSend status).
 - Reminders page (per-user activity reminders).
-- Updates page (version check + `laravelcrm:update`).
+- Updates page (version check only; upgrades are run from the console).
 
 **RelationManagers**: Notes, Tasks, Calls, Meetings, Files inline on Lead / Deal / Person / Organization / Customer edit pages (polymorphic via `HasCrmActivities`). Files RM also on Quote / Order / Invoice / Purchase Order / Delivery. Each new entry logs to the core CRM `Activity` table for the timeline feed. Email/SMS campaign view pages get a per-recipient RelationManager showing per-row send/open/click/unsubscribe state.
 
@@ -422,7 +422,7 @@ Paths in this table assume the default `/crm` Filament mount with the Livewire U
 | Activities | per-entity timeline | per-entity timeline **plus** global `/crm/activities` |
 | Calendar | none | `/crm/calendar` aggregating tasks/calls/meetings/lunches |
 | Reminders | global config | per-user `/crm/settings/reminders` |
-| Updates | `laravelcrm:update` artisan only | `/crm/settings/updates` UI, which also fetches the latest published version |
+| Updates | `laravelcrm:update` artisan only | `/crm/settings/updates` reports installed vs latest published version; applying the update is still artisan-only |
 | PDF templates | `/crm/settings/templates` | `/crm/templates`, with the preview and thumbnails served from the page rather than from routes |
 | Invitation acceptance | `/crm/users/invitations/accept/{code}` | `/crm/invitations/accept/{code}` — core's route is behind `laravel-crm.user_interface` |
 | Multi-tenancy | supported | **not supported** — see [Multi-tenancy](#multi-tenancy-not-supported) |

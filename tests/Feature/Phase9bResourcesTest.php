@@ -103,11 +103,11 @@ it('declares the Updates page in the Settings navigation group at /updates', fun
     expect(Updates::getSlug())->toBe('updates');
 });
 
-it('queues laravelcrm:update from the Updates page Check action', function () {
+it('checks the published version from the Updates page without running an update', function () {
     $source = file_get_contents((new ReflectionClass(Updates::class))->getFileName());
-    expect($source)->toContain('Artisan::queue');
-    expect($source)->toContain("'laravelcrm:update'");
     expect($source)->toContain("'version_latest'");
+    // The page reports only. Upgrades are a console step; see UpdatesPageTest.
+    expect($source)->not->toContain('Artisan::queue');
 });
 
 it('registers all four new surfaces on the panel', function () {

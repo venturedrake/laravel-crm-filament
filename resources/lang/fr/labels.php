@@ -449,7 +449,6 @@ return [
         'download_pdf' => 'Télécharger le PDF',
         'download_sample_csv' => "Télécharger l'exemple CSV",
         'check_for_updates' => 'Vérifier les mises à jour',
-        'run_update' => 'Lancer la mise à jour',
         'dismiss' => 'Ignorer',
         'connect_xero' => 'Connecter Xero',
         'disconnect_xero' => 'Déconnecter Xero',
@@ -643,8 +642,6 @@ return [
     ],
 
     'notifications' => [
-        'update_queued' => 'Mise à jour mise en file',
-        'update_queued_body' => 'laravelcrm:update a été mise en file. Consultez les journaux de la file pour confirmer son achèvement.',
         'update_check_failed' => 'Impossible de vérifier les mises à jour',
         'update_check_failed_body' => 'Le service de versions est injoignable. Réessayez dans un instant.',
         'update_check_up_to_date' => 'Vous utilisez la dernière version',

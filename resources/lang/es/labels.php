@@ -449,7 +449,6 @@ return [
         'download_pdf' => 'Descargar PDF',
         'download_sample_csv' => 'Descargar CSV de ejemplo',
         'check_for_updates' => 'Buscar actualizaciones',
-        'run_update' => 'Ejecutar actualización',
         'dismiss' => 'Descartar',
         'connect_xero' => 'Conectar Xero',
         'disconnect_xero' => 'Desconectar Xero',
@@ -643,8 +642,6 @@ return [
     ],
 
     'notifications' => [
-        'update_queued' => 'Actualización en cola',
-        'update_queued_body' => 'laravelcrm:update se ha puesto en cola. Revisa los registros de la cola para confirmar que finalizó.',
         'update_check_failed' => 'No se pudo comprobar si hay actualizaciones',
         'update_check_failed_body' => 'No se pudo contactar con el servicio de versiones. Inténtalo de nuevo en breve.',
         'update_check_up_to_date' => 'Estás usando la última versión',

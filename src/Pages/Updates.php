@@ -13,7 +13,6 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontFamily;
 use GuzzleHttp\Client;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema as DbSchema;
 use Throwable;
 use VentureDrake\LaravelCrm\Models\Setting;
@@ -202,11 +201,20 @@ class Updates extends Page
         ]);
     }
 
+    /**
+     * Check-for-updates only.
+     *
+     * There is deliberately no "Run update" action here. `laravelcrm:update`
+     * publishes assets, migrates and reseeds the live database, and runs a set
+     * of one-shot data backfills — that is a deployment step, taken by an
+     * operator with a backup and a console, not a button on an admin page
+     * behind a generic "are you sure?" modal. The page tells you the two
+     * commands to run instead.
+     */
     protected function getHeaderActions(): array
     {
         return [
             $this->checkForUpdatesAction(),
-            $this->runUpdateAction(),
         ];
     }
 
@@ -256,36 +264,6 @@ class Updates extends Page
                     ->title($this->getIsUpToDateProperty()
                         ? __('laravel-crm-filament::labels.notifications.update_check_up_to_date')
                         : __('laravel-crm-filament::labels.notifications.update_check_available', ['version' => $this->latestVersion]))
-                    ->success()
-                    ->send();
-            });
-    }
-
-    /**
-     * Queue `laravelcrm:update`.
-     *
-     * `--force` is required as of core 2.4.0: the command gained
-     * confirmToProceed(), which prompts on an interactive production console —
-     * and a queue worker can never answer. Migration and seeder failures are
-     * also fatal now rather than warnings.
-     */
-    protected function runUpdateAction(): Action
-    {
-        return Action::make('runUpdate')
-            ->label(__('laravel-crm-filament::labels.actions.run_update'))
-            ->icon('heroicon-o-arrow-down-tray')
-            ->requiresConfirmation()
-            ->visible(fn (): bool => static::canAccess())
-            ->action(function (): void {
-                abort_unless(static::canAccess(), 403);
-
-                Artisan::queue('laravelcrm:update', ['--force' => true]);
-
-                // Artisan::queue() discards the exit code, so this cannot claim
-                // the update succeeded — only that it was handed to the queue.
-                Notification::make()
-                    ->title(__('laravel-crm-filament::labels.notifications.update_queued'))
-                    ->body(__('laravel-crm-filament::labels.notifications.update_queued_body'))
                     ->success()
                     ->send();
             });
