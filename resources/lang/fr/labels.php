@@ -633,6 +633,7 @@ return [
         'preview' => 'Aperçu',
         'preview_unavailable' => "Ce modèle n'a pas pu être prévisualisé",
         'open_in_new_tab' => 'Ouvrir dans un nouvel onglet',
+        'published_override_heading' => 'Une vue PDF personnalisée est utilisée',
         'published_override_warning' => "Ce type de document utilise actuellement une vue PDF que vous avez publiée et modifiée. Enregistrer ici la remplacera par l'un des modèles ci-dessous.",
         'doc_type_invoice' => 'Factures',
         'doc_type_order' => 'Commandes',

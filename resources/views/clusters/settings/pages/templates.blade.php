@@ -1,3 +1,14 @@
+{{--
+    Everything here is a Filament component or an `fi-*` class.
+
+    This package ships no compiled CSS, and Filament's own stylesheet contains
+    only its `fi-*` classes — not a general Tailwind utility set. A raw
+    `class="grid grid-cols-3 gap-4"` in a package view resolves to nothing at
+    all, which is how this page came to render as a stack of unstyled text. The
+    one exception is the `->grid()` attribute macro, which is Filament's own
+    mechanism: it emits `fi-grid` plus inline `--cols-*` custom properties, so
+    it needs no build step either.
+--}}
 <x-filament-panels::page>
     @php
         $docTypes = $this->docTypes();
@@ -6,89 +17,118 @@
         $activeTab = in_array($this->tab, $docTypes, true) ? $this->tab : $docTypes[0];
     @endphp
 
-    <div class="space-y-6">
-        <div class="flex flex-wrap gap-2">
-            @foreach ($docTypes as $docType)
-                <button
-                    type="button"
-                    wire:click="$set('tab', '{{ $docType }}')"
-                    @class([
-                        'rounded-lg px-3 py-1.5 text-sm font-medium',
-                        'bg-primary-600 text-white' => $activeTab === $docType,
-                        'bg-gray-100 text-gray-700 dark:bg-white/5 dark:text-gray-300' => $activeTab !== $docType,
-                    ])
+    <x-filament::tabs>
+        @foreach ($docTypes as $docType)
+            <x-filament::tabs.item
+                :active="$activeTab === $docType"
+                wire:click="$set('tab', '{{ $docType }}')"
+            >
+                {{ __('laravel-crm-filament::labels.templates.doc_type_' . str_replace('-', '_', $docType)) }}
+            </x-filament::tabs.item>
+        @endforeach
+    </x-filament::tabs>
+
+    @if ($overridden[$activeTab] ?? false)
+        {{-- Saving writes a slug for every doc type at once, which retires a
+             published-and-edited legacy view. Say so before it happens. --}}
+        <x-filament::callout
+            color="warning"
+            icon="heroicon-o-exclamation-triangle"
+            :heading="__('laravel-crm-filament::labels.templates.published_override_heading')"
+        >
+            {{ __('laravel-crm-filament::labels.templates.published_override_warning') }}
+        </x-filament::callout>
+    @endif
+
+    <x-filament::section :heading="__('laravel-crm-filament::labels.templates.choose_a_template')">
+        <div
+            {{
+                (new \Illuminate\View\ComponentAttributeBag)
+                    ->grid(['default' => 1, 'md' => 2, 'xl' => 3])
+                    ->class(['fi-sc-has-gap'])
+            }}
+        >
+            @foreach ($templates as $slug => $template)
+                @php
+                    $isSelected = ($this->selected[$activeTab] ?? null) === $slug;
+                    $thumbnail = $this->thumbnail($slug);
+                    $externalUrl = $this->externalPreviewUrl($activeTab, $slug);
+                @endphp
+
+                <x-filament::section
+                    compact
+                    :heading="$template['label']"
+                    :description="$template['description']"
+                    :icon="$isSelected ? 'heroicon-o-check-circle' : null"
+                    :icon-color="$isSelected ? 'primary' : 'gray'"
                 >
-                    {{ __('laravel-crm-filament::labels.templates.doc_type_' . str_replace('-', '_', $docType)) }}
-                </button>
-            @endforeach
-        </div>
+                    @if ($thumbnail)
+                        {{-- Inlined data URI, resolved published-first through the
+                             registry: no route, so nothing to 404 on a headless
+                             host. Sized with an inline style because a utility
+                             class would not survive the missing CSS build. --}}
+                        <img
+                            src="{{ $thumbnail }}"
+                            alt="{{ $template['label'] }}"
+                            style="width: 100%; height: auto; display: block;"
+                        />
+                    @endif
 
-        @if ($overridden[$activeTab] ?? false)
-            {{-- Saving writes a slug for every doc type at once, which retires a
-                 published-and-edited legacy view. Say so before it happens. --}}
-            <x-filament::section>
-                <div class="text-sm text-warning-600">
-                    {{ __('laravel-crm-filament::labels.templates.published_override_warning') }}
-                </div>
-            </x-filament::section>
-        @endif
-
-        <x-filament::section :heading="__('laravel-crm-filament::labels.templates.choose_a_template')">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                @foreach ($templates as $slug => $template)
-                    @php $isSelected = ($this->selected[$activeTab] ?? null) === $slug; @endphp
-
-                    <div @class([
-                        'rounded-xl border p-3 space-y-3',
-                        'border-primary-500 ring-1 ring-primary-500' => $isSelected,
-                        'border-gray-200 dark:border-white/10' => ! $isSelected,
-                    ])>
-                        @php $thumbnail = $this->thumbnail($slug); @endphp
-
-                        @if ($thumbnail)
-                            {{-- Inlined data URI, resolved published-first through the
-                                 registry: no route, so nothing to 404 on a headless host. --}}
-                            <img src="{{ $thumbnail }}" alt="{{ $template['label'] }}" class="w-full rounded-lg border border-gray-100 dark:border-white/5" />
-                        @endif
-
-                        <div>
-                            <div class="font-medium">{{ $template['label'] }}</div>
-                            <div class="text-sm text-gray-500">{{ $template['description'] }}</div>
-                        </div>
-
-                        <div class="flex flex-wrap items-center gap-2">
-                            <x-filament::button
-                                size="sm"
-                                :color="$isSelected ? 'primary' : 'gray'"
-                                wire:click="select('{{ $activeTab }}', '{{ $slug }}')"
-                            >
-                                {{ $isSelected
-                                    ? __('laravel-crm-filament::labels.templates.selected')
-                                    : __('laravel-crm-filament::labels.templates.select') }}
-                            </x-filament::button>
+                    <x-slot name="footer">
+                        <x-filament::actions
+                            :actions="[]"
+                            alignment="start"
+                        >
+                            @if ($isSelected)
+                                <x-filament::button
+                                    size="sm"
+                                    color="primary"
+                                    icon="heroicon-m-check"
+                                    disabled
+                                >
+                                    {{ __('laravel-crm-filament::labels.templates.selected') }}
+                                </x-filament::button>
+                            @else
+                                <x-filament::button
+                                    size="sm"
+                                    color="gray"
+                                    wire:click="select('{{ $activeTab }}', '{{ $slug }}')"
+                                >
+                                    {{ __('laravel-crm-filament::labels.templates.select') }}
+                                </x-filament::button>
+                            @endif
 
                             {{ ($this->previewAction)(['docType' => $activeTab, 'slug' => $slug]) }}
 
-                            @php $externalUrl = $this->externalPreviewUrl($activeTab, $slug); @endphp
                             @if ($externalUrl)
-                                <a href="{{ $externalUrl }}" target="_blank" rel="noopener noreferrer" class="text-sm text-primary-600 underline">
+                                <x-filament::link
+                                    :href="$externalUrl"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    icon="heroicon-m-arrow-top-right-on-square"
+                                    icon-position="after"
+                                    size="sm"
+                                >
                                     {{ __('laravel-crm-filament::labels.templates.open_in_new_tab') }}
-                                </a>
+                                </x-filament::link>
                             @endif
-                        </div>
-                    </div>
-                @endforeach
-            </div>
-        </x-filament::section>
+                        </x-filament::actions>
+                    </x-slot>
+                </x-filament::section>
+            @endforeach
+        </div>
+    </x-filament::section>
 
-        @if (static::canEditCrmSettings())
-            <div>
-                <x-filament::button wire:click="save">
-                    {{ __('laravel-crm-filament::labels.actions.save') }}
-                </x-filament::button>
-            </div>
-        @endif
-    </div>
+    @if (static::canEditCrmSettings())
+        <x-filament::actions
+            :actions="[]"
+            alignment="start"
+        >
+            <x-filament::button wire:click="save" icon="heroicon-m-check">
+                {{ __('laravel-crm-filament::labels.actions.save') }}
+            </x-filament::button>
+        </x-filament::actions>
+    @endif
 
     <x-filament-actions::modals />
 </x-filament-panels::page>

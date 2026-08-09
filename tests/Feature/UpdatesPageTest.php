@@ -1,5 +1,7 @@
 <?php
 
+use Filament\Infolists\Components\TextEntry;
+use Filament\Schemas\Components\Section;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
@@ -119,24 +121,65 @@ it('answers the DB_UPDATE_REQUIRED question even with update notifications off',
 it('no longer renders version_latest_notes unescaped', function () {
     // Nothing in core writes that setting, and its only conceivable writer is
     // a remote HTTP response — a raw HTML sink is not worth keeping for a
-    // feature that never shipped.
-    $blade = (string) file_get_contents(
-        dirname(__DIR__, 2) . '/resources/views/clusters/settings/pages/updates.blade.php'
-    );
+    // feature that never shipped. The custom Blade view went with it: the page
+    // renders through a schema now, so there is no raw-HTML sink left at all.
+    expect(file_exists(dirname(__DIR__, 2) . '/resources/views/clusters/settings/pages/updates.blade.php'))
+        ->toBeFalse();
 
-    expect($blade)->not->toContain('$this->releaseNotes')
-        ->and($blade)->not->toContain('{!!');
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+
+    expect($source)->not->toContain('releaseNotes')
+        ->and($source)->not->toContain('version_latest_notes');
 });
 
 it('shows the two literal update commands and the upgrade guide link', function () {
-    $blade = (string) file_get_contents(
-        dirname(__DIR__, 2) . '/resources/views/clusters/settings/pages/updates.blade.php'
-    );
+    // Both packages move together or core's schema and the panel's
+    // expectations diverge, so the order and the wording are the contract.
+    expect(Updates::UPDATE_COMMANDS)->toBe([
+        'composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament',
+        'php artisan laravelcrm:update',
+    ]);
 
-    expect($blade)->toContain('composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament')
-        ->toContain('php artisan laravelcrm:update')
-        ->toContain("config('laravel-crm.upgrade_guide_url')");
+    $entries = updatesPageEntryStates();
+
+    expect($entries)->toHaveKey('updateCommands')
+        ->and($entries['updateCommands'])->toBe(Updates::UPDATE_COMMANDS);
+
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+    expect($source)->toContain("config('laravel-crm.upgrade_guide_url')");
 });
+
+it('renders through Filament components rather than unstyled markup', function () {
+    // This package ships no compiled CSS, and Filament's stylesheet carries
+    // only its own fi-* classes — a raw utility class here resolves to nothing
+    // and the page renders as a wall of plain text. See CrmBladeStylingTest.
+    $components = livewire(Updates::class)
+        ->instance()
+        ->getSchema('content')
+        ->getFlatComponents(withHidden: true);
+
+    $sections = array_filter($components, fn ($c) => $c instanceof Section);
+
+    expect($sections)->not->toBeEmpty();
+});
+
+/**
+ * The content schema's entries, keyed by name, with their resolved state.
+ *
+ * @return array<string, mixed>
+ */
+function updatesPageEntryStates(): array
+{
+    $states = [];
+
+    foreach (livewire(Updates::class)->instance()->getSchema('content')->getFlatComponents(withHidden: true) as $component) {
+        if ($component instanceof TextEntry) {
+            $states[$component->getName()] = $component->getState();
+        }
+    }
+
+    return $states;
+}
 
 /**
  * A failed check must say so, even when a previous check left a value behind.

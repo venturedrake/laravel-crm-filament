@@ -44,9 +44,11 @@ class TemplateSettings extends Page
     protected static ?string $slug = 'templates';
 
     /**
-     * Between Reminders (190) and Updates (200).
+     * Directly below General settings (10) and above Roles (20) — Templates is
+     * a settings screen an operator reaches for alongside branding, not
+     * something to hunt for at the bottom of the group.
      */
-    protected static ?int $navigationSort = 195;
+    protected static ?int $navigationSort = 15;
 
     protected string $view = 'laravel-crm-filament::clusters.settings.pages.templates';
 

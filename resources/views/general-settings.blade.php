@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <form wire:submit="save" class="space-y-6">
+    <form wire:submit="save" class="fi-sc-form">
         {{ $this->form }}
 
         @if ($this->canEditCrmSettings())

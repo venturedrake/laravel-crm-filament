@@ -633,6 +633,7 @@ return [
         'preview' => 'Vista previa',
         'preview_unavailable' => 'No se pudo previsualizar esa plantilla',
         'open_in_new_tab' => 'Abrir en una pestaña nueva',
+        'published_override_heading' => 'Se está usando una vista PDF personalizada',
         'published_override_warning' => 'Este tipo de documento se genera actualmente con una vista PDF que has publicado y editado. Guardar aquí la reemplazará por una de las plantillas siguientes.',
         'doc_type_invoice' => 'Facturas',
         'doc_type_order' => 'Pedidos',

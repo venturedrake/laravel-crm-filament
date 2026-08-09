@@ -43,6 +43,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Added
 
+- **Settings → Templates sits directly below General settings** in the navigation, rather
+  than at the bottom of the group next to Updates.
 - **Role filter on the Users list**, matching core's user index: multi-select, scoped to CRM
   roles so a host's own Spatie roles neither appear in the dropdown nor widen the results.
 - **Task `start_at`** on the task form, infolist, table (toggled off by default) and CSV
@@ -110,6 +112,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ### Fixed
 
+- **The Templates and Updates pages rendered as unstyled text.** This package ships no CSS,
+  and Filament's compiled stylesheet contains only its own `fi-*` classes — no general
+  Tailwind utility layer, not even `flex` or `text-sm`. Every raw utility class in a package
+  Blade view therefore resolved to nothing. Both pages now render through Filament components
+  and schemas; `CrmBladeStylingTest` guards the rule mechanically.
+- **Settings pages rendered their sections flush against each other.** `.fi-page-content` is
+  already a grid with a row gap, but the `space-y-6` wrapper on General settings,
+  Integrations, ClickSend and Reminders collapsed it into a single cell — and `space-y-6`
+  itself does not exist in the compiled theme. Swapped for Filament's own `fi-sc-form`.
 - **Editing a user stripped their CRM role.** `role_id` and `crm_team_ids` carried
   `->dehydrated(false)`, and `EditRecord::save()` dehydrates *before*
   `mutateFormDataBeforeSave()` reads them — so `$this->roleId` was always null and `afterSave()`

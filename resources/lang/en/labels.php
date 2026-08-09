@@ -644,6 +644,7 @@ return [
         'preview' => 'Preview',
         'preview_unavailable' => 'That template could not be previewed',
         'open_in_new_tab' => 'Open in a new tab',
+        'published_override_heading' => 'A customised PDF view is in use',
         'published_override_warning' => 'This document type currently renders through a PDF view you have published and edited. Saving here replaces that with one of the templates below.',
         'doc_type_invoice' => 'Invoices',
         'doc_type_order' => 'Orders',

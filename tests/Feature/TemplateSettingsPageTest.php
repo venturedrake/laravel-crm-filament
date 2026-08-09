@@ -4,7 +4,9 @@ use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
+use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 use VentureDrake\LaravelCrmFilament\Pages\TemplateSettings;
+use VentureDrake\LaravelCrmFilament\Pages\Updates;
 use VentureDrake\LaravelCrmFilament\Support\PdfTemplatePreview;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
@@ -212,9 +214,15 @@ it('warns when saving would retire a published-and-edited PDF view', function ()
     }
 });
 
-it('sorts between Reminders and Updates in the Settings group', function () {
-    $sort = new ReflectionProperty(TemplateSettings::class, 'navigationSort');
-    $sort->setAccessible(true);
+it('sorts directly below General settings in the Settings group', function () {
+    $sort = fn (string $page): ?int => tap(
+        new ReflectionProperty($page, 'navigationSort'),
+        fn ($p) => $p->setAccessible(true),
+    )->getValue();
 
-    expect($sort->getValue())->toBe(195);
+    // General settings is 10 and Roles is 20; Templates belongs with the
+    // branding-adjacent screens, not at the bottom of the group.
+    expect($sort(TemplateSettings::class))->toBe(15)
+        ->and($sort(TemplateSettings::class))->toBeGreaterThan($sort(GeneralSettings::class))
+        ->and($sort(TemplateSettings::class))->toBeLessThan($sort(Updates::class));
 });

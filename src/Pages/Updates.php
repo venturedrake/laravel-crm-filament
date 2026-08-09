@@ -5,11 +5,16 @@ namespace VentureDrake\LaravelCrmFilament\Pages;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontFamily;
 use GuzzleHttp\Client;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Schema as DbSchema;
 use Throwable;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
@@ -31,8 +36,6 @@ class Updates extends Page
 
     protected static ?int $navigationSort = 200;
 
-    protected string $view = 'laravel-crm-filament::clusters.settings.pages.updates';
-
     /**
      * The version API core's UpdateController posts to.
      */
@@ -44,6 +47,18 @@ class Updates extends Page
     public const VERSION_API_CONNECT_TIMEOUT = 5;
 
     public const VERSION_API_TIMEOUT = 10;
+
+    /**
+     * The two commands an operator has to run, in order. Asserted verbatim by
+     * UpdatesPageTest — both packages move together or core's schema and the
+     * panel's expectations diverge.
+     *
+     * @var array<int, string>
+     */
+    public const UPDATE_COMMANDS = [
+        'composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament',
+        'php artisan laravelcrm:update',
+    ];
 
     public ?string $currentVersion = null;
 
@@ -98,6 +113,93 @@ class Updates extends Page
         }
 
         return false;
+    }
+
+    /**
+     * Rendered through a Filament schema rather than a hand-written Blade view.
+     *
+     * This package ships no compiled CSS, and Filament's own stylesheet contains
+     * only its `fi-*` classes — not a general Tailwind utility set. A raw
+     * `class="text-sm text-gray-500"` in a package view therefore resolves to
+     * nothing at all, which is how this page came to render as unstyled text.
+     * Entries and Sections carry their own styling, so there is nothing here for
+     * a host's CSS build to have to know about.
+     */
+    public function content(Schema $schema): Schema
+    {
+        return $schema->components([
+            Section::make(__('laravel-crm-filament::labels.updates.installed_version'))
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('currentVersion')
+                        ->hiddenLabel()
+                        ->state(fn (): string => $this->currentVersion ?: '—')
+                        ->badge()
+                        ->color('gray'),
+
+                    TextEntry::make('installId')
+                        ->label(__('laravel-crm-filament::labels.updates.install_id'))
+                        ->state(fn (): ?string => $this->installId)
+                        ->copyable()
+                        ->placeholder('—'),
+                ]),
+
+            Section::make(__('laravel-crm-filament::labels.updates.latest_available'))
+                ->schema([
+                    TextEntry::make('latestVersion')
+                        ->hiddenLabel()
+                        ->state(fn (): string => $this->latestVersion ?: __('laravel-crm-filament::labels.updates.no_version_information'))
+                        ->badge(fn (): bool => filled($this->latestVersion))
+                        ->color(fn (): string => match (true) {
+                            blank($this->latestVersion) => 'gray',
+                            $this->getIsUpToDateProperty() => 'success',
+                            default => 'warning',
+                        })
+                        ->helperText(fn (): ?string => match (true) {
+                            blank($this->latestVersion) => null,
+                            $this->getIsUpToDateProperty() => __('laravel-crm-filament::labels.updates.up_to_date'),
+                            default => __('laravel-crm-filament::labels.updates.newer_available'),
+                        }),
+                ]),
+
+            Section::make(__('laravel-crm-filament::labels.updates.database_update_required'))
+                ->icon('heroicon-o-exclamation-triangle')
+                ->iconColor('warning')
+                ->visible(fn (): bool => $this->getNeedsDbUpdateProperty())
+                ->schema([
+                    TextEntry::make('databaseUpdateRequired')
+                        ->hiddenLabel()
+                        ->state(__('laravel-crm-filament::labels.updates.database_update_required_body')),
+                ]),
+
+            Section::make(__('laravel-crm-filament::labels.updates.how_to_update'))
+                ->schema([
+                    TextEntry::make('howToUpdateIntro')
+                        ->hiddenLabel()
+                        ->state(__('laravel-crm-filament::labels.updates.how_to_update_intro')),
+
+                    // Monospace and copyable — the two commands are the whole
+                    // point of this section. Not CodeEntry: that needs phiki,
+                    // which is not installed and is not worth a dependency for
+                    // two lines of shell.
+                    TextEntry::make('updateCommands')
+                        ->hiddenLabel()
+                        ->state(self::UPDATE_COMMANDS)
+                        ->listWithLineBreaks()
+                        ->fontFamily(FontFamily::Mono)
+                        ->copyable()
+                        ->copyableState(implode(PHP_EOL, self::UPDATE_COMMANDS)),
+
+                    Actions::make([
+                        Action::make('upgradeGuide')
+                            ->label(__('laravel-crm-filament::labels.updates.upgrade_guide'))
+                            ->icon('heroicon-o-arrow-top-right-on-square')
+                            ->link()
+                            ->url(fn (): string => (string) config('laravel-crm.upgrade_guide_url'))
+                            ->openUrlInNewTab(),
+                    ]),
+                ]),
+        ]);
     }
 
     protected function getHeaderActions(): array
@@ -211,7 +313,7 @@ class Updates extends Page
         try {
             $userCount = 1;
 
-            if (Schema::hasColumn('users', 'crm_access')) {
+            if (DbSchema::hasColumn('users', 'crm_access')) {
                 $model = UserResource::getModel();
                 $userCount = max(1, (int) $model::query()->where('crm_access', 1)->count());
             }
