@@ -623,7 +623,6 @@ return [
     // Updates page
     'updates' => [
         'installed_version' => 'Installed version',
-        'install_id' => 'Install ID',
         'latest_available' => 'Latest available',
         'up_to_date' => 'You are up to date.',
         'newer_available' => 'A newer version is available.',

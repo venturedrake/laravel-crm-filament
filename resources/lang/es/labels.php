@@ -612,7 +612,6 @@ return [
     // Página de actualizaciones
     'updates' => [
         'installed_version' => 'Versión instalada',
-        'install_id' => 'ID de instalación',
         'latest_available' => 'Última disponible',
         'up_to_date' => 'Estás al día.',
         'newer_available' => 'Hay una versión más reciente disponible.',

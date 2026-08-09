@@ -147,6 +147,23 @@ it('shows the two literal update commands and the upgrade guide link', function 
     expect($source)->toContain("config('laravel-crm.upgrade_guide_url')");
 });
 
+it('never renders the install ID, but still sends it to the version API', function () {
+    Setting::updateOrCreate(['name' => 'install_id'], ['value' => 'abc-123-install']);
+    app('laravel-crm.settings')->forgetCache();
+
+    // The install ID identifies this install to the version API. It is of no
+    // use to the operator reading the page, so it is not rendered anywhere.
+    expect(updatesPageEntryStates())->not->toHaveKey('installId');
+
+    foreach (updatesPageEntryStates() as $state) {
+        expect(json_encode($state))->not->toContain('abc-123-install');
+    }
+
+    // fetchLatestVersion() still reads and posts it.
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+    expect($source)->toContain("Setting::where(['name' => 'install_id'])");
+});
+
 it('renders through Filament components rather than unstyled markup', function () {
     // This package ships no compiled CSS, and Filament's stylesheet carries
     // only its own fi-* classes — a raw utility class here resolves to nothing

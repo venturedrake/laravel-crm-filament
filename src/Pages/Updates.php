@@ -63,8 +63,6 @@ class Updates extends Page
 
     public ?string $latestVersion = null;
 
-    public ?string $installId = null;
-
     /**
      * @var array<int, array<string, mixed>>
      */
@@ -83,7 +81,6 @@ class Updates extends Page
 
         if ($settings) {
             $this->latestVersion = $settings->get('version_latest') ?: null;
-            $this->installId = $settings->get('install_id') ?: null;
         }
 
         // check(), not alerts(): alerts() returns nothing at all when
@@ -127,20 +124,16 @@ class Updates extends Page
     public function content(Schema $schema): Schema
     {
         return $schema->components([
+            // Install ID is deliberately not shown. It identifies this install
+            // to the version API and is of no use to the operator reading this
+            // page; it is still sent by fetchLatestVersion().
             Section::make(__('laravel-crm-filament::labels.updates.installed_version'))
-                ->columns(2)
                 ->schema([
                     TextEntry::make('currentVersion')
                         ->hiddenLabel()
                         ->state(fn (): string => $this->currentVersion ?: '—')
                         ->badge()
                         ->color('gray'),
-
-                    TextEntry::make('installId')
-                        ->label(__('laravel-crm-filament::labels.updates.install_id'))
-                        ->state(fn (): ?string => $this->installId)
-                        ->copyable()
-                        ->placeholder('—'),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.updates.latest_available'))
