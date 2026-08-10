@@ -611,8 +611,10 @@ return [
 
     // Página de actualizaciones
     'updates' => [
-        'installed_version' => 'Versión instalada',
-        'panel_version' => 'Versión del panel',
+        'installed_versions' => 'Versiones instaladas',
+        // Nombres de producto, no texto — iguales en todos los idiomas.
+        'laravel_crm' => 'Laravel CRM',
+        'filament_plugin' => 'Filament Plugin',
         'latest_available' => 'Última disponible',
         'up_to_date' => 'Estás al día.',
         'newer_available' => 'Hay una versión más reciente disponible.',

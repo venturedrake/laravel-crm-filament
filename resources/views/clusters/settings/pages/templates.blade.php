@@ -30,14 +30,17 @@
 
     @if ($overridden[$activeTab] ?? false)
         {{-- Saving writes a slug for every doc type at once, which retires a
-             published-and-edited legacy view. Say so before it happens. --}}
+             published-and-edited legacy view. Say so before it happens.
+
+             The sentence goes in `description`, not the default slot: the
+             callout component never echoes `$slot`, so content placed there is
+             dropped and only the heading survives. --}}
         <x-filament::callout
             color="warning"
             icon="heroicon-o-exclamation-triangle"
             :heading="__('laravel-crm-filament::labels.templates.published_override_heading')"
-        >
-            {{ __('laravel-crm-filament::labels.templates.published_override_warning') }}
-        </x-filament::callout>
+            :description="__('laravel-crm-filament::labels.templates.published_override_warning')"
+        />
     @endif
 
     <x-filament::section :heading="__('laravel-crm-filament::labels.templates.choose_a_template')">

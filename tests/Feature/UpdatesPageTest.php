@@ -272,6 +272,50 @@ it('renders the panel version alongside core\'s', function () {
         ->and($entries['currentVersion'])->toBe((string) config('laravel-crm.version'));
 });
 
+it('reports both versions in one section, each behind its own product label', function () {
+    // Two separate "version" cards invited the reader to take the first one as
+    // *the* version. They are two independent semver lines that move together
+    // on an upgrade, so they belong side by side — and neither is readable
+    // without a label saying which package it is.
+    $section = null;
+
+    foreach (livewire(Updates::class)->instance()->getSchema('content')->getFlatComponents(withHidden: true) as $component) {
+        if ($component instanceof Section
+            && (string) $component->getHeading() === __('laravel-crm-filament::labels.updates.installed_versions')) {
+            $section = $component;
+        }
+    }
+
+    expect($section)->not->toBeNull();
+
+    $labelled = [];
+
+    foreach ($section->getChildSchema()->getFlatComponents(withHidden: true) as $component) {
+        if ($component instanceof TextEntry) {
+            $labelled[(string) $component->getLabel()] = $component->getState();
+        }
+    }
+
+    expect($labelled)->toBe([
+        __('laravel-crm-filament::labels.updates.laravel_crm') => (string) config('laravel-crm.version'),
+        __('laravel-crm-filament::labels.updates.filament_plugin') => (string) config('laravel-crm-filament.version'),
+    ]);
+
+    // The labels are product names, so they read the same in every locale.
+    expect(__('laravel-crm-filament::labels.updates.laravel_crm'))->toBe('Laravel CRM')
+        ->and(__('laravel-crm-filament::labels.updates.filament_plugin'))->toBe('Filament Plugin');
+
+    // And it reaches the DOM. Asserting on schema state alone is how the
+    // system-check banner shipped rendering an icon and a dismiss button with
+    // no sentence between them — the content was right and the component
+    // never echoed it.
+    livewire(Updates::class)
+        ->assertSee(__('laravel-crm-filament::labels.updates.installed_versions'))
+        ->assertSee('Laravel CRM')
+        ->assertSee('Filament Plugin')
+        ->assertSee((string) config('laravel-crm-filament.version'));
+});
+
 it('claims no "latest available" for the panel', function () {
     // VERSION_API_URL is core's version API and only knows core's releases. A
     // panel "latest" would be core's number under the wrong label.

@@ -156,28 +156,32 @@ class Updates extends Page
     public function content(Schema $schema): Schema
     {
         return $schema->components([
+            // Both packages in one section, each behind its own label. They are
+            // two independent semver lines that move together on an upgrade, so
+            // reading them side by side is the whole point — two separate
+            // "version" cards invited the reader to take the first one as *the*
+            // version.
+            //
             // Install ID is deliberately not shown. It identifies this install
             // to the version API and is of no use to the operator reading this
             // page; it is still sent by fetchLatestVersion().
-            Section::make(__('laravel-crm-filament::labels.updates.installed_version'))
+            Section::make(__('laravel-crm-filament::labels.updates.installed_versions'))
+                ->columns(2)
                 ->schema([
                     TextEntry::make('currentVersion')
-                        ->hiddenLabel()
+                        ->label(__('laravel-crm-filament::labels.updates.laravel_crm'))
                         ->state(fn (): string => $this->currentVersion ?: '—')
                         ->badge()
                         ->color('gray'),
-                ]),
 
-            // The panel ships its own semver line and its own migrations, so
-            // its version is a separate fact from core's. There is deliberately
-            // no "latest available" counterpart: VERSION_API_URL is core's
-            // version API and only knows about core's releases, so a panel
-            // "latest" would either be core's number under the wrong label or a
-            // second network call to an endpoint that does not exist.
-            Section::make(__('laravel-crm-filament::labels.updates.panel_version'))
-                ->schema([
+                    // The panel ships its own semver line and its own
+                    // migrations. There is deliberately no "latest available"
+                    // counterpart below: VERSION_API_URL is core's version API
+                    // and only knows about core's releases, so a panel "latest"
+                    // would either be core's number under the wrong label or a
+                    // second network call to an endpoint that does not exist.
                     TextEntry::make('panelVersion')
-                        ->hiddenLabel()
+                        ->label(__('laravel-crm-filament::labels.updates.filament_plugin'))
                         ->state(fn (): string => $this->panelVersion ?: '—')
                         ->badge()
                         ->color('gray'),

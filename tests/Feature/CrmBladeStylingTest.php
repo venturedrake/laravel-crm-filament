@@ -198,3 +198,47 @@ function crmClassIsUtility(string $class): bool
 
     return false;
 }
+
+it('never puts callout body text in the default slot, which Filament drops', function () {
+    // `x-filament::callout` — the same file in Filament v4 and v5 — renders its
+    // `icon`, `heading`, `description`, `footer` and `controls` and nothing
+    // else. `$slot` is never echoed, so a sentence written between the tags
+    // vanishes silently: the callout still draws its border, icon and controls,
+    // which is exactly why this survived review twice. Body text belongs in
+    // `description`.
+    $calloutSource = dirname(__DIR__, 2) . '/vendor/filament/support/resources/views/components/callout.blade.php';
+
+    // The premise. If Filament ever starts echoing $slot, this fails first.
+    expect(file_exists($calloutSource))->toBeTrue();
+    expect((string) file_get_contents($calloutSource))->not->toContain('{{ $slot }}');
+
+    $offenders = [];
+
+    foreach (crmBladeViews() as $file) {
+        // Comments stripped from the whole file first, not just from the slot:
+        // a docblock that names `<x-filament::callout>` in prose — as the
+        // banner's does — otherwise reads as an unclosed opening tag and
+        // swallows the rest of the file.
+        $contents = (string) preg_replace('/\{\{--.*?--\}\}/s', '', (string) file_get_contents($file));
+
+        // Everything between an opening <x-filament::callout ...> and its
+        // closing tag. A self-closing callout has no slot to get wrong.
+        preg_match_all('/<x-filament::callout\b[^>]*(?<!\/)>(.*?)<\/x-filament::callout>/s', $contents, $matches);
+
+        foreach ($matches[1] as $slot) {
+            // Two things are legitimately allowed between the tags, because
+            // neither lands in the default slot: <x-slot> blocks (named slots
+            // *are* rendered) and the control directives that wrap them.
+            // Whatever survives both is body text, and body text here is
+            // dropped on the floor.
+            $stripped = preg_replace('/<x-slot\b.*?<\/x-slot>/s', '', $slot);
+            $stripped = preg_replace('/@[a-zA-Z]+(\s*\((?:[^()]|\([^()]*\))*\))?/', '', (string) $stripped);
+
+            if (trim((string) $stripped) !== '') {
+                $offenders[] = crmRelativeViewPath($file);
+            }
+        }
+    }
+
+    expect($offenders)->toBe([]);
+});

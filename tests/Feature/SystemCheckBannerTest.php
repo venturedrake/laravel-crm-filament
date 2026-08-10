@@ -248,3 +248,36 @@ it('survives a host whose core package predates the system check binding', funct
 
     expect($source)->toContain('app()->bound($binding)');
 });
+
+it('renders the message text into the DOM, not just into the view data', function () {
+    // The regression this exists for: the sentence used to go in the callout's
+    // default slot, and Filament's callout — same file in v4 and v5 — never
+    // echoes `$slot`. It renders `icon`, `heading`, `description`, `footer` and
+    // `controls`, nothing else. So the banner rendered as an icon and a dismiss
+    // button with nothing between them, while every assertion on message() and
+    // on viewData() stayed green.
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    forgetBannerCheckCaches();
+
+    $this->actingAs(bannerUser());
+
+    livewire(SystemCheckBanner::class)
+        // escape: false — the sentence carries a <code> element and a link.
+        ->assertSee('php artisan laravelcrm:filament-update', escape: false)
+        ->assertSee('update database', escape: false);
+});
+
+it('renders the message as HTML rather than escaping the markup', function () {
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    forgetBannerCheckCaches();
+
+    $this->actingAs(bannerUser());
+
+    $html = livewire(SystemCheckBanner::class)->html();
+
+    // The <code> and <a> reach the browser as elements. `description` is echoed
+    // through `{{ }}`, so anything but an Htmlable would arrive as visible
+    // angle brackets.
+    expect($html)->toContain('<code class="font-mono text-sm">php artisan laravelcrm:filament-update</code>')
+        ->not->toContain('&lt;code');
+});

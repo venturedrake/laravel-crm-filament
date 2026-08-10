@@ -622,8 +622,10 @@ return [
 
     // Updates page
     'updates' => [
-        'installed_version' => 'Installed version',
-        'panel_version' => 'Panel version',
+        'installed_versions' => 'Installed versions',
+        // Product names, not prose — the same in every locale.
+        'laravel_crm' => 'Laravel CRM',
+        'filament_plugin' => 'Filament Plugin',
         'latest_available' => 'Latest available',
         'up_to_date' => 'You are up to date.',
         'newer_available' => 'A newer version is available.',
