@@ -316,15 +316,77 @@ it('reports both versions in one section, each behind its own product label', fu
         ->assertSee((string) config('laravel-crm-filament.version'));
 });
 
-it('claims no "latest available" for the panel', function () {
-    // VERSION_API_URL is core's version API and only knows core's releases. A
-    // panel "latest" would be core's number under the wrong label.
+it('reads the panel\'s latest release from Packagist, not core\'s version API', function () {
+    // VERSION_API_URL is core's endpoint and only knows core's releases, so it
+    // has no answer to give about this package. Packagist is where `composer
+    // update` reads the same answer from, so the page cannot disagree with the
+    // command it tells you to run.
+    expect(Updates::PACKAGIST_VERSION_URL)->toContain(Updates::PACKAGIST_PACKAGE)
+        ->and(Updates::PACKAGIST_PACKAGE)->toBe('venturedrake/laravel-crm-filament')
+        ->and(Updates::PANEL_VERSION_LATEST_SETTING)->toBe('crm_filament_version_latest');
+
     $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
 
-    expect($source)->not->toContain('panelLatestVersion');
+    // Bounded, like core's call — Guzzle defaults both timeouts to "forever".
+    expect(substr_count($source, "'connect_timeout' => self::VERSION_API_CONNECT_TIMEOUT"))->toBe(2)
+        ->and(substr_count($source, "'timeout' => self::VERSION_API_TIMEOUT"))->toBe(2);
+
+    // A plain GET. Core's check POSTs the install id, app name, URL and user
+    // count; nothing about this install should leave the host on this one.
+    expect($source)->toContain("request('GET', self::PACKAGIST_VERSION_URL");
 });
 
-it('hides the panel database section when the panel database is current', function () {
+it('renders the panel\'s latest release beside core\'s', function () {
+    Setting::updateOrCreate(['name' => 'version_latest'], ['value' => '2.4.0']);
+    Setting::updateOrCreate(
+        ['name' => Updates::PANEL_VERSION_LATEST_SETTING],
+        ['value' => '9.9.9'],
+    );
+    app('laravel-crm.settings')->forgetCache();
+
+    $instance = livewire(Updates::class)->instance();
+
+    expect($instance->panelLatestVersion)->toBe('9.9.9')
+        ->and($instance->isPanelUpToDate)->toBeFalse();
+
+    expect(updatesPageEntryStates())->toHaveKey('panelLatestVersion');
+
+    livewire(Updates::class)->assertSee('9.9.9');
+});
+
+it('does not call a version behind the installed one an available update', function () {
+    // A host tracking dev-develop runs ahead of the newest tag on Packagist —
+    // which is exactly the state this repo is in. `>=`, not `==`.
+    Setting::updateOrCreate(
+        ['name' => Updates::PANEL_VERSION_LATEST_SETTING],
+        ['value' => '0.0.1'],
+    );
+    app('laravel-crm.settings')->forgetCache();
+
+    expect(livewire(Updates::class)->instance()->isPanelUpToDate)->toBeTrue();
+});
+
+it('picks the highest stable release out of a Packagist version list', function () {
+    $method = new ReflectionMethod(Updates::class, 'highestStableVersion');
+    $method->setAccessible(true);
+
+    $page = livewire(Updates::class)->instance();
+
+    // The `v` prefix has to go: version_compare() does not know it as a
+    // prefix, it treats it as an unknown string part that sorts below digits,
+    // so v1.10.0 vs 1.9.0 would come out backwards.
+    expect($method->invoke($page, ['v1.0.0', 'v1.10.0', 'v1.9.0']))->toBe('1.10.0');
+
+    // Pre-releases and branch aliases are not what `composer update` would
+    // install on a prefer-stable host, so offering one sends the operator
+    // chasing a release they cannot get.
+    expect($method->invoke($page, ['dev-main', 'v2.0.0-beta1', 'v1.2.0']))->toBe('1.2.0');
+
+    expect($method->invoke($page, ['dev-main']))->toBeNull()
+        ->and($method->invoke($page, []))->toBeNull();
+});
+
+it('hides the database section when neither database is behind its code', function () {
     Setting::updateOrCreate(
         ['name' => PanelSystemCheck::DB_VERSION_SETTING],
         ['value' => (string) config('laravel-crm-filament.version'), 'global' => 1],
@@ -335,20 +397,36 @@ it('hides the panel database section when the panel database is current', functi
 
     expect($instance->needsPanelDbUpdate)->toBeFalse();
     expect(updatesPageVisibleSectionHeadings())
-        ->not->toContain(__('laravel-crm-filament::labels.updates.panel_database_update_required'));
+        ->not->toContain(__('laravel-crm-filament::labels.updates.database_update_required'));
 });
 
-it('shows the panel database section when the panel migrations have not been run', function () {
+it('shows one database section, driven by the panel check as well as core\'s', function () {
     // Nothing has ever stamped crm_filament_db_version, which is the state
-    // every host upgrading into this release starts in.
+    // every host upgrading into this release starts in. There is no second,
+    // panel-specific section — the fix is the same command either way, so a
+    // pair of near-identical warnings carried no extra information. But this
+    // one still has to fire on a panel-only shortfall, or the page would stay
+    // silent while the banner reported it.
     Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
     app('laravel-crm-filament.system-check')->forgetCache();
 
     $instance = livewire(Updates::class)->instance();
 
-    expect($instance->needsPanelDbUpdate)->toBeTrue();
-    expect(updatesPageVisibleSectionHeadings())
-        ->toContain(__('laravel-crm-filament::labels.updates.panel_database_update_required'));
+    expect($instance->needsDbUpdate)->toBeFalse()
+        ->and($instance->needsPanelDbUpdate)->toBeTrue();
+
+    $headings = updatesPageVisibleSectionHeadings();
+
+    expect($headings)->toContain(__('laravel-crm-filament::labels.updates.database_update_required'));
+
+    // Exactly one, not two.
+    expect(array_filter(
+        $headings,
+        fn (string $heading): bool => $heading === __('laravel-crm-filament::labels.updates.database_update_required'),
+    ))->toHaveCount(1);
+
+    // And the body names the command that fixes both.
+    livewire(Updates::class)->assertSee('php artisan laravelcrm:filament-update');
 });
 
 it('answers the panel database question even with update notifications off', function () {

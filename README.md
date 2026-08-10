@@ -212,7 +212,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **LeadStatus** + **PipelineStageProbability** lookup resources in the Settings cluster.
 - **`lead_status_id`** Select on the Lead form; **`pipeline_stage_probability_id`** Select on the Pipeline Stage form.
 - **CrmTeams** resource in the Settings cluster with a **TeamMembersRelationManager** for attaching multiple users via `crm_team_user`.
-- **Updates** page (Settings cluster) showing the installed CRM version, the installed panel version, the latest published CRM release, and whether either database is behind its code, plus a read-only **Check for updates** action. The page reports; it never runs `laravelcrm:filament-update` — upgrades stay a console step. See [Updating](#updating).
+- **Updates** page (Settings cluster) showing both installed versions side by side, both latest published releases, and whether either database is behind its code, plus a read-only **Check for updates** action. Core's latest comes from the CRM version API; the panel's comes from Packagist, which is where `composer update` reads it from too. The page reports; it never runs `laravelcrm:filament-update` — upgrades stay a console step. See [Updating](#updating).
 
 ### v0.10 — Calendar, Task kanban, Reminders settings
 

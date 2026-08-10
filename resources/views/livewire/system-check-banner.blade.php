@@ -16,8 +16,16 @@
     HtmlString because `description` is echoed through `{{ }}`, and `e()` passes
     an Htmlable straight through. The sentence is developer-authored lang and
     every value interpolated into it was escaped in message().
+
+    Spacing is an inline style, not `mb-6`/`gap-3`: this package ships no CSS
+    and Filament's stylesheet carries only its own `fi-*` classes, so a utility
+    class here resolves to nothing (see CrmBladeStylingTest).
+
+    The <div> stays even with nothing to show — Livewire requires a single root
+    element — but it carries the margins only when it has content, or every
+    page in the panel would open with an empty gap above it.
 --}}
-<div>
+<div @if ($messages !== []) style="display: flex; flex-direction: column; gap: 0.75rem; margin-block: 1.5rem;" @endif>
     @foreach ($messages as $message)
         <x-filament::callout
             :color="($message['level'] ?? 'info') === 'warning' ? 'warning' : 'info'"

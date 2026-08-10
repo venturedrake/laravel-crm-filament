@@ -42,6 +42,28 @@ class Updates extends Page
     public const VERSION_API_URL = 'https://api.laravelcrm.com/api/v2/public/version';
 
     /**
+     * Where the panel's own latest release is looked up.
+     *
+     * Packagist rather than VERSION_API_URL: that endpoint is core's, and it
+     * only knows core's releases — there is nothing to ask it about this
+     * package. Packagist is where `composer update` reads the same answer
+     * from, so it cannot disagree with the command this page tells you to run.
+     *
+     * A plain GET of a public metadata file, unlike core's check, which POSTs
+     * the install id, app name, URL and user count. Nothing about this install
+     * leaves the host on this call.
+     */
+    public const PACKAGIST_VERSION_URL = 'https://repo.packagist.org/p2/venturedrake/laravel-crm-filament.json';
+
+    public const PACKAGIST_PACKAGE = 'venturedrake/laravel-crm-filament';
+
+    /**
+     * Where the answer is cached between checks, mirroring core's
+     * `version_latest`. Written only by this page.
+     */
+    public const PANEL_VERSION_LATEST_SETTING = 'crm_filament_version_latest';
+
+    /**
      * Seconds. Guzzle defaults both of these to 0, meaning "no limit".
      */
     public const VERSION_API_CONNECT_TIMEOUT = 5;
@@ -65,6 +87,8 @@ class Updates extends Page
     public ?string $panelVersion = null;
 
     public ?string $latestVersion = null;
+
+    public ?string $panelLatestVersion = null;
 
     /**
      * @var array<int, array<string, mixed>>
@@ -93,6 +117,7 @@ class Updates extends Page
 
         if ($settings) {
             $this->latestVersion = $settings->get('version_latest') ?: null;
+            $this->panelLatestVersion = $settings->get(self::PANEL_VERSION_LATEST_SETTING) ?: null;
         }
 
         // check(), not alerts(): alerts() returns nothing at all when
@@ -114,6 +139,22 @@ class Updates extends Page
         }
 
         return version_compare($this->currentVersion, $this->latestVersion, '>=');
+    }
+
+    /**
+     * The same question for the panel.
+     *
+     * "Up to date" is `>=`, not `==`, on purpose: a host tracking `dev-develop`
+     * runs a version ahead of the newest tag on Packagist, and telling it an
+     * older release is "available" would be nonsense.
+     */
+    public function getIsPanelUpToDateProperty(): bool
+    {
+        if (! $this->panelLatestVersion || ! $this->panelVersion) {
+            return true;
+        }
+
+        return version_compare($this->panelVersion, $this->panelLatestVersion, '>=');
     }
 
     public function getNeedsDbUpdateProperty(): bool
@@ -175,11 +216,9 @@ class Updates extends Page
                         ->color('gray'),
 
                     // The panel ships its own semver line and its own
-                    // migrations. There is deliberately no "latest available"
-                    // counterpart below: VERSION_API_URL is core's version API
-                    // and only knows about core's releases, so a panel "latest"
-                    // would either be core's number under the wrong label or a
-                    // second network call to an endpoint that does not exist.
+                    // migrations, so its "latest available" comes from its own
+                    // source — Packagist, not core's version API. See
+                    // PACKAGIST_VERSION_URL.
                     TextEntry::make('panelVersion')
                         ->label(__('laravel-crm-filament::labels.updates.filament_plugin'))
                         ->state(fn (): string => $this->panelVersion ?: '—')
@@ -187,10 +226,13 @@ class Updates extends Page
                         ->color('gray'),
                 ]),
 
+            // Laid out to match "Installed versions" above, so the two cards
+            // read as a grid: same order, same labels, one column per package.
             Section::make(__('laravel-crm-filament::labels.updates.latest_available'))
+                ->columns(2)
                 ->schema([
                     TextEntry::make('latestVersion')
-                        ->hiddenLabel()
+                        ->label(__('laravel-crm-filament::labels.updates.laravel_crm'))
                         ->state(fn (): string => $this->latestVersion ?: __('laravel-crm-filament::labels.updates.no_version_information'))
                         ->badge(fn (): bool => filled($this->latestVersion))
                         ->color(fn (): string => match (true) {
@@ -203,30 +245,36 @@ class Updates extends Page
                             $this->getIsUpToDateProperty() => __('laravel-crm-filament::labels.updates.up_to_date'),
                             default => __('laravel-crm-filament::labels.updates.newer_available'),
                         }),
+
+                    TextEntry::make('panelLatestVersion')
+                        ->label(__('laravel-crm-filament::labels.updates.filament_plugin'))
+                        ->state(fn (): string => $this->panelLatestVersion ?: __('laravel-crm-filament::labels.updates.no_version_information'))
+                        ->badge(fn (): bool => filled($this->panelLatestVersion))
+                        ->color(fn (): string => match (true) {
+                            blank($this->panelLatestVersion) => 'gray',
+                            $this->getIsPanelUpToDateProperty() => 'success',
+                            default => 'warning',
+                        })
+                        ->helperText(fn (): ?string => match (true) {
+                            blank($this->panelLatestVersion) => null,
+                            $this->getIsPanelUpToDateProperty() => __('laravel-crm-filament::labels.updates.up_to_date'),
+                            default => __('laravel-crm-filament::labels.updates.newer_available'),
+                        }),
                 ]),
 
+            // One section for both checks, not one each. The fix is the same
+            // command either way — the body text names it — so splitting them
+            // gave the reader two near-identical warnings and no extra
+            // information. Still driven by both, or a panel-only shortfall
+            // would leave this page silent while the banner shouted.
             Section::make(__('laravel-crm-filament::labels.updates.database_update_required'))
                 ->icon('heroicon-o-exclamation-triangle')
                 ->iconColor('warning')
-                ->visible(fn (): bool => $this->getNeedsDbUpdateProperty())
+                ->visible(fn (): bool => $this->getNeedsDbUpdateProperty() || $this->getNeedsPanelDbUpdateProperty())
                 ->schema([
                     TextEntry::make('databaseUpdateRequired')
                         ->hiddenLabel()
                         ->state(__('laravel-crm-filament::labels.updates.database_update_required_body')),
-                ]),
-
-            // Reported apart from core's section above, not folded into it:
-            // both can be outstanding at once, and an operator who sees only
-            // "database update required" has no way to tell whether the panel's
-            // own migrations are among them.
-            Section::make(__('laravel-crm-filament::labels.updates.panel_database_update_required'))
-                ->icon('heroicon-o-exclamation-triangle')
-                ->iconColor('warning')
-                ->visible(fn (): bool => $this->getNeedsPanelDbUpdateProperty())
-                ->schema([
-                    TextEntry::make('panelDatabaseUpdateRequired')
-                        ->hiddenLabel()
-                        ->state(__('laravel-crm-filament::labels.updates.panel_database_update_required_body')),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.updates.how_to_update'))
@@ -319,10 +367,18 @@ class Updates extends Page
                     return;
                 }
 
+                // Both packages, or the toast contradicts the page: core can be
+                // current while the panel is a release behind, and "You are
+                // running the latest version" over a row reading "A newer
+                // version is available" is worse than saying nothing.
                 Notification::make()
-                    ->title($this->getIsUpToDateProperty()
+                    ->title($this->getIsUpToDateProperty() && $this->getIsPanelUpToDateProperty()
                         ? __('laravel-crm-filament::labels.notifications.update_check_up_to_date')
-                        : __('laravel-crm-filament::labels.notifications.update_check_available', ['version' => $this->latestVersion]))
+                        : __('laravel-crm-filament::labels.notifications.update_check_available', [
+                            'version' => $this->getIsUpToDateProperty()
+                                ? $this->panelLatestVersion
+                                : $this->latestVersion,
+                        ]))
                     ->success()
                     ->send();
             });
@@ -392,6 +448,12 @@ class Updates extends Page
 
         $versionSetting?->forceFill(['updated_at' => Carbon::now()])->save();
 
+        // Best effort, and deliberately not folded into $checked: this is a
+        // different service, and core's answer is the one the "could not check"
+        // warning is about. A Packagist outage should not report the whole
+        // check as broken when core's half succeeded.
+        $this->fetchLatestPanelVersion();
+
         if (app()->bound('laravel-crm.settings')) {
             app('laravel-crm.settings')->forgetCache();
         }
@@ -403,5 +465,89 @@ class Updates extends Page
         }
 
         return $checked;
+    }
+
+    /**
+     * Ask Packagist for this package's newest published release and persist it.
+     *
+     * Returns whether an answer was obtained. Never throws: a version check
+     * must not break the page it is rendered on, and this one is the second of
+     * two network calls on a single user-initiated action.
+     */
+    protected function fetchLatestPanelVersion(): bool
+    {
+        try {
+            $response = (new Client)->request('GET', self::PACKAGIST_VERSION_URL, [
+                // Bounded for the same reason core's call is: Guzzle defaults
+                // both to 0, meaning "wait forever", on a live admin request.
+                'connect_timeout' => self::VERSION_API_CONNECT_TIMEOUT,
+                'timeout' => self::VERSION_API_TIMEOUT,
+                'headers' => ['Accept' => 'application/json'],
+            ]);
+
+            $body = json_decode((string) $response->getBody(), true);
+
+            $versions = $body['packages'][self::PACKAGIST_PACKAGE] ?? null;
+
+            if (! is_array($versions)) {
+                return false;
+            }
+
+            $latest = $this->highestStableVersion(array_column($versions, 'version'));
+
+            if ($latest === null) {
+                return false;
+            }
+
+            Setting::updateOrCreate(
+                ['name' => self::PANEL_VERSION_LATEST_SETTING],
+                ['value' => $latest],
+            );
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * The highest stable release in a Packagist version list.
+     *
+     * Stable only: Packagist returns `dev-main`, `1.2.0-beta1` and friends
+     * alongside tags, and none of those is what `composer update` on a
+     * default `prefer-stable` host would install — offering one as "latest
+     * available" would send an operator chasing a release they cannot get.
+     *
+     * The leading `v` goes too. `version_compare()` does not recognise it as a
+     * prefix; it treats it as an unknown string part that happens to sort
+     * below digits, so `v1.10.0` vs `1.9.0` would come out backwards.
+     *
+     * @param  array<int, mixed>  $versions
+     */
+    protected function highestStableVersion(array $versions): ?string
+    {
+        $stable = [];
+
+        foreach ($versions as $version) {
+            if (! is_string($version)) {
+                continue;
+            }
+
+            $normalised = ltrim($version, 'vV');
+
+            if (preg_match('/^\d+\.\d+\.\d+$/', $normalised) !== 1) {
+                continue;
+            }
+
+            $stable[] = $normalised;
+        }
+
+        if ($stable === []) {
+            return null;
+        }
+
+        usort($stable, static fn (string $a, string $b): int => version_compare($a, $b));
+
+        return end($stable) ?: null;
     }
 }

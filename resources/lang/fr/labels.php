@@ -621,8 +621,6 @@ return [
         'no_version_information' => "Aucune information de version pour l'instant. Lancez une vérification pour récupérer la dernière version.",
         'database_update_required' => 'Mise à jour de la base de données requise',
         'database_update_required_body' => 'La base de données est en retard sur le code installé. Exécutez php artisan laravelcrm:filament-update pour la mettre à jour.',
-        'panel_database_update_required' => 'Mise à jour de la base de données du panneau requise',
-        'panel_database_update_required_body' => 'La base de données est en retard sur le code installé du panneau CRM. Exécutez php artisan laravelcrm:filament-update pour publier et exécuter les migrations du panneau. La commande met d\'abord à jour le paquet CRM de base.',
         'panel_db_update_required_banner' => 'Le panneau Laravel CRM nécessite des mises à jour de la base de données pour fonctionner correctement. Exécutez :command depuis la racine de votre projet, ou :updates_page.',
         'panel_db_update_command' => 'php artisan laravelcrm:filament-update',
         'panel_update_database' => 'mettre à jour la base de données',

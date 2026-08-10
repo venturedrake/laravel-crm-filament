@@ -25,9 +25,17 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 - **Panel version reporting.** The panel now has its own version constant
   (`config('laravel-crm-filament.version')`, merged from a non-publishable `config/package.php`) and
-  its own database-behind-code check. `Settings → Updates` shows the panel version alongside core's
-  and reports when the panel's migrations have not been run; the system-check banner carries the
-  same alert, naming `php artisan laravelcrm:filament-update`.
+  its own database-behind-code check. `Settings → Updates` reports both versions side by side under
+  "Installed versions", both latest published releases under "Latest available", and its "Database
+  update required" section is driven by the panel's check as well as core's. The system-check banner
+  carries the same alert, naming `php artisan laravelcrm:filament-update`.
+
+- **The panel's latest release is looked up on Packagist**, cached in a `crm_filament_version_latest`
+  setting by the existing **Check for updates** action. Core's version API only knows core's
+  releases, and Packagist is where `composer update` reads the same answer from — so the page cannot
+  disagree with the command it tells you to run. Stable tags only, a plain GET with no install data
+  attached, bounded by the same timeouts as core's check, and best-effort: a Packagist outage does
+  not report the whole check as failed when core's half succeeded.
 
   `laravelcrm:filament-install` records `crm_filament_db_version` as well, right after it runs the
   migrations — a missing marker counts as behind, so an installer that skipped it would greet a

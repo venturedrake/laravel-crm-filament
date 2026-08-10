@@ -281,3 +281,25 @@ it('renders the message as HTML rather than escaping the markup', function () {
     expect($html)->toContain('<code class="font-mono text-sm">php artisan laravelcrm:filament-update</code>')
         ->not->toContain('&lt;code');
 });
+
+it('spaces the banner off the page, and adds no gap when there is nothing to show', function () {
+    // Inline style, not `mb-6`: this package ships no CSS and Filament's
+    // stylesheet carries only its own `fi-*` classes, so a utility class here
+    // resolves to nothing. See CrmBladeStylingTest.
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    forgetBannerCheckCaches();
+
+    $this->actingAs(bannerUser());
+
+    expect(livewire(SystemCheckBanner::class)->html())->toContain('margin-block');
+
+    // A guest sees no alerts, and the wrapper still has to render — Livewire
+    // requires a single root element — but without the margins, or every page
+    // in the panel would open with an empty gap above it.
+    auth()->logout();
+
+    $empty = livewire(SystemCheckBanner::class);
+
+    expect($empty->instance()->alerts)->toBeEmpty();
+    expect($empty->html())->not->toContain('margin-block');
+});
