@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+
+- **`laravelcrm:filament-upgrade`** — clears the cached Filament panel components (plus config,
+  routes and views). Touches no database and never prompts, so it is safe to run unattended.
+  `laravelcrm:filament-install` now appends it to your `composer.json` `post-autoload-dump`
+  scripts, which is what makes newly-shipped resources and pages actually appear after a
+  `composer update`: Filament caches the panel's discovered components, and a stale cache hides
+  them. Pass `--no-composer-hook` to opt out; an unparseable `composer.json` is left untouched and
+  the line to add is printed instead.
+
+- **`laravelcrm:filament-update`** — runs `laravelcrm:filament-upgrade`, then `laravelcrm:update`,
+  then publishes and runs this package's migrations, then records `crm_filament_db_version`.
+  Core first, because `crm_invoice_payments` carries foreign keys into core's tables. Every step is
+  fatal: a failure exits non-zero and says the panel has **not** been updated, rather than warning
+  and carrying on. `--force` for deploy scripts, `--skip-crm-update` when core is already current.
+
+- **Panel version reporting.** The panel now has its own version constant
+  (`config('laravel-crm-filament.version')`, merged from a non-publishable `config/package.php`) and
+  its own database-behind-code check. `Settings → Updates` shows the panel version alongside core's
+  and reports when the panel's migrations have not been run; the system-check banner carries the
+  same alert, naming `php artisan laravelcrm:filament-update`.
+
+  `laravelcrm:filament-install` records `crm_filament_db_version` as well, right after it runs the
+  migrations — a missing marker counts as behind, so an installer that skipped it would greet a
+  fresh install with a banner telling the operator to update the schema it had just created. If the
+  marker cannot be written the install still succeeds and prints the one-line remedy; unlike
+  `laravelcrm:filament-update`, aborting mid-install over it would be the worse outcome.
+
+  Both commands read the constant from `config/package.php` directly when the merged config cannot
+  answer. `mergeConfigFrom()` is a no-op while the host's configuration is cached, and `config:clear`
+  does not undo that mid-process — it deletes `bootstrap/cache/config.php` and leaves the loaded
+  repository alone. Without the fallback, upgrading a host with a `config:cache` written before this
+  release would migrate, silently skip the marker and still report success.
+
+### Changed
+
+- The `Settings → Updates` page now tells operators to run `php artisan laravelcrm:filament-update`
+  rather than `php artisan laravelcrm:update`. The old instruction migrated core but never the
+  panel's own table, and never recorded that the panel's database work had been done. Still two
+  lines — the new command runs core's for you, in the right order. The page stays read-only.
+
+- Dismissing the system-check banner now fingerprints core's alerts **and** the panel's. Previously
+  the stored signature covered core's alone, so a dismissal would have swallowed every subsequent
+  panel alert.
+
+### Upgrading
+
+- **Add the composer hook once, by hand**, on a panel installed before this release — or just
+  re-run `php artisan laravelcrm:filament-install`:
+
+  ```json
+  "scripts": {
+      "post-autoload-dump": [
+          "@php artisan package:discover --ansi",
+          "@php artisan laravelcrm:upgrade --ansi",
+          "@php artisan laravelcrm:filament-upgrade --ansi"
+      ]
+  }
+  ```
+
+- **Run `php artisan laravelcrm:filament-update` after upgrading.** Until you do, the Updates page
+  and the banner will report that the panel's database is behind — `crm_filament_db_version` has
+  never been stamped on an existing install.
+
 ## [1.1.0] - 2026-08-09
 
 ### Upgrading

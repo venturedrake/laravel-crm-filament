@@ -28,6 +28,8 @@ Once the CRM package is confirmed installed, the command inspects the host app f
 - **Only the plugin's own `crm` panel already installed** → re-runs the standalone publish (use `--force` to overwrite).
 - **One or more other panels detected** → asks whether to publish a standalone `/crm` panel or inject the plugin into an existing panel.
 
+Either way it publishes and runs the plugin's own migration, records the panel database version it has just brought the schema up to (so a fresh install does not report an update it has already applied), and appends `@php artisan laravelcrm:filament-upgrade --ansi` to your `composer.json` `post-autoload-dump` scripts, so future `composer install` runs clear the cached Filament panel components for you — see [Updating](#updating). Pass `--no-composer-hook` to skip that. If your `composer.json` cannot be parsed it is left untouched and the line to add is printed instead.
+
 ### Branch A — standalone `/crm` panel
 
 Publishes `app/Providers/Filament/CrmPanelProvider.php` (id `crm`, path `/crm`) and registers it in `bootstrap/providers.php`. This is the default when no other panels exist.
@@ -56,6 +58,7 @@ The prompts can be bypassed with flags:
 | `--skip-crm-install` | Skip the `venturedrake/laravel-crm` install check (assume it has already been installed) |
 | `--modules=leads,deals,…` | Comma-separated module list forwarded to `laravelcrm:install` (requires `laravel-crm` 2.3.0+) |
 | `--allow-teams` | Install onto a CRM with `LARAVEL_CRM_TEAMS=true` anyway. The panel is **not** tenant-aware — see [Multi-tenancy](#multi-tenancy-not-supported) |
+| `--no-composer-hook` | Do not add `laravelcrm:filament-upgrade` to your `composer.json` `post-autoload-dump` scripts — see [Updating](#updating) |
 
 Example — non-interactive injection into an existing `admin` panel:
 
@@ -80,6 +83,56 @@ class User extends Authenticatable implements FilamentUser
     }
 }
 ```
+
+## Updating
+
+Two commands, mirroring the split `venturedrake/laravel-crm` uses:
+
+| Command | Does | When |
+| --- | --- | --- |
+| `laravelcrm:filament-upgrade` | Clears the cached Filament panel components, config, routes and views. **Never touches the database, never prompts.** | Automatically, from your app's `post-autoload-dump` composer hook — so `composer install` on a production box does it too |
+| `laravelcrm:filament-update` | Runs `laravelcrm:filament-upgrade`, then `laravelcrm:update`, then publishes and runs this package's migrations. Exits non-zero if any of it fails. | Explicitly, by you or your deploy script |
+
+`laravelcrm:filament-update` runs **`laravelcrm:update` before its own migrations** — core's schema
+underneath the panel's, since `crm_invoice_payments` carries foreign keys into core's tables. So a
+normal upgrade is two lines, not four:
+
+```bash
+composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
+php artisan laravelcrm:filament-update
+```
+
+Pass `--skip-crm-update` if core is already up to date and you only want this package's half.
+
+The cache-clearing half matters more here than it looks: Filament caches the panel's discovered
+components under `bootstrap/cache/filament/`, and a stale cache after an upgrade means new CRM
+resources and pages simply do not appear. `laravelcrm:filament-install` adds the hook that clears it
+to your `composer.json` for you. **Panels installed before this release need to add it once, by
+hand** (the CRM package adds its own line, so a host running both ends up with two):
+
+```json
+"scripts": {
+    "post-autoload-dump": [
+        "@php artisan package:discover --ansi",
+        "@php artisan laravelcrm:upgrade --ansi",
+        "@php artisan laravelcrm:filament-upgrade --ansi"
+    ]
+}
+```
+
+Order matters: `package:discover` has to run before either package's artisan command can resolve.
+
+On a production deploy:
+
+```bash
+composer install --no-dev --optimize-autoloader   # the hook fires laravelcrm:filament-upgrade
+php artisan laravelcrm:filament-update --force    # core update + panel migrations, non-interactive
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+
+`Settings → Updates` in the panel reports both versions and tells you when either database is
+behind its code; the same information reaches every panel page as a dismissible banner. Neither
+runs anything — applying an update is a console step, taken with a backup in reach.
 
 ## Registering the plugin
 
@@ -159,7 +212,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **LeadStatus** + **PipelineStageProbability** lookup resources in the Settings cluster.
 - **`lead_status_id`** Select on the Lead form; **`pipeline_stage_probability_id`** Select on the Pipeline Stage form.
 - **CrmTeams** resource in the Settings cluster with a **TeamMembersRelationManager** for attaching multiple users via `crm_team_user`.
-- **Updates** page (Settings cluster) showing current vs latest version + a read-only **Check for updates** action. The page reports; it never runs `laravelcrm:update` — upgrades stay a console step.
+- **Updates** page (Settings cluster) showing the installed CRM version, the installed panel version, the latest published CRM release, and whether either database is behind its code, plus a read-only **Check for updates** action. The page reports; it never runs `laravelcrm:filament-update` — upgrades stay a console step. See [Updating](#updating).
 
 ### v0.10 — Calendar, Task kanban, Reminders settings
 
@@ -407,7 +460,7 @@ The Filament panel and the core CRM's Livewire UI both target the same database.
 - **Full cutover.** Accept the install prompt so `LARAVEL_CRM_USER_INTERFACE=false` is written to `.env`. The Filament panel serves `/crm`; the Livewire UI stops mounting its routes. This is the simplest path once you're confident the Filament panel covers everything you need.
 - **Side-by-side during transition.** Decline the install prompt and change the published `CrmPanelProvider`'s `->path('crm')` to a distinct path (e.g. `->path('crm-next')`). Both UIs then run against the same database until you're ready to flip the switch.
 
-Regardless of which path you pick, the plugin reads and writes the same `crm_*` tables. It adds exactly one table of its own, `crm_invoice_payments`, which records the payment history behind the invoice **Mark paid** action; `laravelcrm:filament-install` publishes and runs that migration in both `crm` and `inject` mode. If you wire the plugin up by hand instead of running the installer, publish it yourself with `php artisan vendor:publish --tag=crm-filament-migrations && php artisan migrate` — without the table, Mark paid still updates the invoice totals but silently records no payment history. Access control routes through the same `HasCrmAccess` trait and the same Spatie roles/permissions seeded by `php artisan laravelcrm:permissions`, so a user who can see the Livewire UI can see the Filament panel (subject to `canAccessPanel()`). All writes from either UI go through the same observers (`Observers/`), services (`Services/`), and audit listeners; encrypted columns continue to be transparently encrypted/decrypted via `HasEncryptableFields`.
+Regardless of which path you pick, the plugin reads and writes the same `crm_*` tables. It adds exactly one table of its own, `crm_invoice_payments`, which records the payment history behind the invoice **Mark paid** action; `laravelcrm:filament-install` publishes and runs that migration in both `crm` and `inject` mode. If you wire the plugin up by hand instead of running the installer, publish it yourself with `php artisan vendor:publish --tag=crm-filament-migrations && php artisan migrate` — without the table, Mark paid still updates the invoice totals but silently records no payment history. On subsequent upgrades `php artisan laravelcrm:filament-update` does the same thing for you, and records that it did — see [Updating](#updating). Access control routes through the same `HasCrmAccess` trait and the same Spatie roles/permissions seeded by `php artisan laravelcrm:permissions`, so a user who can see the Livewire UI can see the Filament panel (subject to `canAccessPanel()`). All writes from either UI go through the same observers (`Observers/`), services (`Services/`), and audit listeners; encrypted columns continue to be transparently encrypted/decrypted via `HasEncryptableFields`.
 
 ### Differences hosts should know about
 
@@ -422,7 +475,7 @@ Paths in this table assume the default `/crm` Filament mount with the Livewire U
 | Activities | per-entity timeline | per-entity timeline **plus** global `/crm/activities` |
 | Calendar | none | `/crm/calendar` aggregating tasks/calls/meetings/lunches |
 | Reminders | global config | per-user `/crm/settings/reminders` |
-| Updates | `laravelcrm:update` artisan only | `/crm/settings/updates` reports installed vs latest published version; applying the update is still artisan-only |
+| Updates | `laravelcrm:update` artisan only | `/crm/settings/updates` reports installed vs latest published version and whether either database is behind its code; applying the update is still artisan-only, via `laravelcrm:filament-update` — see [Updating](#updating) |
 | PDF templates | `/crm/settings/templates` | `/crm/templates`, with the preview and thumbnails served from the page rather than from routes |
 | Invitation acceptance | `/crm/users/invitations/accept/{code}` | `/crm/invitations/accept/{code}` — core's route is behind `laravel-crm.user_interface` |
 | Multi-tenancy | supported | **not supported** — see [Multi-tenancy](#multi-tenancy-not-supported) |

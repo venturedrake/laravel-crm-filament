@@ -18,6 +18,7 @@ use Throwable;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 use VentureDrake\LaravelCrmFilament\Resources\Users\UserResource;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 
 class Updates extends Page
 {
@@ -56,10 +57,12 @@ class Updates extends Page
      */
     public const UPDATE_COMMANDS = [
         'composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament',
-        'php artisan laravelcrm:update',
+        'php artisan laravelcrm:filament-update',
     ];
 
     public ?string $currentVersion = null;
+
+    public ?string $panelVersion = null;
 
     public ?string $latestVersion = null;
 
@@ -67,6 +70,14 @@ class Updates extends Page
      * @var array<int, array<string, mixed>>
      */
     public array $systemCheckAlerts = [];
+
+    /**
+     * The panel's own database-behind-code check, kept apart from core's.
+     * Both can be outstanding at once and they are reported separately.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public array $panelSystemCheckAlerts = [];
 
     public function mount(): void
     {
@@ -76,6 +87,7 @@ class Updates extends Page
     protected function refreshState(): void
     {
         $this->currentVersion = (string) (config('laravel-crm.version') ?? '');
+        $this->panelVersion = (string) (config('laravel-crm-filament.version') ?? '');
 
         $settings = app()->bound('laravel-crm.settings') ? app('laravel-crm.settings') : null;
 
@@ -88,6 +100,10 @@ class Updates extends Page
         // deliberately come to ask the question.
         $this->systemCheckAlerts = app()->bound('laravel-crm.system-check')
             ? app('laravel-crm.system-check')->check()
+            : [];
+
+        $this->panelSystemCheckAlerts = app()->bound('laravel-crm-filament.system-check')
+            ? app('laravel-crm-filament.system-check')->check()
             : [];
     }
 
@@ -104,6 +120,22 @@ class Updates extends Page
     {
         foreach ($this->systemCheckAlerts as $alert) {
             if (($alert['type'] ?? null) === 'db_update_required') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether *this package's* migrations are outstanding, which core's check
+     * knows nothing about — it compares core's version against core's marker
+     * and counts core's migration files only.
+     */
+    public function getNeedsPanelDbUpdateProperty(): bool
+    {
+        foreach ($this->panelSystemCheckAlerts as $alert) {
+            if (($alert['type'] ?? null) === PanelSystemCheck::PANEL_DB_UPDATE_REQUIRED) {
                 return true;
             }
         }
@@ -136,6 +168,21 @@ class Updates extends Page
                         ->color('gray'),
                 ]),
 
+            // The panel ships its own semver line and its own migrations, so
+            // its version is a separate fact from core's. There is deliberately
+            // no "latest available" counterpart: VERSION_API_URL is core's
+            // version API and only knows about core's releases, so a panel
+            // "latest" would either be core's number under the wrong label or a
+            // second network call to an endpoint that does not exist.
+            Section::make(__('laravel-crm-filament::labels.updates.panel_version'))
+                ->schema([
+                    TextEntry::make('panelVersion')
+                        ->hiddenLabel()
+                        ->state(fn (): string => $this->panelVersion ?: '—')
+                        ->badge()
+                        ->color('gray'),
+                ]),
+
             Section::make(__('laravel-crm-filament::labels.updates.latest_available'))
                 ->schema([
                     TextEntry::make('latestVersion')
@@ -162,6 +209,20 @@ class Updates extends Page
                     TextEntry::make('databaseUpdateRequired')
                         ->hiddenLabel()
                         ->state(__('laravel-crm-filament::labels.updates.database_update_required_body')),
+                ]),
+
+            // Reported apart from core's section above, not folded into it:
+            // both can be outstanding at once, and an operator who sees only
+            // "database update required" has no way to tell whether the panel's
+            // own migrations are among them.
+            Section::make(__('laravel-crm-filament::labels.updates.panel_database_update_required'))
+                ->icon('heroicon-o-exclamation-triangle')
+                ->iconColor('warning')
+                ->visible(fn (): bool => $this->getNeedsPanelDbUpdateProperty())
+                ->schema([
+                    TextEntry::make('panelDatabaseUpdateRequired')
+                        ->hiddenLabel()
+                        ->state(__('laravel-crm-filament::labels.updates.panel_database_update_required_body')),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.updates.how_to_update'))
@@ -197,12 +258,13 @@ class Updates extends Page
     /**
      * Check-for-updates only.
      *
-     * There is deliberately no "Run update" action here. `laravelcrm:update`
-     * publishes assets, migrates and reseeds the live database, and runs a set
-     * of one-shot data backfills — that is a deployment step, taken by an
-     * operator with a backup and a console, not a button on an admin page
-     * behind a generic "are you sure?" modal. The page tells you the two
-     * commands to run instead.
+     * There is deliberately no "Run update" action here.
+     * `laravelcrm:filament-update` runs `laravelcrm:update` — which publishes
+     * assets, migrates and reseeds the live database and performs a set of
+     * one-shot data backfills — and then publishes and runs this package's own
+     * migrations. That is a deployment step, taken by an operator with a backup
+     * and a console, not a button on an admin page behind a generic "are you
+     * sure?" modal. The page tells you the two commands to run instead.
      */
     protected function getHeaderActions(): array
     {
@@ -330,8 +392,10 @@ class Updates extends Page
             app('laravel-crm.settings')->forgetCache();
         }
 
-        if (app()->bound('laravel-crm.system-check')) {
-            app('laravel-crm.system-check')->forgetCache();
+        foreach (['laravel-crm.system-check', 'laravel-crm-filament.system-check'] as $binding) {
+            if (app()->bound($binding)) {
+                app($binding)->forgetCache();
+            }
         }
 
         return $checked;

@@ -7,8 +7,12 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\ServiceProvider;
+use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrm\Scopes\BelongsToTeamsScope;
+use VentureDrake\LaravelCrm\Services\SettingService;
 use VentureDrake\LaravelCrmFilament\Console\InstallCommand;
 use VentureDrake\LaravelCrmFilament\LaravelCrmFilamentServiceProvider;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 
 /**
  * Stand-ins for the base package's `laravelcrm:install`, used to prove the
@@ -51,6 +55,18 @@ class FakeLaravelCrmInstallWithoutModules extends Command
         self::$ran = true;
 
         return self::SUCCESS;
+    }
+}
+
+/**
+ * A settings service that cannot write — the shape of a host run with
+ * `--skip-crm-install` against a CRM whose tables were never created.
+ */
+class CrmInstallThrowingSettingService extends SettingService
+{
+    public function setInstallWide(string $name, $value)
+    {
+        throw new RuntimeException('no settings table');
     }
 }
 
@@ -102,9 +118,22 @@ beforeEach(function () {
     FakeLaravelCrmInstallWithModules::$interactive = null;
     FakeLaravelCrmInstallWithModules::$ran = false;
     FakeLaravelCrmInstallWithoutModules::$ran = false;
+
+    // The installer patches base_path('composer.json') now. Every test that
+    // does not redirect the base path resolves that to the testbench skeleton's
+    // own composer.json, inside vendor/ — snapshot it here and restore it below
+    // so a test run cannot leave the vendor tree patched.
+    $this->skeletonComposerPath = base_path('composer.json');
+    $this->skeletonComposerContents = File::exists($this->skeletonComposerPath)
+        ? File::get($this->skeletonComposerPath)
+        : null;
 });
 
 afterEach(function () {
+    if ($this->skeletonComposerContents !== null) {
+        File::put($this->skeletonComposerPath, $this->skeletonComposerContents);
+    }
+
     foreach (glob(sys_get_temp_dir() . '/crm-install-test-*') ?: [] as $dir) {
         File::deleteDirectory($dir);
     }
@@ -482,6 +511,78 @@ PHP
     }
 });
 
+it('stamps the panel db_version, so a fresh install raises no update alert', function () {
+    // The installer has just published and run the panel migrations.
+    // PanelSystemCheck counts a missing marker as behind, so leaving it
+    // unwritten would greet the operator on their very first page load with
+    // "panel database update required" — over migrations that are already
+    // applied, and pointing at a command that would re-run core's update and
+    // reseed a brand-new install just to clear it.
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'crm',
+        '--skip-crm-install' => true,
+        '--no-interaction' => true,
+    ])
+        ->expectsConfirmation(
+            'Add LARAVEL_CRM_USER_INTERFACE=false to your .env now (disables the legacy /crm Livewire UI so the Filament CRM panel can take over /crm)?',
+            'no'
+        )
+        ->expectsOutputToContain('Recorded ' . PanelSystemCheck::DB_VERSION_SETTING)
+        ->assertSuccessful();
+
+    // Install-wide, exactly as laravelcrm:filament-update writes it: a console
+    // command has no authenticated user and so no team, and a team-scoped row
+    // is invisible to the web requests that read Settings through
+    // BelongsToTeamsScope.
+    $row = Setting::query()
+        ->withoutGlobalScope(BelongsToTeamsScope::class)
+        ->where('name', PanelSystemCheck::DB_VERSION_SETTING)
+        ->first();
+
+    expect($row)->not->toBeNull()
+        ->and((string) $row->value)->toBe((string) config('laravel-crm-filament.version'))
+        ->and((int) $row->global)->toBe(1)
+        ->and($row->team_id)->toBeNull();
+
+    app('laravel-crm-filament.system-check')->forgetCache();
+
+    expect(app('laravel-crm-filament.system-check')->check())->toBe([]);
+});
+
+it('warns rather than failing the install when the marker cannot be recorded', function () {
+    // Half a panel provider over a migrated database is a worse place to leave
+    // a host than an unwritten marker, so this one step is not fatal — it
+    // reports the one-line remedy instead.
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    app()->instance('laravel-crm.settings', new CrmInstallThrowingSettingService);
+
+    $this->artisan('laravelcrm:filament-install', [
+        '--mode' => 'crm',
+        '--skip-crm-install' => true,
+        '--no-interaction' => true,
+    ])
+        ->expectsConfirmation(
+            'Add LARAVEL_CRM_USER_INTERFACE=false to your .env now (disables the legacy /crm Livewire UI so the Filament CRM panel can take over /crm)?',
+            'no'
+        )
+        ->expectsOutputToContain('Could not record the panel database version')
+        ->expectsOutputToContain('laravelcrm:filament-update')
+        ->assertSuccessful();
+});
+
 it('forwards --modules and --no-interaction to laravelcrm:install when the base command supports them', function () {
     $temp = crmInstallMakeTempDir();
     app()->setBasePath($temp);
@@ -535,4 +636,186 @@ it('warns and skips --modules when the installed base command has no modules opt
     // The base installer still runs — the unsupported option is simply dropped.
     expect(FakeLaravelCrmInstallWithoutModules::$ran)->toBeTrue();
     expect(File::exists($temp . '/app/Providers/Filament/CrmPanelProvider.php'))->toBeTrue();
+});
+
+/**
+ * The composer `post-autoload-dump` hook.
+ *
+ * `laravelcrm:filament-upgrade` clears the cached Filament panel components,
+ * which is what makes newly-shipped resources and pages appear after an
+ * upgrade. Nobody remembers to run it, so the installer wires it into the hook
+ * that already fires on every `composer install`.
+ */
+function crmInstallTempAppWithComposerJson(string $composerJson): string
+{
+    $temp = crmInstallMakeTempDir();
+    app()->setBasePath($temp);
+
+    File::ensureDirectoryExists($temp . '/bootstrap');
+    File::put($temp . '/bootstrap/providers.php', "<?php\n\nreturn [\n];\n");
+
+    // The CRM config being present skips the base-installer prompt, and
+    // user_interface being off skips the .env prompt — neither is what these
+    // tests are about.
+    File::ensureDirectoryExists($temp . '/config');
+    File::put($temp . '/config/laravel-crm.php', "<?php\n\nreturn [];\n");
+    config(['laravel-crm.user_interface' => false]);
+
+    File::put($temp . '/composer.json', $composerJson);
+
+    return $temp;
+}
+
+it('appends the filament-upgrade hook to post-autoload-dump', function () {
+    $temp = crmInstallTempAppWithComposerJson(<<<'JSON'
+{
+    "name": "acme/app",
+    "require": {},
+    "scripts": {
+        "post-autoload-dump": [
+            "@php artisan package:discover --ansi"
+        ]
+    }
+}
+JSON);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm'])->assertSuccessful();
+
+    $composer = json_decode(File::get($temp . '/composer.json'), true);
+
+    // Appended, never prepended: package:discover has to have run before an
+    // artisan command from a package can be resolved at all.
+    expect($composer['scripts']['post-autoload-dump'])->toBe([
+        '@php artisan package:discover --ansi',
+        InstallCommand::COMPOSER_HOOK_ENTRY,
+    ]);
+});
+
+it('creates the scripts block when the host composer.json has none', function () {
+    $temp = crmInstallTempAppWithComposerJson(<<<'JSON'
+{
+    "name": "acme/app",
+    "require": {},
+    "config": {}
+}
+JSON);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm'])->assertSuccessful();
+
+    $raw = File::get($temp . '/composer.json');
+    $composer = json_decode($raw, true);
+
+    expect($composer['scripts']['post-autoload-dump'])->toBe([InstallCommand::COMPOSER_HOOK_ENTRY]);
+
+    // Decoded to objects, not associative arrays: `"config": {}` decoded to an
+    // array re-encodes as `[]`, and composer rejects the manifest.
+    expect($raw)->toContain('"config": {}')
+        ->not->toContain('"config": []');
+});
+
+it('handles a post-autoload-dump written as a bare string', function () {
+    $temp = crmInstallTempAppWithComposerJson(<<<'JSON'
+{
+    "name": "acme/app",
+    "scripts": {
+        "post-autoload-dump": "@php artisan package:discover --ansi"
+    }
+}
+JSON);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm'])->assertSuccessful();
+
+    $composer = json_decode(File::get($temp . '/composer.json'), true);
+
+    expect($composer['scripts']['post-autoload-dump'])->toBe([
+        '@php artisan package:discover --ansi',
+        InstallCommand::COMPOSER_HOOK_ENTRY,
+    ]);
+});
+
+it('is idempotent — a second install adds no second hook line', function () {
+    $temp = crmInstallTempAppWithComposerJson(<<<'JSON'
+{
+    "name": "acme/app",
+    "scripts": {
+        "post-autoload-dump": [
+            "@php artisan package:discover --ansi"
+        ]
+    }
+}
+JSON);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm', '--force' => true])->assertSuccessful();
+
+    $afterFirst = File::get($temp . '/composer.json');
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm', '--force' => true])
+        ->expectsOutputToContain('already runs laravelcrm:filament-upgrade')
+        ->assertSuccessful();
+
+    expect(File::get($temp . '/composer.json'))->toBe($afterFirst);
+    expect(substr_count($afterFirst, 'laravelcrm:filament-upgrade'))->toBe(1);
+});
+
+it('warns and leaves an unparseable composer.json byte-identical', function () {
+    // A composer.json is hand-maintained. Losing one is worse than not
+    // patching it, so anything we cannot fully understand is left alone and
+    // the line to add is printed instead.
+    $broken = "{\n    \"name\": \"acme/app\",\n";
+
+    $temp = crmInstallTempAppWithComposerJson($broken);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm'])
+        ->expectsOutputToContain('Could not parse')
+        ->expectsOutputToContain(InstallCommand::COMPOSER_HOOK_ENTRY)
+        ->assertSuccessful();
+
+    expect(File::get($temp . '/composer.json'))->toBe($broken);
+});
+
+it('leaves a composer.json with an unexpected scripts shape alone', function () {
+    $original = <<<'JSON'
+{
+    "name": "acme/app",
+    "scripts": "not-an-object"
+}
+JSON;
+
+    $temp = crmInstallTempAppWithComposerJson($original);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm'])
+        ->expectsOutputToContain('Unexpected "scripts" value')
+        ->assertSuccessful();
+
+    expect(File::get($temp . '/composer.json'))->toBe($original);
+});
+
+it('skips the composer hook entirely under --no-composer-hook', function () {
+    $original = <<<'JSON'
+{
+    "name": "acme/app",
+    "scripts": {
+        "post-autoload-dump": [
+            "@php artisan package:discover --ansi"
+        ]
+    }
+}
+JSON;
+
+    $temp = crmInstallTempAppWithComposerJson($original);
+
+    $this->artisan('laravelcrm:filament-install', ['--mode' => 'crm', '--no-composer-hook' => true])
+        ->assertSuccessful();
+
+    expect(File::get($temp . '/composer.json'))->toBe($original);
+});
+
+it('adds only the database-free half to the composer hook', function () {
+    // post-autoload-dump fires on every `composer install`, including on a
+    // production box mid-deploy with no TTY and possibly no reachable database.
+    // Only laravelcrm:filament-upgrade is safe there; the migrating half stays
+    // explicit.
+    expect(InstallCommand::COMPOSER_HOOK_ENTRY)
+        ->toContain('laravelcrm:filament-upgrade')
+        ->not->toContain('laravelcrm:filament-update');
 });

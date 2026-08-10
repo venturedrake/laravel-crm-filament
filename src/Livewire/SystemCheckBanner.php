@@ -5,6 +5,7 @@ namespace VentureDrake\LaravelCrmFilament\Livewire;
 use Livewire\Component;
 use VentureDrake\LaravelCrm\Services\SystemCheckService;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 
 /**
  * The "your install needs attention" banner, rendered into the panel through
@@ -16,8 +17,15 @@ use VentureDrake\LaravelCrmFilament\Pages\Updates;
  * `route('laravel-crm.updates.index')`, which does not exist on a panel-only
  * install, and its Mary blade renders unstyled inside a Filament panel.
  *
+ * It renders two checks' alerts: core's `laravel-crm.system-check` and this
+ * package's own `laravel-crm-filament.system-check`, which answers the same
+ * "is the database behind the code?" question for the panel's own migrations
+ * and version line. They are separate alerts fixed by separate commands, so
+ * they are reported separately rather than merged into one sentence.
+ *
  * The dismissal key is deliberately core's exact `system_check_dismissed`
- * setting, so dismissing in either UI carries across to the other.
+ * setting, so dismissing in either UI carries across to the other. What is
+ * stored under it is a fingerprint of *both* checks — see combinedSignature().
  */
 class SystemCheckBanner extends Component
 {
@@ -71,7 +79,12 @@ class SystemCheckBanner extends Component
         // Recomputed server-side rather than persisting $this->signature: the
         // property is client-writable, so trusting it would let a caller pin
         // the banner shut forever by posting any string they like.
-        $signature = app('laravel-crm.system-check')->signature();
+        //
+        // The *combined* signature, the same one resolve() compares against.
+        // Storing core's alone would mean a dismissal also swallowed every
+        // future panel alert, since the stored value would never change when
+        // only the panel's half did.
+        $signature = $this->combinedSignature();
 
         if ($signature !== null) {
             app('laravel-crm.settings')->setForUser($user->getKey(), self::DISMISS_SETTING, $signature);
@@ -131,6 +144,19 @@ class SystemCheckBanner extends Component
                         'updates_page' => $this->link($updatesUrl, __('laravel-crm::lang.system_check_update_database'), false),
                     ]),
                 ];
+
+            case PanelSystemCheck::PANEL_DB_UPDATE_REQUIRED:
+                // The plugin's own lang namespace, not core's: core has no key
+                // for this alert and never will — it does not know this package
+                // exists. Same shape as the sentence above so the two read as a
+                // pair when both are showing.
+                return [
+                    'level' => 'info',
+                    'html' => __('laravel-crm-filament::labels.updates.panel_db_update_required_banner', [
+                        'command' => $this->code(__('laravel-crm-filament::labels.updates.panel_db_update_command')),
+                        'updates_page' => $this->link($updatesUrl, __('laravel-crm-filament::labels.updates.panel_update_database'), false),
+                    ]),
+                ];
         }
 
         return ['level' => 'info', 'html' => ''];
@@ -161,15 +187,13 @@ class SystemCheckBanner extends Component
             return;
         }
 
-        $systemCheck = app('laravel-crm.system-check');
-
-        $alerts = $systemCheck->alerts();
+        $alerts = $this->combinedAlerts();
 
         if (count($alerts) === 0) {
             return;
         }
 
-        $signature = $systemCheck->signature();
+        $signature = $this->combinedSignature($alerts);
 
         if ($signature !== null && $this->dismissedSignature($user) === $signature) {
             return;
@@ -177,6 +201,58 @@ class SystemCheckBanner extends Component
 
         $this->alerts = $alerts;
         $this->signature = $signature;
+    }
+
+    /**
+     * Core's alerts followed by the panel's.
+     *
+     * Both bindings are probed rather than assumed. `laravel-crm.system-check`
+     * only exists in laravel-crm 2.4+, and this banner is most useful precisely
+     * on the hosts that are behind — a banner that fatals on an older core is
+     * worse than one that reports only what it can see.
+     *
+     * Core first because its alerts describe the foundation: an
+     * UPGRADE_REQUIRED there means nothing else on the page can be trusted.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    protected function combinedAlerts(): array
+    {
+        $alerts = [];
+
+        foreach (['laravel-crm.system-check', 'laravel-crm-filament.system-check'] as $binding) {
+            if (! app()->bound($binding)) {
+                continue;
+            }
+
+            $alerts = array_merge($alerts, app($binding)->alerts());
+        }
+
+        return $alerts;
+    }
+
+    /**
+     * A fingerprint covering *both* checks.
+     *
+     * Not either service's own signature(): a dismissal is keyed on the alert
+     * set the user actually saw, so a signature that only fingerprints half of
+     * it would keep the banner hidden after the other half changed.
+     *
+     * Public because it is the value dismiss() persists, and a test that cannot
+     * compute the expected value can only assert that dismissal stored
+     * something.
+     *
+     * @param  array<int, array<string, mixed>>|null  $alerts
+     */
+    public function combinedSignature(?array $alerts = null): ?string
+    {
+        $alerts ??= $this->combinedAlerts();
+
+        if (count($alerts) === 0) {
+            return null;
+        }
+
+        return substr(sha1((string) json_encode($alerts)), 0, 32);
     }
 
     protected function dismissedSignature($user): ?string

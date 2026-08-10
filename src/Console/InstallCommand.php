@@ -8,12 +8,23 @@ use Filament\PanelRegistry;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 use ReflectionClass;
+use stdClass;
 use Throwable;
+use VentureDrake\LaravelCrmFilament\Console\Concerns\ProbesConsoleCommands;
+use VentureDrake\LaravelCrmFilament\Console\Concerns\StampsPanelDbVersion;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 
 class InstallCommand extends Command
 {
+    use ProbesConsoleCommands;
+    use StampsPanelDbVersion;
+
+    /**
+     * The composer script line appended to the host's `post-autoload-dump`.
+     */
+    public const COMPOSER_HOOK_ENTRY = '@php artisan laravelcrm:filament-upgrade --ansi';
+
     /**
      * Publish tag for the plugin's migrations. Spatie's PackageServiceProvider
      * registers it as `{shortName}-migrations`, and shortName() strips the
@@ -27,7 +38,8 @@ class InstallCommand extends Command
         {--force : Overwrite an existing CrmPanelProvider.}
         {--modules= : Comma separated module list forwarded to laravelcrm:install (requires laravel-crm 2.3.0+).}
         {--skip-crm-install : Skip the venturedrake/laravel-crm install check (assume it is already installed).}
-        {--allow-teams : Install anyway when laravel-crm.teams is on. The panel is not tenant-aware; see the README.}';
+        {--allow-teams : Install anyway when laravel-crm.teams is on. The panel is not tenant-aware; see the README.}
+        {--no-composer-hook : Do not add laravelcrm:filament-upgrade to the host composer.json post-autoload-dump scripts.}';
 
     protected $description = 'Install the Laravel CRM Filament panel (publishes CrmPanelProvider at app/Providers/Filament/CrmPanelProvider.php).';
 
@@ -116,7 +128,8 @@ class InstallCommand extends Command
      * prompt: `Command::call()` builds a fresh interactive input, so without
      * forwarding `--no-interaction` that prompt stalls scripted installs.
      * Older base versions have no `modules` option, so probe the definition
-     * first and warn rather than fail with an "option does not exist" error.
+     * first — see ProbesConsoleCommands — and warn rather than fail with an
+     * "option does not exist" error.
      */
     private function callLaravelCrmInstall(): int
     {
@@ -125,7 +138,7 @@ class InstallCommand extends Command
         $modules = $this->option('modules');
 
         if (is_string($modules) && $modules !== '') {
-            if ($this->laravelCrmInstallSupportsModules()) {
+            if ($this->commandSupportsOption('laravelcrm:install', 'modules')) {
                 $arguments['--modules'] = $modules;
             } else {
                 $this->warn('The installed venturedrake/laravel-crm version does not support `--modules`; ignoring it. Upgrade to laravel-crm 2.3.0 or newer to choose modules during install.');
@@ -137,23 +150,6 @@ class InstallCommand extends Command
         }
 
         return $this->call('laravelcrm:install', $arguments);
-    }
-
-    private function laravelCrmInstallSupportsModules(): bool
-    {
-        $application = $this->getApplication();
-
-        if ($application === null) {
-            return false;
-        }
-
-        try {
-            $command = $application->find('laravelcrm:install');
-        } catch (Throwable) {
-            return false;
-        }
-
-        return $command->getDefinition()->hasOption('modules');
     }
 
     private function laravelCrmIsInstalled(): bool
@@ -283,6 +279,8 @@ class InstallCommand extends Command
 
         $this->publishAndRunMigrations();
 
+        $this->patchComposerScripts($files);
+
         $this->maybeDisableLegacyCrmUi($files);
 
         $this->newLine();
@@ -300,6 +298,12 @@ class InstallCommand extends Command
      * Spatie derives publish tags from `Package::shortName()`, which strips
      * the `laravel-` prefix — hence `crm-filament-migrations` rather than
      * `laravel-crm-filament-migrations`.
+     *
+     * Stamps `crm_filament_db_version` afterwards, for the same reason
+     * `laravelcrm:filament-update` does: PanelSystemCheck counts a missing
+     * marker as behind, so an install that ran the migrations and left the
+     * marker unwritten would greet the operator with a banner telling them to
+     * run an update over the migrations this command has just applied.
      */
     protected function publishAndRunMigrations(): void
     {
@@ -313,6 +317,150 @@ class InstallCommand extends Command
         $this->call('migrate', ['--force' => true]);
 
         $this->info('Published and ran the CRM Filament migrations.');
+
+        $this->stampMigratedVersion();
+    }
+
+    /**
+     * Record the marker, without letting a failure to do so fail the install.
+     *
+     * Unlike `laravelcrm:filament-update`, where every step is fatal, this runs
+     * inside an installer that has already published a panel provider and
+     * migrated. Aborting here would leave a half-installed host over a
+     * cosmetic-by-comparison problem, so the failure is reported with the
+     * one-line remedy instead.
+     *
+     * The write itself needs core's `crm_settings` table, which
+     * `laravelcrm:install` creates — reachable on any host that got this far,
+     * except one run with `--skip-crm-install` against a CRM that was never
+     * actually installed.
+     */
+    private function stampMigratedVersion(): void
+    {
+        try {
+            $this->stampPanelDbVersion();
+        } catch (Throwable $e) {
+            $this->warn('Could not record the panel database version: ' . $e->getMessage());
+            $this->warn('Run "php artisan laravelcrm:filament-update" to record it, or the panel will report a database update it does not need.');
+        }
+    }
+
+    /**
+     * Add `@php artisan laravelcrm:filament-upgrade --ansi` to the host's
+     * `post-autoload-dump` composer scripts.
+     *
+     * post-autoload-dump rather than post-update-cmd because it fires on
+     * `composer install` as well as `composer update` — so a production
+     * `composer install --no-dev` clears the stale Filament component cache
+     * without anyone having to know this package ships a command. It is the
+     * hook Filament itself uses, for the same reason.
+     *
+     * Only ever adds the safe, database-free half. `laravelcrm:filament-update`
+     * stays explicit and belongs in the deploy script.
+     *
+     * Ported from laravel-crm's own installer rather than written afresh: the
+     * traps here — object-vs-array decoding, the bare-string hook form, never
+     * rewriting a file we could not fully parse — are all ones it already
+     * handles.
+     */
+    private function patchComposerScripts(Filesystem $files): void
+    {
+        if ($this->option('no-composer-hook')) {
+            $this->line('Skipping the composer.json post-autoload-dump hook (--no-composer-hook).');
+
+            return;
+        }
+
+        $this->info('Configuring composer scripts...');
+
+        $path = base_path('composer.json');
+
+        if (! $files->exists($path)) {
+            $this->warn("Could not locate {$path}.");
+            $this->printComposerScriptInstructions();
+
+            return;
+        }
+
+        $original = $files->get($path);
+
+        // Decoded to objects, not associative arrays. json_decode($json, true)
+        // turns an empty JSON object into an empty PHP array, which re-encodes
+        // as `[]` — so a `"require-dev": {}` or `"config": {}` anywhere in the
+        // file would come back out as a JSON array and composer would reject
+        // the manifest. Objects round-trip as objects.
+        $composer = json_decode($original);
+
+        // Never rewrite a file we could not fully understand — a composer.json
+        // is hand-maintained and losing it is worse than not patching it.
+        if (! $composer instanceof stdClass || json_last_error() !== JSON_ERROR_NONE) {
+            $this->warn("Could not parse {$path}: " . json_last_error_msg());
+            $this->printComposerScriptInstructions();
+
+            return;
+        }
+
+        $scripts = $composer->scripts ?? null;
+
+        // An absent "scripts", or one written as an empty JSON array, is the
+        // object we are about to build. Anything else that is not an object is
+        // something we do not understand.
+        if ($scripts === null || $scripts === []) {
+            $scripts = new stdClass;
+        }
+
+        if (! $scripts instanceof stdClass) {
+            $this->warn("Unexpected \"scripts\" value in {$path}.");
+            $this->printComposerScriptInstructions();
+
+            return;
+        }
+
+        $hook = $scripts->{'post-autoload-dump'} ?? [];
+
+        // Composer allows a bare string as well as an array of them.
+        $hook = is_array($hook) ? array_values($hook) : [$hook];
+
+        foreach ($hook as $line) {
+            if (is_string($line) && str_contains($line, 'laravelcrm:filament-upgrade')) {
+                $this->line('composer.json already runs laravelcrm:filament-upgrade. Skipping.');
+
+                return;
+            }
+        }
+
+        // Appended, not prepended: package:discover has to have run before an
+        // artisan command from a package can be resolved at all.
+        $hook[] = self::COMPOSER_HOOK_ENTRY;
+
+        $scripts->{'post-autoload-dump'} = $hook;
+        $composer->scripts = $scripts;
+
+        $encoded = json_encode(
+            $composer,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+        );
+
+        if ($encoded === false) {
+            $this->warn("Could not re-encode {$path}.");
+            $this->printComposerScriptInstructions();
+
+            return;
+        }
+
+        $files->put($path, $encoded . PHP_EOL);
+
+        $this->info('Added "' . self::COMPOSER_HOOK_ENTRY . '" to post-autoload-dump in composer.json');
+    }
+
+    /**
+     * Print the line to add by hand when composer.json could not be patched.
+     */
+    private function printComposerScriptInstructions(): void
+    {
+        $this->warn('   Add this to the "post-autoload-dump" scripts in your composer.json:');
+        $this->warn('     "' . self::COMPOSER_HOOK_ENTRY . '"');
+        $this->warn('   Without it, `composer update` will not clear the cached Filament panel components.');
     }
 
     private function maybeDisableLegacyCrmUi(Filesystem $files): void
@@ -400,6 +548,8 @@ class InstallCommand extends Command
         // Run this before the provider edit so it also covers the
         // could-not-auto-inject path, which still returns SUCCESS.
         $this->publishAndRunMigrations();
+
+        $this->patchComposerScripts($files);
 
         $contents = $files->get($providerFile);
         $original = $contents;

@@ -35,8 +35,11 @@ use VentureDrake\LaravelCrm\Models\SmsCampaignClick;
 use VentureDrake\LaravelCrm\Models\SmsCampaignRecipient;
 use VentureDrake\LaravelCrm\Models\Team;
 use VentureDrake\LaravelCrmFilament\Console\InstallCommand;
+use VentureDrake\LaravelCrmFilament\Console\UpdateCommand;
+use VentureDrake\LaravelCrmFilament\Console\UpgradeCommand;
 use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Models\Audit;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 
 class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
@@ -81,6 +84,26 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
             __DIR__ . '/../resources/lang',
             'laravel-crm-filament',
         );
+
+        // The panel's own version constant, merged rather than published.
+        // Deliberately not `Package::hasConfigFile()`: a publishable copy would
+        // let a host publish it and then pin the value, which silently disables
+        // the db-version check that keys off it. Mirrors laravel-crm's own
+        // config/package.php for the same reason.
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/package.php',
+            'laravel-crm-filament',
+        );
+
+        // Named to match core's `laravel-crm.system-check` so the two read as a
+        // pair. A singleton because both the banner (per request) and the
+        // Updates page resolve it, and its answers are cached per instance's
+        // Cache key.
+        $this->app->singleton('laravel-crm-filament.system-check', function () {
+            return new PanelSystemCheck;
+        });
+
+        $this->app->alias('laravel-crm-filament.system-check', PanelSystemCheck::class);
     }
 
     public function packageBooted(): void
@@ -377,6 +400,12 @@ class LaravelCrmFilamentServiceProvider extends PackageServiceProvider
     {
         return [
             InstallCommand::class,
+            // The two halves of the upgrade workflow, mirroring core's
+            // laravelcrm:upgrade / laravelcrm:update split: the safe,
+            // database-free half the composer hook fires, and the explicit
+            // database half an operator runs.
+            UpgradeCommand::class,
+            UpdateCommand::class,
         ];
     }
 }

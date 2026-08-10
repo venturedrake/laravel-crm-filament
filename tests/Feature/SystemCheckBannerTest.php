@@ -6,6 +6,7 @@ use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 
@@ -25,8 +26,32 @@ beforeEach(function () {
     Setting::updateOrCreate(['name' => 'version_latest'], ['value' => '99.0.0']);
 
     app('laravel-crm.settings')->forgetCache();
-    app('laravel-crm.system-check')->forgetCache();
+    forgetBannerCheckCaches();
 });
+
+/**
+ * Both checks, probed rather than assumed.
+ *
+ * `laravel-crm.system-check` only exists in laravel-crm 2.4+, and composer.lock
+ * pins an older one here — which is exactly the host shape the banner has to
+ * survive, so the tests run against it rather than around it.
+ */
+function forgetBannerCheckCaches(): void
+{
+    foreach (['laravel-crm.system-check', 'laravel-crm-filament.system-check'] as $binding) {
+        if (app()->bound($binding)) {
+            app($binding)->forgetCache();
+        }
+    }
+}
+
+/**
+ * The signature the banner actually persists on dismiss — the combined one.
+ */
+function bannerCombinedSignature(): ?string
+{
+    return livewire(SystemCheckBanner::class)->instance()->combinedSignature();
+}
 
 function bannerUser(array $permissions = ['view crm updates']): User
 {
@@ -68,7 +93,7 @@ it('persists a server-computed signature on dismiss, never the posted one', func
     $user = bannerUser();
     $this->actingAs($user);
 
-    $expected = app('laravel-crm.system-check')->signature();
+    $expected = bannerCombinedSignature();
 
     expect($expected)->not->toBeNull();
 
@@ -89,11 +114,11 @@ it('stays hidden once dismissed, and comes back when the alerts change', functio
     $user = bannerUser();
     $this->actingAs($user);
 
-    $dismissed = app('laravel-crm.system-check')->signature();
+    $dismissed = bannerCombinedSignature();
 
     livewire(SystemCheckBanner::class)->call('dismiss');
 
-    app('laravel-crm.system-check')->forgetCache();
+    forgetBannerCheckCaches();
 
     expect(livewire(SystemCheckBanner::class)->instance()->alerts)->toBeEmpty();
 
@@ -106,9 +131,9 @@ it('stays hidden once dismissed, and comes back when the alerts change', functio
     );
     Cache::flush();
     app('laravel-crm.settings')->forgetCache();
-    app('laravel-crm.system-check')->forgetCache();
+    forgetBannerCheckCaches();
 
-    expect(app('laravel-crm.system-check')->signature())->toBe($dismissed);
+    expect(bannerCombinedSignature())->toBe($dismissed);
     expect(livewire(SystemCheckBanner::class)->instance()->alerts)->not->toBeEmpty();
 });
 
@@ -148,4 +173,78 @@ it('is registered as a CONTENT_START render hook rather than a dashboard widget'
         ->and($source)->toContain('SystemCheckBanner::NAME');
 
     expect(PanelsRenderHook::CONTENT_START)->toBeString();
+});
+
+it('renders the panel\'s own database alert', function () {
+    // Core's check knows nothing about this package's migrations or its version
+    // line, so without this the panel could be a whole release behind with
+    // nothing anywhere saying so.
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    forgetBannerCheckCaches();
+
+    $this->actingAs(bannerUser());
+
+    $types = array_column(livewire(SystemCheckBanner::class)->instance()->alerts, 'type');
+
+    expect($types)->toContain(PanelSystemCheck::PANEL_DB_UPDATE_REQUIRED);
+});
+
+it('names the panel command in the panel alert, not core\'s', function () {
+    // `laravelcrm:update` migrates core and never touches this package's
+    // migrations, so telling the operator to run it would be telling them to
+    // run the wrong thing.
+    $this->actingAs(bannerUser());
+
+    $component = livewire(SystemCheckBanner::class);
+    $html = implode(' ', array_column($component->viewData('messages'), 'html'));
+
+    expect($html)->toContain('php artisan laravelcrm:filament-update');
+});
+
+it('fingerprints both checks, so dismissing does not swallow later panel alerts', function () {
+    $user = bannerUser();
+    $this->actingAs($user);
+
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    forgetBannerCheckCaches();
+
+    $withPanelAlert = bannerCombinedSignature();
+
+    livewire(SystemCheckBanner::class)->call('dismiss');
+    forgetBannerCheckCaches();
+
+    expect(livewire(SystemCheckBanner::class)->instance()->alerts)->toBeEmpty();
+
+    // The panel half of the alert set changes — the marker gets stamped — and
+    // the banner has to come back rather than stay pinned shut by a signature
+    // that only ever covered core's half.
+    Setting::create([
+        'name' => PanelSystemCheck::DB_VERSION_SETTING,
+        'value' => (string) config('laravel-crm-filament.version'),
+        'global' => 1,
+    ]);
+    Cache::flush();
+    app('laravel-crm.settings')->forgetCache();
+    forgetBannerCheckCaches();
+
+    expect(bannerCombinedSignature())->not->toBe($withPanelAlert);
+});
+
+it('uses one combined-signature helper for both resolve and dismiss', function () {
+    // dismiss() recomputes server-side rather than trusting the client-writable
+    // property, and it has to recompute the *same* value resolve() compares
+    // against or a dismissal never sticks.
+    $source = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Livewire/SystemCheckBanner.php');
+
+    expect(substr_count($source, '$this->combinedSignature('))->toBe(2);
+    expect($source)->not->toContain("app('laravel-crm.system-check')->signature()");
+});
+
+it('survives a host whose core package predates the system check binding', function () {
+    // laravel-crm 2.4 introduced `laravel-crm.system-check`. The banner is most
+    // useful precisely on hosts that are behind, so an unbound core check has
+    // to degrade to "report what we can see", not fatal.
+    $source = (string) file_get_contents(dirname(__DIR__, 2) . '/src/Livewire/SystemCheckBanner.php');
+
+    expect($source)->toContain('app()->bound($binding)');
 });

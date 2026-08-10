@@ -5,6 +5,7 @@ use Filament\Schemas\Components\Section;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
+use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 
@@ -133,9 +134,11 @@ it('no longer renders version_latest_notes unescaped', function () {
 it('shows the two literal update commands and the upgrade guide link', function () {
     // Both packages move together or core's schema and the panel's
     // expectations diverge, so the order and the wording are the contract.
+    // Still two lines: laravelcrm:filament-update runs laravelcrm:update
+    // itself, core first, so the operator does not have to know the ordering.
     expect(Updates::UPDATE_COMMANDS)->toBe([
         'composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament',
-        'php artisan laravelcrm:update',
+        'php artisan laravelcrm:filament-update',
     ]);
 
     $entries = updatesPageEntryStates();
@@ -256,3 +259,91 @@ it('denies the page to a user without view crm updates', function () {
 
     expect(Updates::canAccess())->toBeFalse();
 });
+
+it('renders the panel version alongside core\'s', function () {
+    // The plugin has its own semver line and its own migrations, so its version
+    // is a separate fact from core's.
+    $entries = updatesPageEntryStates();
+
+    expect($entries)->toHaveKey('panelVersion')
+        ->and($entries['panelVersion'])->toBe((string) config('laravel-crm-filament.version'));
+
+    expect($entries)->toHaveKey('currentVersion')
+        ->and($entries['currentVersion'])->toBe((string) config('laravel-crm.version'));
+});
+
+it('claims no "latest available" for the panel', function () {
+    // VERSION_API_URL is core's version API and only knows core's releases. A
+    // panel "latest" would be core's number under the wrong label.
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+
+    expect($source)->not->toContain('panelLatestVersion');
+});
+
+it('hides the panel database section when the panel database is current', function () {
+    Setting::updateOrCreate(
+        ['name' => PanelSystemCheck::DB_VERSION_SETTING],
+        ['value' => (string) config('laravel-crm-filament.version'), 'global' => 1],
+    );
+    app('laravel-crm-filament.system-check')->forgetCache();
+
+    $instance = livewire(Updates::class)->instance();
+
+    expect($instance->needsPanelDbUpdate)->toBeFalse();
+    expect(updatesPageVisibleSectionHeadings())
+        ->not->toContain(__('laravel-crm-filament::labels.updates.panel_database_update_required'));
+});
+
+it('shows the panel database section when the panel migrations have not been run', function () {
+    // Nothing has ever stamped crm_filament_db_version, which is the state
+    // every host upgrading into this release starts in.
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+    app('laravel-crm-filament.system-check')->forgetCache();
+
+    $instance = livewire(Updates::class)->instance();
+
+    expect($instance->needsPanelDbUpdate)->toBeTrue();
+    expect(updatesPageVisibleSectionHeadings())
+        ->toContain(__('laravel-crm-filament::labels.updates.panel_database_update_required'));
+});
+
+it('answers the panel database question even with update notifications off', function () {
+    // check(), not alerts(), for the same reason core's section uses check():
+    // this page is where an operator has deliberately come to ask.
+    config()->set('laravel-crm.update_notifications', false);
+
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+
+    expect($source)->toContain("app('laravel-crm-filament.system-check')->check()")
+        ->not->toContain("app('laravel-crm-filament.system-check')->alerts()");
+
+    Setting::query()->where('name', PanelSystemCheck::DB_VERSION_SETTING)->delete();
+
+    expect(livewire(Updates::class)->instance()->needsPanelDbUpdate)->toBeTrue();
+});
+
+it('degrades quietly on a host where the panel check is not bound', function () {
+    // Both system-check lookups are guarded, so a partially-booted container
+    // cannot take the page down with it.
+    $source = (string) file_get_contents((new ReflectionClass(Updates::class))->getFileName());
+
+    expect($source)->toContain("app()->bound('laravel-crm-filament.system-check')");
+});
+
+/**
+ * The headings of the content schema's currently-visible sections.
+ *
+ * @return array<int, string>
+ */
+function updatesPageVisibleSectionHeadings(): array
+{
+    $headings = [];
+
+    foreach (livewire(Updates::class)->instance()->getSchema('content')->getFlatComponents() as $component) {
+        if ($component instanceof Section) {
+            $headings[] = (string) $component->getHeading();
+        }
+    }
+
+    return $headings;
+}
