@@ -620,7 +620,7 @@ return [
         'newer_available' => 'Hay una versión más reciente disponible.',
         'no_version_information' => 'Aún no hay información de versión. Ejecuta una comprobación para obtener la última versión.',
         'database_update_required' => 'Actualización de base de datos requerida',
-        'database_update_required_body' => 'La base de datos está por detrás del código instalado. Ejecuta php artisan laravelcrm:filament-update para ponerla al día.',
+        'database_update_required_body' => 'Ejecuta php artisan laravelcrm:filament-update para ponerla al día.',
         'panel_db_update_required_banner' => 'El panel de Laravel CRM requiere algunas actualizaciones de base de datos para funcionar correctamente. Ejecuta :command desde la raíz de tu proyecto, o :updates_page.',
         'panel_db_update_command' => 'php artisan laravelcrm:filament-update',
         'panel_update_database' => 'actualizar la base de datos',
