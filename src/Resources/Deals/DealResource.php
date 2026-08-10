@@ -42,6 +42,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ListDeals;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ViewDeal;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class DealResource extends Resource
 {
@@ -186,9 +187,8 @@ class DealResource extends Resource
                     ->badge()
                     ->limitList(3),
 
-                Tables\Columns\TextColumn::make('amount')
+                CrmMoney::column('amount')
                     ->label(__('laravel-crm-filament::labels.money.value'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('person.name')
@@ -407,9 +407,8 @@ class DealResource extends Resource
                         ->label(__('laravel-crm-filament::labels.fields.description'))
                         ->columnSpanFull(),
 
-                    TextEntry::make('amount')
-                        ->label(__('laravel-crm-filament::labels.money.value'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('amount')
+                        ->label(__('laravel-crm-filament::labels.money.value')),
 
                     TextEntry::make('expected_close')
                         ->label(__('laravel-crm-filament::labels.sales.expected_close'))

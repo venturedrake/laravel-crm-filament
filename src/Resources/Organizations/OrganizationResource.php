@@ -37,6 +37,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\CreateOrganiza
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\EditOrganization;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\ListOrganizations;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\ViewOrganization;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class OrganizationResource extends Resource
 {
@@ -282,9 +283,8 @@ class OrganizationResource extends Resource
             TextEntry::make('number_of_employees')
                 ->label(__('laravel-crm-filament::labels.fields.number_of_employees')),
 
-            TextEntry::make('annual_revenue')
-                ->label(__('laravel-crm-filament::labels.fields.annual_revenue'))
-                ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+            CrmMoney::entry('annual_revenue')
+                ->label(__('laravel-crm-filament::labels.fields.annual_revenue')),
 
             TextEntry::make('linkedin')
                 ->label(__('laravel-crm-filament::labels.fields.linkedin'))

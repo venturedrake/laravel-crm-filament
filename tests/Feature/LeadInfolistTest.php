@@ -111,9 +111,10 @@ it('Details and Contact sections expose the AC-required TextEntries by name', fu
 it('amount TextEntry resolves currency via a per-record closure', function () {
     $src = file_get_contents((new ReflectionClass(LeadResource::class))->getFileName());
 
-    // The closure shape: ->money(fn ($record) => $record?->currency ?: config(...))
-    expect($src)->toContain("TextEntry::make('amount')");
-    expect($src)->toContain("->money(fn (\$record) => \$record?->currency ?: config('laravel-crm.default_currency', 'USD'))");
+    // CrmMoney::entry() defaults the currency to the record's own, and formats
+    // through the package's money() helper — Filament's ->money() would render
+    // the stored cents 100x too large. See MoneyFormattingParityTest.
+    expect($src)->toContain("CrmMoney::entry('amount')");
 
     $lead = Lead::create([
         'external_id' => (string) Str::uuid(),
@@ -134,16 +135,12 @@ it('amount TextEntry resolves currency via a per-record closure', function () {
     }
     expect($amountEntry)->not->toBeNull();
 
-    // money() flips isMoney true on the entry...
-    $isMoneyRef = new ReflectionProperty($amountEntry, 'isMoney');
-    $isMoneyRef->setAccessible(true);
-    expect($isMoneyRef->getValue($amountEntry))->toBeTrue();
-
-    // ...and the formatStateUsing closure renders the per-row currency
-    // (Number::currency emits a EUR-specific glyph or the ISO code).
-    $formatted = $amountEntry->formatState((float) 1000);
+    // The formatStateUsing closure renders the per-row currency (money() emits
+    // a EUR-specific glyph or the ISO code) from the stored cents.
+    $formatted = $amountEntry->formatState(1000);
     expect($formatted)->toBeString();
     expect($formatted)->toMatch('/EUR|€/');
+    expect($formatted)->toBe((string) money(1000, 'EUR'));
 });
 
 // ────────────────────────────────────────────────────────────────────────

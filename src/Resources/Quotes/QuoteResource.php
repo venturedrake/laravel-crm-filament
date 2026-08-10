@@ -50,6 +50,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\EditQuote;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ListQuotes;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
@@ -175,9 +176,8 @@ class QuoteResource extends Resource
                     ->label(__('laravel-crm-filament::labels.fields.organization'))
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total')
                     ->label(__('laravel-crm-filament::labels.money.total'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('issue_at')
@@ -520,9 +520,8 @@ class QuoteResource extends Resource
                         ->label(__('laravel-crm-filament::labels.fields.description'))
                         ->columnSpanFull(),
 
-                    TextEntry::make('total')
-                        ->label(__('laravel-crm-filament::labels.money.total'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('total')
+                        ->label(__('laravel-crm-filament::labels.money.total')),
 
                     TextEntry::make('issue_at')
                         ->label(__('laravel-crm-filament::labels.money.issue_date'))

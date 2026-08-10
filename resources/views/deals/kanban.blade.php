@@ -76,7 +76,7 @@
                         <div class="crm-kanban-col-meta">
                             <div>{{ $stageDeals->count() }}</div>
                             <div class="crm-kanban-col-total">
-                                {{ number_format($this->getStageTotal($stage->id, $dealsByStage), 0) }} {{ $currency }}
+                                {{ \VentureDrake\LaravelCrmFilament\Support\MoneyForm::display($this->getStageTotal($stage->id, $dealsByStage), $currency) }}
                             </div>
                         </div>
                     </div>
@@ -94,7 +94,7 @@
                                     <div class="crm-kanban-card-id">{{ $deal->deal_id }}</div>
                                     <div class="crm-kanban-card-title">{{ $deal->title }}</div>
                                     @if ($deal->amount)
-                                        <div class="crm-kanban-card-amount">{{ ($deal->amount / 100) }} {{ $deal->currency }}</div>
+                                        <div class="crm-kanban-card-amount">{{ \VentureDrake\LaravelCrmFilament\Support\MoneyForm::display($deal->amount, $deal->currency) }}</div>
                                     @endif
                                     @if ($deal->expected_close)
                                         <div class="crm-kanban-card-meta">Closes {{ \Carbon\Carbon::parse($deal->expected_close)->format('M j') }}</div>

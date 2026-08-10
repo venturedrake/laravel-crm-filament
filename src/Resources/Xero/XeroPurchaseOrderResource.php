@@ -14,7 +14,7 @@ use VentureDrake\LaravelCrm\Models\XeroPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ListXeroPurchaseOrders;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ViewXeroPurchaseOrder;
-use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class XeroPurchaseOrderResource extends Resource
 {
@@ -76,9 +76,9 @@ class XeroPurchaseOrderResource extends Resource
                     TextEntry::make('purchaseOrder.purchase_order_id')
                         ->label(__('laravel-crm-filament::labels.xero.linked_purchase_order'))
                         ->placeholder('—'),
-                    TextEntry::make('total')
+                    CrmMoney::entry('total', 'currency_code')
                         ->label(__('laravel-crm-filament::labels.money.total'))
-                        ->state(fn ($record) => MoneyForm::format($record->total, '—')),
+                        ->placeholder('—'),
                     TextEntry::make('currency_code')
                         ->label(__('laravel-crm-filament::labels.fields.currency')),
                     TextEntry::make('issue_date')
@@ -113,10 +113,8 @@ class XeroPurchaseOrderResource extends Resource
                     ->label(__('laravel-crm-filament::labels.fields.status'))
                     ->badge()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total', 'currency_code')
                     ->label(__('laravel-crm-filament::labels.money.total'))
-                    ->money(fn ($record) => $record->currency_code ?: config('laravel-crm.default_currency', 'USD'))
-                    ->state(fn ($record) => MoneyForm::centsToForm($record->total))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('xero_updated_at')
                     ->label(__('laravel-crm-filament::labels.xero.last_sync'))

@@ -3,7 +3,6 @@
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Schema;
-use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Product;
@@ -159,23 +158,13 @@ it('renders both seeded ProductPrices on the RelationManager and divides cents t
         'pageClass' => ViewProduct::class,
     ])->assertCanSeeTableRecords([$priceUsd, $priceEur]);
 
-    // Locks the AC's "asserting the state closure divides cents back to dollars"
-    // contract. getStateUsing() is the SETTER in Filament v5; read-side is the
-    // protected $getStateUsing property.
-    $rmInstance = (new ReflectionClass(ProductPricesRelationManager::class))->newInstanceWithoutConstructor();
-    $table = $rmInstance->table(Table::make($rmInstance));
-
-    /** @var TextColumn $unitPriceColumn */
-    $unitPriceColumn = $table->getColumns()['unit_price'];
-
-    $stateRef = new ReflectionProperty(TextColumn::class, 'getStateUsing');
-    $stateRef->setAccessible(true);
-    $closure = $stateRef->getValue($unitPriceColumn);
-
-    expect($closure)->toBeInstanceOf(Closure::class);
-    // PHP integer-preserving division: 2500/100 returns int 25, not float 25.0.
-    // Use ->toEqual() (loose) per the same gotcha locked in by
-    // ProductPricesRelationManagerTest::it('unit_price state closure...').
-    expect($closure($priceUsd->fresh()))->toEqual(25);
-    expect($closure($priceEur->fresh()))->toEqual(20);
+    // Locks the AC's "cents render back as an amount" contract, now that the
+    // /100 lives in the formatter rather than a state closure: each row picks
+    // up its own currency and formats through the package's money() helper.
+    livewire(ProductPricesRelationManager::class, [
+        'ownerRecord' => $product,
+        'pageClass' => ViewProduct::class,
+    ])
+        ->assertSee((string) money($priceUsd->fresh()->unit_price, 'USD'))
+        ->assertSee((string) money($priceEur->fresh()->unit_price, 'EUR'));
 });

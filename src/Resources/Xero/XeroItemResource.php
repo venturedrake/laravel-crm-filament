@@ -14,6 +14,7 @@ use VentureDrake\LaravelCrm\Models\XeroItem;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ListXeroItems;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ViewXeroItem;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class XeroItemResource extends Resource
 {
@@ -70,12 +71,19 @@ class XeroItemResource extends Resource
                     TextEntry::make('product.name')
                         ->label(__('laravel-crm-filament::labels.xero.linked_product'))
                         ->placeholder('—'),
+                    // Not CrmMoney: xero_items carries no currency column, so
+                    // there is nothing to render these in but the CRM default,
+                    // which would label a Xero org's AUD prices as USD. They
+                    // stay bare amounts — still through MoneyForm, so the /100
+                    // lives in the one place.
                     TextEntry::make('purchase_price')
                         ->label(__('laravel-crm-filament::labels.xero.purchase_price'))
-                        ->state(fn ($record) => $record->purchase_price === null ? '—' : number_format($record->purchase_price / 100, 2)),
+                        ->state(fn ($record) => MoneyForm::format($record->purchase_price))
+                        ->placeholder('—'),
                     TextEntry::make('sell_price')
                         ->label(__('laravel-crm-filament::labels.xero.sell_price'))
-                        ->state(fn ($record) => $record->sell_price === null ? '—' : number_format($record->sell_price / 100, 2)),
+                        ->state(fn ($record) => MoneyForm::format($record->sell_price))
+                        ->placeholder('—'),
                     TextEntry::make('quantity_on_hand')
                         ->label(__('laravel-crm-filament::labels.xero.quantity_on_hand'))
                         ->placeholder('—'),

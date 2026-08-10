@@ -14,7 +14,7 @@ use VentureDrake\LaravelCrm\Models\XeroInvoice;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ListXeroInvoices;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\Pages\ViewXeroInvoice;
-use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class XeroInvoiceResource extends Resource
 {
@@ -76,15 +76,15 @@ class XeroInvoiceResource extends Resource
                     TextEntry::make('invoice.invoice_id')
                         ->label(__('laravel-crm-filament::labels.xero.linked_invoice'))
                         ->placeholder('—'),
-                    TextEntry::make('total')
+                    CrmMoney::entry('total', 'currency_code')
                         ->label(__('laravel-crm-filament::labels.money.total'))
-                        ->state(fn ($record) => MoneyForm::format($record->total, '—')),
-                    TextEntry::make('amount_due')
+                        ->placeholder('—'),
+                    CrmMoney::entry('amount_due', 'currency_code')
                         ->label(__('laravel-crm-filament::labels.xero.amount_due'))
-                        ->state(fn ($record) => MoneyForm::format($record->amount_due, '—')),
-                    TextEntry::make('amount_paid')
+                        ->placeholder('—'),
+                    CrmMoney::entry('amount_paid', 'currency_code')
                         ->label(__('laravel-crm-filament::labels.xero.amount_paid'))
-                        ->state(fn ($record) => MoneyForm::format($record->amount_paid, '—')),
+                        ->placeholder('—'),
                     TextEntry::make('currency_code')
                         ->label(__('laravel-crm-filament::labels.fields.currency')),
                     TextEntry::make('issue_date')
@@ -123,15 +123,11 @@ class XeroInvoiceResource extends Resource
                     ->label(__('laravel-crm-filament::labels.fields.status'))
                     ->badge()
                     ->toggleable(),
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total', 'currency_code')
                     ->label(__('laravel-crm-filament::labels.money.total'))
-                    ->money(fn ($record) => $record->currency_code ?: config('laravel-crm.default_currency', 'USD'))
-                    ->state(fn ($record) => MoneyForm::centsToForm($record->total))
                     ->sortable(),
-                Tables\Columns\TextColumn::make('amount_due')
+                CrmMoney::column('amount_due', 'currency_code')
                     ->label(__('laravel-crm-filament::labels.xero.amount_due'))
-                    ->money(fn ($record) => $record->currency_code ?: config('laravel-crm.default_currency', 'USD'))
-                    ->state(fn ($record) => MoneyForm::centsToForm($record->amount_due))
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('xero_updated_at')
                     ->label(__('laravel-crm-filament::labels.xero.last_sync'))

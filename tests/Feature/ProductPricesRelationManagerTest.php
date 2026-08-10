@@ -52,14 +52,17 @@ it('defines exactly two columns named unit_price and currency', function () {
     expect($names)->toBe(['unit_price', 'currency']);
 });
 
-it('renders unit_price with money() formatter and divides cents by 100 in state', function () {
+it('renders unit_price through the shared CrmMoney column factory', function () {
     $source = file_get_contents(
         (new ReflectionClass(ProductPricesRelationManager::class))->getFileName(),
     );
 
-    expect($source)->toContain("TextColumn::make('unit_price')")
-        ->and($source)->toContain('->money(fn ($record) => $record->currency ?: \'USD\')')
-        ->and($source)->toContain('($record->unit_price ?? 0) / 100');
+    // Filament's own ->money() never divides (its $divideBy defaults to a
+    // falsy 0), so stored cents have to go through CrmMoney, which formats via
+    // the package's money() helper. See CrmMoney and MoneyFormattingParityTest.
+    expect($source)->toContain("CrmMoney::column('unit_price')")
+        ->and($source)->not->toContain('->money(')
+        ->and($source)->not->toContain('/ 100');
 });
 
 it('labels unit_price via money.unit_price and currency via fields.currency', function () {
@@ -90,7 +93,7 @@ it('does not surface cost columns or the default boolean as a visible column', f
         ->and($names)->not->toContain('default');
 });
 
-it('unit_price state closure returns the stored cents divided by 100', function () {
+it('reads unit_price straight off the column, with no compensating state closure', function () {
     $instance = (new ReflectionClass(ProductPricesRelationManager::class))->newInstanceWithoutConstructor();
     $table = $instance->table(Table::make($instance));
 
@@ -100,34 +103,21 @@ it('unit_price state closure returns the stored cents divided by 100', function 
     // getStateUsing() is the *setter* in Filament v5 (HasCellState); the
     // read-side is the protected $getStateUsing property. Same gotcha pattern
     // locked-in by PersonListColumnsTest (v0.x US-002 of the parity series
-    // continuation).
+    // continuation). The division now lives in the formatter, so there is no
+    // state closure left here at all.
     $ref = new ReflectionProperty(TextColumn::class, 'getStateUsing');
     $ref->setAccessible(true);
-    $closure = $ref->getValue($column);
 
-    expect($closure)->toBeInstanceOf(Closure::class);
-
-    $record = new class
-    {
-        public ?int $unit_price = 4999;
-    };
-
-    expect($closure($record))->toBe(49.99);
-
-    $recordNull = new class
-    {
-        public ?int $unit_price = null;
-    };
-
-    expect($closure($recordNull))->toEqual(0);
+    expect($ref->getValue($column))->toBeNull();
 });
 
-it('flips isMoney() to true via the ->money() chain on unit_price', function () {
+it('formats unit_price cents exactly as the package money() helper does', function () {
     $instance = (new ReflectionClass(ProductPricesRelationManager::class))->newInstanceWithoutConstructor();
     $table = $instance->table(Table::make($instance));
 
     /** @var TextColumn $column */
     $column = $table->getColumns()['unit_price'];
 
-    expect($column->isMoney())->toBeTrue();
+    expect($column->formatState(4999))->toBe((string) money(4999, 'USD'))
+        ->and($column->formatState(null))->toBeNull();
 });
