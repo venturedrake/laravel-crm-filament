@@ -6,6 +6,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class ProductPricesRelationManager extends RelationManager
 {
@@ -27,10 +28,8 @@ class ProductPricesRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('unit_price')
-                    ->label(__('laravel-crm-filament::labels.money.unit_price'))
-                    ->money(fn ($record) => $record->currency ?: 'USD')
-                    ->state(fn ($record) => ($record->unit_price ?? 0) / 100),
+                CrmMoney::column('unit_price')
+                    ->label(__('laravel-crm-filament::labels.money.unit_price')),
                 Tables\Columns\TextColumn::make('currency')
                     ->label(__('laravel-crm-filament::labels.fields.currency')),
             ])

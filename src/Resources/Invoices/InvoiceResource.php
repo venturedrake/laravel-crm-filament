@@ -56,6 +56,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Invoices\Pages\ViewInvoice;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
@@ -186,9 +187,8 @@ class InvoiceResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total')
                     ->label(__('laravel-crm-filament::labels.money.total'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('fully_paid_at')
@@ -197,15 +197,13 @@ class InvoiceResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('amount_paid')
+                CrmMoney::column('amount_paid')
                     ->label(__('laravel-crm-filament::labels.money.amount_paid'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'), divideBy: 100)
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('amount_due')
+                CrmMoney::column('amount_due')
                     ->label(__('laravel-crm-filament::labels.money.amount_due'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'), divideBy: 100)
                     ->sortable()
                     ->toggleable(),
 
@@ -444,17 +442,14 @@ class InvoiceResource extends Resource
                         ->label(__('laravel-crm-filament::labels.money.due_date'))
                         ->date(),
 
-                    TextEntry::make('total')
-                        ->label(__('laravel-crm-filament::labels.money.total'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('total')
+                        ->label(__('laravel-crm-filament::labels.money.total')),
 
-                    TextEntry::make('amount_paid')
-                        ->label(__('laravel-crm-filament::labels.money.amount_paid'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('amount_paid')
+                        ->label(__('laravel-crm-filament::labels.money.amount_paid')),
 
-                    TextEntry::make('amount_due')
-                        ->label(__('laravel-crm-filament::labels.money.amount_due'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('amount_due')
+                        ->label(__('laravel-crm-filament::labels.money.amount_due')),
 
                     TextEntry::make('fully_paid_at')
                         ->label(__('laravel-crm-filament::labels.xero.fully_paid_at'))

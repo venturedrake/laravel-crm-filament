@@ -104,7 +104,10 @@ class DealKanban extends Page
         $deal->save();
     }
 
-    public function getStageTotal(int $stageId, array $byStage): float
+    /**
+     * The stage column total, in stored cents, ready for money().
+     */
+    public function getStageTotal(int $stageId, array $byStage): int
     {
         $rows = $byStage[$stageId] ?? collect();
         $sum = 0;
@@ -112,6 +115,6 @@ class DealKanban extends Page
             $sum += (int) ($row->amount ?? 0);
         }
 
-        return $sum / 100;
+        return $sum;
     }
 }

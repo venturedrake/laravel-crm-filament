@@ -51,6 +51,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
@@ -173,21 +174,18 @@ class OrderResource extends Resource
                     ->label(__('laravel-crm-filament::labels.fields.organization'))
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('subtotal')
+                CrmMoney::column('subtotal')
                     ->label(__('laravel-crm-filament::labels.money.subtotal'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('tax')
+                CrmMoney::column('tax')
                     ->label(__('laravel-crm-filament::labels.money.tax'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total')
                     ->label(__('laravel-crm-filament::labels.money.total'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('ownerUser.name')
@@ -312,17 +310,14 @@ class OrderResource extends Resource
                             ? QuoteResource::getUrl('view', ['record' => $record->quote])
                             : null),
 
-                    TextEntry::make('subtotal')
-                        ->label(__('laravel-crm-filament::labels.money.subtotal'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('subtotal')
+                        ->label(__('laravel-crm-filament::labels.money.subtotal')),
 
-                    TextEntry::make('tax')
-                        ->label(__('laravel-crm-filament::labels.money.tax'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('tax')
+                        ->label(__('laravel-crm-filament::labels.money.tax')),
 
-                    TextEntry::make('total')
-                        ->label(__('laravel-crm-filament::labels.money.total'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('total')
+                        ->label(__('laravel-crm-filament::labels.money.total')),
 
                     TextEntry::make('labels.name')
                         ->label(__('laravel-crm-filament::labels.fields.labels'))

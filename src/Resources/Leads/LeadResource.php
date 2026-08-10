@@ -45,6 +45,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\ListLeads;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\ViewLead;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class LeadResource extends Resource
 {
@@ -190,9 +191,8 @@ class LeadResource extends Resource
                     ->badge()
                     ->limitList(3),
 
-                Tables\Columns\TextColumn::make('amount')
+                CrmMoney::column('amount')
                     ->label(__('laravel-crm-filament::labels.money.value'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('person.name')
@@ -331,9 +331,8 @@ class LeadResource extends Resource
                     TextEntry::make('lead_id')
                         ->label(__('laravel-crm-filament::labels.fields.number')),
 
-                    TextEntry::make('amount')
-                        ->label(__('laravel-crm-filament::labels.money.value'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('amount')
+                        ->label(__('laravel-crm-filament::labels.money.value')),
 
                     TextEntry::make('description')
                         ->label(__('laravel-crm-filament::labels.fields.description'))

@@ -76,7 +76,7 @@
                         <div class="crm-kanban-col-meta">
                             <div>{{ $stageQuotes->count() }}</div>
                             <div class="crm-kanban-col-total">
-                                {{ number_format($this->getStageTotal($stage->id, $quotesByStage), 0) }} {{ $currency }}
+                                {{ \VentureDrake\LaravelCrmFilament\Support\MoneyForm::display($this->getStageTotal($stage->id, $quotesByStage), $currency) }}
                             </div>
                         </div>
                     </div>
@@ -94,7 +94,7 @@
                                     <div class="crm-kanban-card-id">{{ $quote->quote_id }}</div>
                                     <div class="crm-kanban-card-title">{{ $quote->title }}</div>
                                     @if ($quote->total)
-                                        <div class="crm-kanban-card-amount">{{ ($quote->total / 100) }} {{ $quote->currency }}</div>
+                                        <div class="crm-kanban-card-amount">{{ \VentureDrake\LaravelCrmFilament\Support\MoneyForm::display($quote->total, $quote->currency) }}</div>
                                     @endif
                                     @if ($quote->expire_at)
                                         <div class="crm-kanban-card-meta">Expires {{ \Carbon\Carbon::parse($quote->expire_at)->format('M j') }}</div>

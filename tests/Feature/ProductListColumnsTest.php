@@ -90,14 +90,13 @@ it('renders code and taxRate.name columns as toggleable', function () {
     expect($cols['taxRate.name']->isToggleable())->toBeTrue();
 });
 
-it('renders the price column with money() + getDefaultPrice in source and uses price as the column key', function () {
+it('renders the price column with CrmMoney + getDefaultPrice in source and uses price as the column key', function () {
     $cols = productTableColumns();
 
     expect($cols)->toHaveKey('price');
 
     $source = file_get_contents(__DIR__ . '/../../src/Resources/Products/ProductResource.php');
-    expect($source)->toContain("Tables\\Columns\\TextColumn::make('price')");
-    expect($source)->toContain('->money(');
+    expect($source)->toContain("CrmMoney::column('price'");
     expect($source)->toContain('getDefaultPrice');
 });
 

@@ -46,8 +46,7 @@ it('Details section wires the AC-required TextEntries with money/badge/color/pla
     expect($src)->toContain("TextEntry::make('lead_id')");
     expect($src)->toContain("'laravel-crm-filament::labels.fields.number'");
 
-    expect($src)->toContain("TextEntry::make('amount')");
-    expect($src)->toContain("->money(fn (\$record) => \$record?->currency ?: config('laravel-crm.default_currency', 'USD'))");
+    expect($src)->toContain("CrmMoney::entry('amount')");
 
     expect($src)->toContain("TextEntry::make('description')");
     expect($src)->toContain('->columnSpanFull()');

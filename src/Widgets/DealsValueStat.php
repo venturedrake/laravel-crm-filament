@@ -8,6 +8,7 @@ use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class DealsValueStat extends StatsOverviewWidget
 {
@@ -94,18 +95,8 @@ class DealsValueStat extends StatsOverviewWidget
 
     protected function formatMoney(int $cents): string
     {
-        $currency = config('laravel-crm.default_currency', 'USD');
-        $amount = $cents / 100;
-
-        if (function_exists('money')) {
-            try {
-                return (string) money($amount, $currency);
-            } catch (\Throwable $e) {
-                // Fall through to number_format below when money helper throws
-                // (e.g. in test environments without full currency data).
-            }
-        }
-
-        return number_format($amount, 2) . ' ' . $currency;
+        // display() owns the number_format fallback for when the money helper
+        // cannot resolve the currency, so there is no guard needed here.
+        return (string) MoneyForm::display($cents, config('laravel-crm.default_currency', 'USD'));
     }
 }

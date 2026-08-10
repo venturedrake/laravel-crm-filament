@@ -27,6 +27,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\CreateProduct;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\EditProduct;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ListProducts;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ViewProduct;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
 class ProductResource extends Resource
 {
@@ -163,12 +164,9 @@ class ProductResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('price')
+                CrmMoney::column('price', fn ($record) => $record?->getDefaultPrice()?->currency)
                     ->label(__('laravel-crm-filament::labels.money.price'))
-                    ->state(fn ($record) => optional($record->getDefaultPrice())->unit_price
-                        ? optional($record->getDefaultPrice())->unit_price / 100
-                        : null)
-                    ->money(fn ($record) => $record?->getDefaultPrice()?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    ->state(fn ($record) => optional($record->getDefaultPrice())->unit_price ?: null),
 
                 Tables\Columns\TextColumn::make('taxRate.name')
                     ->label(__('laravel-crm-filament::labels.money.tax'))

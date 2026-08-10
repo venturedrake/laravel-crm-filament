@@ -102,7 +102,10 @@ class QuoteKanban extends Page
         $quote->save();
     }
 
-    public function getStageTotal(int $stageId, array $byStage): float
+    /**
+     * The stage column total, in stored cents, ready for money().
+     */
+    public function getStageTotal(int $stageId, array $byStage): int
     {
         $rows = $byStage[$stageId] ?? collect();
         $sum = 0;
@@ -110,6 +113,6 @@ class QuoteKanban extends Page
             $sum += (int) ($row->total ?? 0);
         }
 
-        return $sum / 100;
+        return $sum;
     }
 }

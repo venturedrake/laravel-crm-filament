@@ -95,7 +95,7 @@ it('Organization infolist Details carries the core CRM detail fields + per-row p
     expect($src)->toContain("TextEntry::make('industry.name')");
     expect($src)->toContain("TextEntry::make('timezone.name')");
     expect($src)->toContain("TextEntry::make('number_of_employees')");
-    expect($src)->toContain("TextEntry::make('annual_revenue')");
+    expect($src)->toContain("CrmMoney::entry('annual_revenue')");
     expect($src)->toContain("TextEntry::make('linkedin')");
     expect($src)->toContain("TextEntry::make('description')");
 

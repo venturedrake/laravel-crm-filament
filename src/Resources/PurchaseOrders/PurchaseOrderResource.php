@@ -47,6 +47,7 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\CreatePurchas
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\EditPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseOrders;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
@@ -180,9 +181,8 @@ class PurchaseOrderResource extends Resource
                     ->label(__('laravel-crm-filament::labels.sales.delivery_type'))
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('total')
+                CrmMoney::column('total')
                     ->label(__('laravel-crm-filament::labels.money.amount'))
-                    ->money(fn ($record) => $record->currency ?: config('laravel-crm.default_currency', 'USD'))
                     ->sortable(),
 
                 Tables\Columns\IconColumn::make('sent')
@@ -297,9 +297,8 @@ class PurchaseOrderResource extends Resource
                     TextEntry::make('delivery_type')
                         ->label(__('laravel-crm-filament::labels.sales.delivery_type')),
 
-                    TextEntry::make('total')
-                        ->label(__('laravel-crm-filament::labels.money.amount'))
-                        ->money(fn ($record) => $record?->currency ?: config('laravel-crm.default_currency', 'USD')),
+                    CrmMoney::entry('total')
+                        ->label(__('laravel-crm-filament::labels.money.amount')),
 
                     TextEntry::make('terms')
                         ->label(__('laravel-crm-filament::labels.fields.terms'))
