@@ -548,6 +548,6 @@ class Updates extends Page
 
         usort($stable, static fn (string $a, string $b): int => version_compare($a, $b));
 
-        return end($stable) ?: null;
+        return end($stable);
     }
 }

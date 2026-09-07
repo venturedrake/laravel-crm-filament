@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrm\Support\PdfLogo;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
 
@@ -93,17 +94,6 @@ class CrmPdf
     }
 
     /**
-     * The settings key holding the "contact details" footer block, per doc
-     * type. Core only defines the two; the rest render the block empty.
-     *
-     * @var array<string, string>
-     */
-    public const CONTACT_DETAILS_SETTINGS = [
-        'invoice' => 'invoice_contact_details',
-        'purchaseorder' => 'purchase_order_contact_details',
-    ];
-
-    /**
      * The variable set each PDF template expects, keyed by doc type.
      *
      * Every key here is supplied for every doc type, unconditionally. The
@@ -124,9 +114,14 @@ class CrmPdf
         $common = [
             'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format')),
             'taxName' => $settings->get('tax_name', 'Tax'),
-            'contactDetails' => isset(self::CONTACT_DETAILS_SETTINGS[$type])
-                ? $settings->get(self::CONTACT_DETAILS_SETTINGS[$type], null)
-                : null,
+            // `{doc_type}_contact_details` first, then the shared
+            // `pdf_contact_details`, then null. The plugin used to carry a
+            // two-entry map of its own, which left quote/order/delivery with a
+            // blank From block on every template that renders one; core 2.4.1
+            // made the chain a helper, so there is one answer for both front
+            // ends. Note docTypeFor(): the key is `purchase_order_…`, not
+            // `purchaseorder_…`.
+            'contactDetails' => PdfContactDetails::for(self::docTypeFor($type)),
             'paymentInstructions' => $type === 'invoice'
                 ? $settings->get('invoice_payment_instructions', null)
                 : null,

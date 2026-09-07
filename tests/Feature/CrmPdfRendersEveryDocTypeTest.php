@@ -7,6 +7,7 @@ use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 
@@ -135,12 +136,65 @@ it('supplies the settings-driven variables the templates read unguarded', functi
     expect($poData['contactDetails'])->toBe('Supplier desk')
         ->and($poData)->toHaveKeys(['address', 'organization_address', 'email', 'phone']);
 
-    // Core defines no contact-details setting for these three, so the block is
-    // present-and-null rather than absent.
+    // With no override of their own and no shared value set, these three
+    // resolve the block as present-and-null rather than absent — the key is
+    // always passed, because the templates read it unguarded.
     foreach (['quote', 'order', 'delivery'] as $type) {
         $data = CrmPdf::viewData($type, pdfRecordFor($type));
 
         expect($data)->toHaveKeys(['taxName', 'contactDetails', 'paymentInstructions'])
             ->and($data['contactDetails'])->toBeNull();
     }
+});
+
+/**
+ * The shared `pdf_contact_details` block, core 2.4.1.
+ *
+ * Before it, the plugin carried a two-entry map of its own — invoice and
+ * purchase order — so a quote, order or delivery PDF downloaded from the panel
+ * printed an *empty* From block on `modern` (the default) and on bold, compact
+ * and professional. Rendering the blade, not just inspecting viewData(), is the
+ * point: it is the templates that decide whether the value reaches paper.
+ */
+it('prints the shared From block on every doc type whose default template renders one', function () {
+    app('laravel-crm.settings')->set(PdfContactDetails::SHARED_KEY, 'Shared From block');
+    app('laravel-crm.settings')->forgetCache();
+
+    foreach (['quote', 'invoice', 'order', 'delivery'] as $type) {
+        $record = pdfRecordFor($type);
+        $data = CrmPdf::viewData($type, $record);
+
+        expect($data['contactDetails'])->toBe('Shared From block', $type);
+
+        $html = view(CrmPdf::viewFor($type, $record), $data)->render();
+
+        expect(str_contains($html, 'Shared From block'))
+            ->toBeTrue("{$type} rendered no From block on the default template");
+    }
+});
+
+it('prefers a doc-type override over the shared block, and treats a cleared override as unset', function () {
+    $settings = app('laravel-crm.settings');
+
+    $settings->set(PdfContactDetails::SHARED_KEY, 'Shared From block');
+    $settings->set('invoice_contact_details', 'Invoice-only block');
+    // Note the spelling: the plugin's `purchaseorder` maps to the registry's
+    // `purchase-order`, which snake_cases to `purchase_order_contact_details`.
+    $settings->set('purchase_order_contact_details', 'Supplier desk');
+    $settings->forgetCache();
+
+    expect(CrmPdf::viewData('invoice', pdfRecordFor('invoice'))['contactDetails'])->toBe('Invoice-only block')
+        ->and(CrmPdf::viewData('purchaseorder', pdfRecordFor('purchaseorder'))['contactDetails'])->toBe('Supplier desk');
+
+    foreach (['quote', 'order', 'delivery'] as $type) {
+        expect(CrmPdf::viewData($type, pdfRecordFor($type))['contactDetails'])
+            ->toBe('Shared From block', $type);
+    }
+
+    // Clearing the override persists an empty row rather than deleting it, so
+    // the invoice has to fall back to the shared value rather than print blank.
+    $settings->set('invoice_contact_details', '');
+    $settings->forgetCache();
+
+    expect(CrmPdf::viewData('invoice', pdfRecordFor('invoice'))['contactDetails'])->toBe('Shared From block');
 });

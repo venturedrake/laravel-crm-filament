@@ -8,10 +8,11 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendQuote;
 use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrmFilament\Concerns\DownloadsPdf;
+use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 trait HasQuoteSendAction
 {
@@ -36,7 +37,7 @@ trait HasQuoteSendAction
                     ->default(fn () => 'Quote ' . $record->quote_id),
                 Textarea::make('message')
                     ->rows(8)
-                    ->default("Hi,\n\nPlease find your quote here: [Online Quote Link]\n\nThanks."),
+                    ->default(fn (): string => PortalMessage::defaultMessage(PortalMessage::QUOTE)),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
@@ -59,20 +60,18 @@ trait HasQuoteSendAction
 
     protected function dispatchQuote(Quote $record, array $data): void
     {
-        $signedUrl = URL::temporarySignedRoute(
-            'laravel-crm.portal.quotes.show',
-            now()->addDays(14),
-            ['quote' => $record],
-        );
+        $signedUrl = PortalUrl::signedFor('laravel-crm.portal.quotes.show', $record);
 
         $pdfPath = $this->generateQuotePdf($record);
 
         Mail::send(new SendQuote([
             'to' => $data['to'],
             'subject' => $data['subject'],
-            'message' => $data['message'],
+            // Null link, no placeholder: base's mailable expands it either way,
+            // and an unexpanded null mails an empty anchor.
+            'message' => PortalMessage::resolve(PortalMessage::QUOTE, (string) $data['message'], $signedUrl),
             'cc' => ! empty($data['cc']) ? 1 : 0,
-            'onlineQuoteLink' => $signedUrl,
+            'onlineQuoteLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
         ]));
     }

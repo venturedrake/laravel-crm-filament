@@ -64,9 +64,10 @@ it('uses the purchase order portal action trait on ViewPurchaseOrder', function 
 dataset('portalActionTraits', [
     'order' => [HasOrderPortalAction::class, "PortalUrl::for('laravel-crm.portal.orders.show'"],
     'delivery' => [HasDeliveryPortalAction::class, "PortalUrl::for('laravel-crm.portal.deliveries.show'"],
-    // The purchase-order trait names the route through the shared constant,
-    // so the send action and the preview action cannot drift apart.
-    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'PortalUrl::for(PurchaseOrderPortalLink::ROUTE'],
+    // The purchase-order trait goes through the shared link helper rather than
+    // naming the route itself, so the send action and the preview action share
+    // both the route name and the signature/expiry.
+    'purchaseOrder' => [HasPurchaseOrderPortalAction::class, 'PurchaseOrderPortalLink::signedFor($record)'],
 ]);
 
 it('declares the preview_portal label, primary color, openUrlInNewTab, and the named portal route', function (string $trait, string $portalUrlCall) {

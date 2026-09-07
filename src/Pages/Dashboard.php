@@ -6,6 +6,7 @@ use Filament\Facades\Filament;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Widgets\Widget;
 use Filament\Widgets\WidgetConfiguration;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\Concerns\ChecksCrmPermissions;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
@@ -128,7 +129,7 @@ class Dashboard extends BaseDashboard
             }
         }
 
-        return in_array($module, (array) config('laravel-crm.modules', []), true);
+        return Modules::enabled($module);
     }
 
     /**

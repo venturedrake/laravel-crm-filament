@@ -49,7 +49,6 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseO
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
-use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 class PurchaseOrderResource extends Resource
@@ -397,7 +396,8 @@ class PurchaseOrderResource extends Resource
             // not register a purchase-order portal route, and an action with a
             // null URL renders as a button that does nothing on click.
             ->visible(fn (): bool => PurchaseOrderPortalLink::available())
-            ->url(fn (PurchaseOrder $record): ?string => PortalUrl::for(PurchaseOrderPortalLink::ROUTE, $record))
+            // Signed, not bare: the portal controller 401s an unsigned request.
+            ->url(fn (PurchaseOrder $record): ?string => PurchaseOrderPortalLink::signedFor($record))
             ->openUrlInNewTab();
     }
 

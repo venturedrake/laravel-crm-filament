@@ -3,6 +3,7 @@
 use Illuminate\Routing\RouteCollection;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 use VentureDrake\LaravelCrmFilament\Pages\TemplateSettings;
@@ -188,6 +189,37 @@ it('sends the preview inline so the browser renders it', function () {
     // one.
     expect($response->headers->get('Content-Disposition'))->toStartWith('inline')
         ->and($response->headers->get('Content-Type'))->toBe('application/pdf');
+});
+
+/**
+ * `sampleData()` used to hardcode `invoice_contact_details` for every doc type,
+ * so previewing a quote showed the invoice's From block — the same bug core
+ * fixed in `TemplatePreviewController::sampleData()` at 2.4.1. The preview is
+ * the screen an admin picks a template on, so showing the wrong block there is
+ * a wrong decision, not a cosmetic slip.
+ */
+it('resolves the preview contact block per doc type, not always the invoice one', function () {
+    $settings = app('laravel-crm.settings');
+
+    $settings->set(PdfContactDetails::SHARED_KEY, 'Shared From block');
+    $settings->set('invoice_contact_details', 'Invoice-only block');
+    $settings->forgetCache();
+
+    expect(PdfTemplatePreview::sampleData('invoice')['contactDetails'])->toBe('Invoice-only block');
+
+    foreach (['quote', 'order', 'delivery', 'purchase-order'] as $docType) {
+        expect(PdfTemplatePreview::sampleData($docType)['contactDetails'])
+            ->toBe('Shared From block', $docType);
+    }
+});
+
+it('ships thumbnail artwork for every template, so the picker is not text-only', function () {
+    $instance = livewire(TemplateSettings::class)->instance();
+
+    foreach (array_keys(PdfTemplateRegistry::all()) as $slug) {
+        expect($instance->thumbnail($slug))
+            ->toStartWith('data:image/svg+xml;base64,', "no thumbnail resolved for '{$slug}'");
+    }
 });
 
 it('returns null for an unknown doc type or slug rather than throwing', function () {

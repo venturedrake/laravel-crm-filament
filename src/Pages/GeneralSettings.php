@@ -26,6 +26,7 @@ use VentureDrake\LaravelCrm\Models\Email;
 use VentureDrake\LaravelCrm\Models\Phone;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrm\Services\SettingService;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 /**
@@ -69,6 +70,11 @@ class GeneralSettings extends Page implements HasForms
      *
      * The AC story header says "25 entries" but its explicit enumeration lists
      * 26 keys; the explicit list is authoritative.
+     *
+     * `pdf_contact_details` post-dates that enumeration entirely: core 2.4.1
+     * added it as the shared "From" block behind
+     * {@see PdfContactDetails::for()}, and without a field here there is no
+     * screen in the panel that can fill it.
      */
     public const KEYS = [
         // Branding
@@ -93,6 +99,7 @@ class GeneralSettings extends Page implements HasForms
         'purchase_order_prefix' => 'Purchase order prefix',
         // Document defaults
         'quote_terms' => 'Quote terms',
+        PdfContactDetails::SHARED_KEY => 'Document contact details',
         'invoice_contact_details' => 'Invoice contact details',
         'invoice_terms' => 'Invoice terms',
         'invoice_payment_instructions' => 'Invoice payment instructions',
@@ -242,7 +249,14 @@ class GeneralSettings extends Page implements HasForms
                     ->heading(__('laravel-crm-filament::labels.sections.document_defaults'))
                     ->schema([
                         Textarea::make('quote_terms')->label(static::KEYS['quote_terms'])->rows(3),
-                        Textarea::make('invoice_contact_details')->label(static::KEYS['invoice_contact_details'])->rows(3),
+                        Textarea::make(PdfContactDetails::SHARED_KEY)
+                            ->label(static::KEYS[PdfContactDetails::SHARED_KEY])
+                            ->helperText('Shown in the "from" block on quote, order, delivery and invoice PDFs, unless the document type overrides it below; the classic template shows this block on invoices only.')
+                            ->rows(3),
+                        Textarea::make('invoice_contact_details')
+                            ->label(static::KEYS['invoice_contact_details'])
+                            ->helperText('Overrides the shared contact details above, on invoice PDFs only.')
+                            ->rows(3),
                         Textarea::make('invoice_terms')->label(static::KEYS['invoice_terms'])->rows(3),
                         Textarea::make('invoice_payment_instructions')->label(static::KEYS['invoice_payment_instructions'])->rows(3),
                         Textarea::make('purchase_order_terms')->label(static::KEYS['purchase_order_terms'])->rows(3),

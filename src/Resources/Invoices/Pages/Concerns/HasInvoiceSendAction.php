@@ -8,10 +8,11 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendInvoice;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrmFilament\Concerns\DownloadsPdf;
+use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
+use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 trait HasInvoiceSendAction
 {
@@ -36,7 +37,7 @@ trait HasInvoiceSendAction
                     ->default(fn () => 'Invoice ' . $record->invoice_id),
                 Textarea::make('message')
                     ->rows(8)
-                    ->default("Hi,\n\nPlease find your invoice here: [Online Invoice Link]\n\nThanks."),
+                    ->default(fn (): string => PortalMessage::defaultMessage(PortalMessage::INVOICE)),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
@@ -59,20 +60,18 @@ trait HasInvoiceSendAction
 
     protected function dispatchInvoice(Invoice $record, array $data): void
     {
-        $signedUrl = URL::temporarySignedRoute(
-            'laravel-crm.portal.invoices.show',
-            now()->addDays(14),
-            ['invoice' => $record],
-        );
+        $signedUrl = PortalUrl::signedFor('laravel-crm.portal.invoices.show', $record);
 
         $pdfPath = $this->generateInvoicePdf($record);
 
         Mail::send(new SendInvoice([
             'to' => $data['to'],
             'subject' => $data['subject'],
-            'message' => $data['message'],
+            // Null link, no placeholder: base's mailable expands it either way,
+            // and an unexpanded null mails an empty anchor.
+            'message' => PortalMessage::resolve(PortalMessage::INVOICE, (string) $data['message'], $signedUrl),
             'cc' => ! empty($data['cc']) ? 1 : 0,
-            'onlineInvoiceLink' => $signedUrl,
+            'onlineInvoiceLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
         ]));
     }

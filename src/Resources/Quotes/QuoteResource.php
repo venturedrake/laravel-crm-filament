@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\URL;
 use VentureDrake\LaravelCrm\Mail\SendQuote;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\Quote;
@@ -52,6 +51,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class QuoteResource extends Resource
@@ -350,7 +350,7 @@ class QuoteResource extends Resource
                     ->default(fn () => 'Quote ' . $record->quote_id),
                 Textarea::make('message')
                     ->rows(8)
-                    ->default("Hi,\n\nPlease find your quote here: [Online Quote Link]\n\nThanks."),
+                    ->default(fn (): string => PortalMessage::defaultMessage(PortalMessage::QUOTE)),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
@@ -371,7 +371,8 @@ class QuoteResource extends Resource
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
             ->visible(fn (): bool => PortalUrl::exists('laravel-crm.portal.quotes.show'))
-            ->url(fn (Quote $record): ?string => PortalUrl::for('laravel-crm.portal.quotes.show', $record))
+            // Signed, not bare: the portal controller 401s an unsigned request.
+            ->url(fn (Quote $record): ?string => PortalUrl::signedFor('laravel-crm.portal.quotes.show', $record))
             ->openUrlInNewTab();
     }
 
@@ -393,20 +394,18 @@ class QuoteResource extends Resource
 
     protected static function dispatchQuoteSend(Quote $record, array $data): void
     {
-        $signedUrl = URL::temporarySignedRoute(
-            'laravel-crm.portal.quotes.show',
-            now()->addDays(14),
-            ['quote' => $record],
-        );
+        $signedUrl = PortalUrl::signedFor('laravel-crm.portal.quotes.show', $record);
 
         $pdfPath = static::renderQuotePdfToDisk($record);
 
         Mail::send(new SendQuote([
             'to' => $data['to'],
             'subject' => $data['subject'],
-            'message' => $data['message'],
+            // Null link, no placeholder: base's mailable expands it either way,
+            // and an unexpanded null mails an empty anchor.
+            'message' => PortalMessage::resolve(PortalMessage::QUOTE, (string) $data['message'], $signedUrl),
             'cc' => ! empty($data['cc']) ? 1 : 0,
-            'onlineQuoteLink' => $signedUrl,
+            'onlineQuoteLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
         ]));
     }

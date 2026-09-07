@@ -4,7 +4,6 @@ namespace VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\Concern
 
 use Filament\Actions\Action;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
-use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 trait HasPurchaseOrderPortalAction
@@ -21,7 +20,8 @@ trait HasPurchaseOrderPortalAction
             ->visible(fn (PurchaseOrder $record): bool => PurchaseOrderPortalLink::available()
                 && $record->external_id !== null
                 && $record->purchaseOrderLines()->count() > 0)
-            ->url(fn (PurchaseOrder $record): ?string => PortalUrl::for(PurchaseOrderPortalLink::ROUTE, $record))
+            // Signed, not bare: the portal controller 401s an unsigned request.
+            ->url(fn (PurchaseOrder $record): ?string => PurchaseOrderPortalLink::signedFor($record))
             ->openUrlInNewTab();
     }
 }

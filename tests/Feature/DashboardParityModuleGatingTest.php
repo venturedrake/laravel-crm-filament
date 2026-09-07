@@ -2,6 +2,7 @@
 
 use Filament\Facades\Filament;
 use Filament\Panel;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Pages\Dashboard;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
@@ -265,4 +266,45 @@ it('drops the three data widgets for a user without the permissions they read', 
         // The module-gated charts are unaffected — the Dashboard page itself
         // stays reachable, because a user who can log in has to land somewhere.
         ->toContain(CrmStatsOverview::class);
+});
+
+// ----------------------------------------------------------------------------
+// The empty-array rule, core 2.4.1.
+// ----------------------------------------------------------------------------
+//
+// Core reads a falsy `laravel-crm.modules` — including `[]`, because `! []` is
+// true — as "unconfigured, so every module is on". The plugin restated the gate
+// as a bare `in_array(...)`, which reads `[]` as "every module off", so a host
+// that published the config and emptied that key got a full core CRM beside an
+// empty Filament panel. Both now route through `Support\Modules`.
+
+it('treats an empty laravel-crm.modules as every module enabled, matching core', function () {
+    config(['laravel-crm.modules' => []]);
+
+    $plugin = LaravelCrmPlugin::make();
+
+    foreach (['leads', 'deals', 'quotes', 'orders', 'invoices', 'sms-marketing'] as $module) {
+        expect(Modules::enabled($module))->toBeTrue($module)
+            ->and($plugin->isModuleEnabled($module))->toBeTrue($module);
+    }
+
+    $widgets = (new Dashboard)->getWidgets();
+
+    expect($widgets)->toContain(CrmStatsOverview::class)
+        ->toContain(DealsValueStat::class)
+        ->toContain(DealsPipelineValueChart::class);
+});
+
+it('still honours a populated laravel-crm.modules list', function () {
+    config(['laravel-crm.modules' => ['leads']]);
+
+    expect(Modules::enabled('leads'))->toBeTrue()
+        ->and(Modules::enabled('deals'))->toBeFalse()
+        ->and(LaravelCrmPlugin::make()->isModuleEnabled('deals'))->toBeFalse();
+});
+
+it('lets an explicit ->modules() override win over the empty-array config rule', function () {
+    config(['laravel-crm.modules' => []]);
+
+    expect(LaravelCrmPlugin::make()->modules(['deals' => false])->isModuleEnabled('deals'))->toBeFalse();
 });

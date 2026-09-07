@@ -17,7 +17,8 @@ trait HasQuotePortalAction
             // The quote portal route ships with base's routes.php, which is
             // unloaded entirely when laravel-crm.user_interface is off.
             ->visible(fn (): bool => PortalUrl::exists('laravel-crm.portal.quotes.show'))
-            ->url(fn (Quote $record): ?string => PortalUrl::for('laravel-crm.portal.quotes.show', $record))
+            // Signed, not bare: the portal controller 401s an unsigned request.
+            ->url(fn (Quote $record): ?string => PortalUrl::signedFor('laravel-crm.portal.quotes.show', $record))
             ->openUrlInNewTab();
     }
 }

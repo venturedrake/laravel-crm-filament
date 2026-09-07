@@ -7,6 +7,7 @@ use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Email;
 use VentureDrake\LaravelCrm\Models\Phone;
 use VentureDrake\LaravelCrm\Models\Setting;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrmFilament\Auth\Login;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 
@@ -31,13 +32,14 @@ function parityGeneralSettingsSections(): array
     ));
 }
 
-it('(a) KEYS map contains exactly the expected 27 scalar keys in order', function (): void {
+it('(a) KEYS map contains exactly the expected 28 scalar keys in order', function (): void {
     // The story prompt names "25-key map" but the implementation enumerates 26
     // scalar settings (3 branding + 6 localisation + 7 prefixes + 6 document
     // defaults + 2 tax + 2 behaviour). The progress notes for US-001 of this
     // series document the discrepancy — the explicit enumeration is
     // authoritative. US-006 adds `primary_color` (read by Auth\Login and the
-    // panel stub but previously not editable), taking the map to 27.
+    // panel stub but previously not editable), taking the map to 27; core
+    // 2.4.1's shared `pdf_contact_details` block takes it to 28.
     $keys = array_keys(GeneralSettings::KEYS);
 
     expect($keys)->toBe([
@@ -63,6 +65,7 @@ it('(a) KEYS map contains exactly the expected 27 scalar keys in order', functio
         'purchase_order_prefix',
         // Document defaults
         'quote_terms',
+        'pdf_contact_details',
         'invoice_contact_details',
         'invoice_terms',
         'invoice_payment_instructions',
@@ -76,7 +79,7 @@ it('(a) KEYS map contains exactly the expected 27 scalar keys in order', functio
         'dynamic_products',
     ]);
 
-    expect($keys)->toHaveCount(27);
+    expect($keys)->toHaveCount(28);
 });
 
 it('(a) primary_color is editable and feeds Auth\\Login::brandPrimaryColor()', function (): void {
@@ -175,7 +178,7 @@ it('(c) round-trip: full scalar + 1 phone + 1 email + 1 address payload persists
         }
     };
 
-    // Full scalar payload (27 keys) + 1 nested row each.
+    // Full scalar payload (28 keys) + 1 nested row each.
     $page->data = [
         // Branding
         'organization_name' => 'Acme Inc',
@@ -199,6 +202,7 @@ it('(c) round-trip: full scalar + 1 phone + 1 email + 1 address payload persists
         'purchase_order_prefix' => 'PO',
         // Document defaults
         'quote_terms' => 'Quote terms body',
+        'pdf_contact_details' => 'Shared contact details body',
         'invoice_contact_details' => 'Invoice contact details body',
         'invoice_terms' => 'Invoice terms body',
         'invoice_payment_instructions' => 'Payment instructions body',
@@ -282,4 +286,56 @@ it('(c) round-trip: full scalar + 1 phone + 1 email + 1 address payload persists
     expect($address->state)->toBe('NY');
     expect($address->code)->toBe('10001');
     expect($address->country)->toBe('US');
+});
+
+/**
+ * The shared From block only reaches a PDF if the panel can write it and read
+ * it back, and only falls back correctly if clearing it resolves to null rather
+ * than to an empty string. `GeneralSettings::save()` writes every key on every
+ * save, so a cleared field persists as an empty row — which is exactly the case
+ * `PdfContactDetails::for()` guards with `filled()`.
+ */
+it('round-trips pdf_contact_details through save()/mount() and clears it to null', function (): void {
+    $page = new class extends GeneralSettings
+    {
+        public function save(): void
+        {
+            $settings = app('laravel-crm.settings');
+
+            foreach (self::KEYS as $key => $label) {
+                $settings->set($key, $this->data[$key] ?? null, $label);
+            }
+
+            $settings->forgetCache();
+        }
+    };
+
+    $page->data[PdfContactDetails::SHARED_KEY] = "Acme Inc\n1 Wharf St";
+    $page->save();
+
+    expect(app('laravel-crm.settings')->get(PdfContactDetails::SHARED_KEY))->toBe("Acme Inc\n1 Wharf St")
+        ->and(PdfContactDetails::for('quote'))->toBe("Acme Inc\n1 Wharf St");
+
+    // mount() rehydrates the field from the stored value.
+    $fresh = new class extends GeneralSettings
+    {
+        public function mount(): void
+        {
+            $settings = app('laravel-crm.settings');
+            foreach (array_keys(self::KEYS) as $key) {
+                $this->data[$key] = $settings->get($key);
+            }
+        }
+    };
+    $fresh->mount();
+
+    expect($fresh->data[PdfContactDetails::SHARED_KEY])->toBe("Acme Inc\n1 Wharf St");
+
+    // Clearing writes an empty row rather than deleting it, and that empty row
+    // must still resolve to null so the chain falls through.
+    $page->data[PdfContactDetails::SHARED_KEY] = '';
+    $page->save();
+
+    expect((string) app('laravel-crm.settings')->get(PdfContactDetails::SHARED_KEY))->toBe('')
+        ->and(PdfContactDetails::for('quote'))->toBeNull();
 });

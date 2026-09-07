@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Added
+
+- **A "Document contact details" field on Settings → General.** Core 2.4.1 introduced a shared
+  `pdf_contact_details` setting that fills the "From" block on quote, order, delivery and invoice
+  PDFs; until now there was no screen in the panel that could write it. The existing "Invoice
+  contact details" field still overrides it for invoices only, and both fields explain the chain
+  in their helper text.
+
+### Fixed
+
+- **Quote, order and delivery PDFs printed an empty "From" block.** `CrmPdf::viewData()` carried
+  its own two-entry map — invoice and purchase order — so the other three doc types resolved the
+  block as null on `modern` (the default template), `bold`, `compact` and `professional`.
+  Resolution now goes through core's `Support\PdfContactDetails`, which reads
+  `{doc_type}_contact_details`, then the shared `pdf_contact_details`, then null.
+
+- **Settings → Templates previewed every document with the invoice's contact block.**
+  `PdfTemplatePreview::sampleData()` hardcoded `invoice_contact_details` regardless of doc type,
+  so the screen an admin picks a template on showed the wrong block for quotes, orders,
+  deliveries and purchase orders. This is the same bug core fixed in
+  `TemplatePreviewController::sampleData()` at 2.4.1.
+
+- **"Preview portal" opened a 401 instead of the document.** The invoice, quote and purchase-order
+  preview buttons minted an *unsigned* portal URL, and every portal controller in core opens with
+  `abort_unless($request->hasValidSignature(), 401)`. They now sign the link, with the expiry taken
+  from core's `Support\PortalLink::DAYS` so a link copied out of the panel and a link the CRM
+  emailed cannot outlive each other. The four send paths that each hand-rolled a 14-day
+  `URL::temporarySignedRoute()` call now read that same constant.
+
+- **A quote or invoice sent from a portal-less install mailed an empty link.** `PortalUrl` returns
+  null where the hand-rolled `URL::temporarySignedRoute()` used to throw, and base's `SendQuote` /
+  `SendInvoice` expand `[Online … Link]` unconditionally — so on a host with
+  `laravel-crm.user_interface=false`, which unloads `portal-routes.php` and is what this plugin's
+  installer recommends, the recipient got "please find it here:" followed by `<a href=""></a>`
+  while the panel reported success. The new `Support\PortalMessage` only offers the placeholder
+  when the route resolves and strips its line when no link does, which is the guard
+  `PurchaseOrderPortalLink` already applied to purchase orders; that class now shares the stripping
+  rule rather than carrying its own copy.
+
+- **An empty `laravel-crm.modules` array disabled every panel module.** Core reads a falsy value
+  for that key — including `[]`, because `! []` is true — as "unconfigured, so everything is on".
+  The plugin restated the rule as a bare `in_array()` in six places, which reads `[]` as
+  "everything off", so a host that published the config and emptied that key got a full core CRM
+  beside an empty Filament panel. All six now call core's `Support\Modules::enabled()`. Note that
+  `xero` is a plugin-only slug that is not in core's default `modules` list, so it stays off by
+  default under either rule; the behaviour only changes for a host that emptied the array, where
+  it now turns on along with everything else.
+
+### Changed
+
+- **Requires `venturedrake/laravel-crm` `^2.4.2`** (was `^2.4`). The floor has to move because
+  `PdfContactDetails`, `PortalLink` and `Modules` all landed in 2.4.1. Core 2.4.2 expects its
+  published assets to be refreshed — core's own `laravelcrm:upgrade` composer hook does this, and
+  `laravelcrm:filament-update` runs `laravelcrm:update` for you.
+
+- **Settings → Templates now shows thumbnails.** No change here: core 2.4.0 shipped with none
+  (Vite's `emptyOutDir` deleted them, so `PdfTemplateRegistry::thumbnailFile()` returned null and
+  the picker was text-only), and 2.4.1 moved the artwork somewhere the build no longer wipes. The
+  panel already read it through the registry.
+
 ## [1.1.0] - 2026-08-10
 
 ### Upgrading

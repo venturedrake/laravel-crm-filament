@@ -2,9 +2,10 @@
 
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 
-it('declares the full 27-key scalar setting map on GeneralSettings', function (): void {
+it('declares the full 28-key scalar setting map on GeneralSettings', function (): void {
     $keys = array_keys(GeneralSettings::KEYS);
 
     expect($keys)->toBe([
@@ -26,6 +27,7 @@ it('declares the full 27-key scalar setting map on GeneralSettings', function ()
         'delivery_prefix',
         'purchase_order_prefix',
         'quote_terms',
+        'pdf_contact_details',
         'invoice_contact_details',
         'invoice_terms',
         'invoice_payment_instructions',
@@ -88,6 +90,38 @@ it('uses Textarea for every *_terms / *_instructions / invoice_contact_details k
     'purchase_order_terms',
     'purchase_order_delivery_instructions',
 ]);
+
+/**
+ * The shared block's field names itself through core's constant rather than a
+ * literal, so the panel and core cannot disagree on the settings key — which is
+ * the entire mechanism by which `PdfContactDetails::for()` finds the value.
+ */
+it('uses a Textarea keyed off core PdfContactDetails::SHARED_KEY for the shared contact block', function (): void {
+    $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
+
+    expect($src)->toContain('Textarea::make(PdfContactDetails::SHARED_KEY)')
+        ->and(PdfContactDetails::SHARED_KEY)->toBe('pdf_contact_details')
+        ->and(GeneralSettings::KEYS)->toHaveKey(PdfContactDetails::SHARED_KEY);
+});
+
+/**
+ * Ordering is load-bearing copy: the shared field sits above the invoice
+ * override, and its helper text explains the chain, so an admin filling one in
+ * knows what the other does.
+ */
+it('places the shared contact block above the invoice override and explains the chain', function (): void {
+    $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
+
+    $shared = strpos($src, 'Textarea::make(PdfContactDetails::SHARED_KEY)');
+    $invoice = strpos($src, "Textarea::make('invoice_contact_details')");
+
+    expect($shared)->not->toBeFalse()
+        ->and($invoice)->not->toBeFalse()
+        ->and($shared)->toBeLessThan($invoice);
+
+    expect(substr($src, (int) $shared, (int) $invoice - (int) $shared))->toContain('->helperText(');
+    expect($src)->toContain('Overrides the shared contact details above');
+});
 
 it('uses Select for language/country/currency/timezone/date_format/time_format', function (string $key): void {
     $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());

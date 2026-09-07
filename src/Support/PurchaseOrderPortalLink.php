@@ -3,6 +3,7 @@
 namespace VentureDrake\LaravelCrmFilament\Support;
 
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
+use VentureDrake\LaravelCrm\Support\PortalLink;
 
 /**
  * The "[Online Purchase Order Link]" placeholder base's `SendPurchaseOrder`
@@ -25,9 +26,11 @@ class PurchaseOrderPortalLink
     public const PLACEHOLDER = '[Online Purchase Order Link]';
 
     /**
-     * Days a generated portal link stays valid — base's own send flow uses 14.
+     * Days a generated portal link stays valid. Taken from core rather than
+     * restated, so a link this panel mints and a link core mails expire
+     * together however core retunes it.
      */
-    public const EXPIRY_DAYS = 14;
+    public const EXPIRY_DAYS = PortalLink::DAYS;
 
     public static function available(): bool
     {
@@ -62,19 +65,12 @@ class PurchaseOrderPortalLink
     /**
      * Remove any line carrying the placeholder. Dropping the whole line rather
      * than just the token avoids mailing a dangling "Please find it here:".
+     *
+     * Quotes and invoices need the same rule, so the rule itself lives in
+     * {@see PortalMessage} and there is one copy of it.
      */
     public static function stripPlaceholder(string $message): string
     {
-        if (! str_contains($message, self::PLACEHOLDER)) {
-            return $message;
-        }
-
-        $stripped = preg_replace(
-            '/^.*' . preg_quote(self::PLACEHOLDER, '/') . '.*$\R?/m',
-            '',
-            $message,
-        );
-
-        return $stripped ?? $message;
+        return PortalMessage::stripPlaceholder($message, self::PLACEHOLDER);
     }
 }

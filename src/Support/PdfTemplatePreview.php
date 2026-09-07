@@ -3,6 +3,7 @@
 namespace VentureDrake\LaravelCrmFilament\Support;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrm\Support\PdfLogo;
 use VentureDrake\LaravelCrm\Support\PdfSampleData;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
@@ -72,7 +73,10 @@ class PdfTemplatePreview
         $common = [
             'dateFormat' => $settings->get('date_format', config('laravel-crm.date_format', 'M j, Y')),
             'taxName' => $settings->get('tax_name', 'Tax'),
-            'contactDetails' => $settings->get('invoice_contact_details', null),
+            // Per doc type, not always the invoice's — previewing a quote used
+            // to show whatever the invoice block said. Core fixed the same bug
+            // in `TemplatePreviewController::sampleData()` at 2.4.1.
+            'contactDetails' => PdfContactDetails::for($docType),
             'paymentInstructions' => $settings->get('invoice_payment_instructions', null),
             'fromName' => $settings->get('organization_name', 'Sample Organization'),
             'logo' => PdfLogo::fromSettings(),

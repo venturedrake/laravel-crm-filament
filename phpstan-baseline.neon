@@ -343,12 +343,6 @@ parameters:
 			path: src/Pages/Integrations.php
 
 		-
-			message: '#^Call to function method_exists\(\) with ''Dcblogdev\\\\Xero\\\\Facades\\\\Xero'' and ''getTenantName'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/Pages/Integrations.php
-
-		-
 			message: '#^Call to function method_exists\(\) with VentureDrake\\LaravelCrm\\Services\\SettingService and ''forgetCache'' will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1

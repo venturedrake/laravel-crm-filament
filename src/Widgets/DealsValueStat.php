@@ -7,6 +7,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
@@ -89,7 +90,7 @@ class DealsValueStat extends StatsOverviewWidget
         try {
             return LaravelCrmPlugin::get()->isModuleEnabled($module);
         } catch (\Throwable $e) {
-            return in_array($module, (array) config('laravel-crm.modules', []), true);
+            return Modules::enabled($module);
         }
     }
 

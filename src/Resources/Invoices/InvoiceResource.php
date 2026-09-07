@@ -23,7 +23,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema as DbSchema;
-use Illuminate\Support\Facades\URL;
 use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Mail\SendInvoice;
 use VentureDrake\LaravelCrm\Models\Invoice;
@@ -58,6 +57,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
 class InvoiceResource extends Resource
@@ -529,7 +529,7 @@ class InvoiceResource extends Resource
                     ->default(fn () => 'Invoice ' . $record->invoice_id),
                 Textarea::make('message')
                     ->rows(8)
-                    ->default("Hi,\n\nPlease find your invoice here: [Online Invoice Link]\n\nThanks."),
+                    ->default(fn (): string => PortalMessage::defaultMessage(PortalMessage::INVOICE)),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
@@ -550,7 +550,8 @@ class InvoiceResource extends Resource
             ->icon('heroicon-o-arrow-top-right-on-square')
             ->color('primary')
             ->visible(fn (): bool => PortalUrl::exists('laravel-crm.portal.invoices.show'))
-            ->url(fn (Invoice $record): ?string => PortalUrl::for('laravel-crm.portal.invoices.show', $record))
+            // Signed, not bare: the portal controller 401s an unsigned request.
+            ->url(fn (Invoice $record): ?string => PortalUrl::signedFor('laravel-crm.portal.invoices.show', $record))
             ->openUrlInNewTab();
     }
 
@@ -572,20 +573,18 @@ class InvoiceResource extends Resource
 
     protected static function dispatchInvoiceSend(Invoice $record, array $data): void
     {
-        $signedUrl = URL::temporarySignedRoute(
-            'laravel-crm.portal.invoices.show',
-            now()->addDays(14),
-            ['invoice' => $record],
-        );
+        $signedUrl = PortalUrl::signedFor('laravel-crm.portal.invoices.show', $record);
 
         $pdfPath = static::renderInvoicePdfToDisk($record);
 
         Mail::send(new SendInvoice([
             'to' => $data['to'],
             'subject' => $data['subject'],
-            'message' => $data['message'],
+            // Null link, no placeholder: base's mailable expands it either way,
+            // and an unexpanded null mails an empty anchor.
+            'message' => PortalMessage::resolve(PortalMessage::INVOICE, (string) $data['message'], $signedUrl),
             'cc' => ! empty($data['cc']) ? 1 : 0,
-            'onlineInvoiceLink' => $signedUrl,
+            'onlineInvoiceLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
         ]));
     }

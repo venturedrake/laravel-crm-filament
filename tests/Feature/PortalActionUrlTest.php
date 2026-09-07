@@ -1,14 +1,19 @@
 <?php
 
 use Filament\Actions\Action;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
+use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrm\Support\PortalLink;
 use VentureDrake\LaravelCrmFilament\Resources\Deliveries\DeliveryResource;
 use VentureDrake\LaravelCrmFilament\Resources\Deliveries\Pages\Concerns\HasDeliveryPortalAction;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
@@ -17,6 +22,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Orders\Pages\Concerns\HasOrderPort
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\Concerns\HasQuotePortalAction;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
+use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 /**
  * Portal preview links resolve through the base package's named routes.
@@ -136,36 +142,92 @@ it('shows the Order and Delivery portal actions once the routes exist', function
         ->and($deliveryAction->getUrl())->toBe(route('laravel-crm.portal.deliveries.show', $delivery->external_id));
 });
 
-it('points the Quote portal action at the named quote portal route', function () {
+/**
+ * Every portal controller in core opens with
+ * `abort_unless($request->hasValidSignature(), 401)`, so a preview link that
+ * carries no signature is a 401 rather than a document. Asserting the URL
+ * merely *starts with* the route would pass for the unsigned form too, so
+ * these check the signature the way core's middleware does.
+ */
+function assertValidPortalSignature(?string $url): void
+{
+    expect($url)->toBeString();
+
+    expect(URL::hasValidSignature(Request::create((string) $url)))->toBeTrue();
+}
+
+it('signs the Quote portal action link so the portal does not 401 it', function () {
     expect(PortalUrl::exists('laravel-crm.portal.quotes.show'))->toBeTrue();
 
     $quote = new Quote(['external_id' => (string) Str::uuid()]);
 
-    $expected = route('laravel-crm.portal.quotes.show', $quote->external_id);
+    $unsigned = route('laravel-crm.portal.quotes.show', $quote->external_id);
 
     $factoryAction = QuoteResource::portalActionFactory()->record($quote);
     $traitAction = portalActionFromTrait(HasQuotePortalAction::class, 'quotePortalAction')->record($quote);
 
-    expect($factoryAction->isVisible())->toBeTrue()
-        ->and($factoryAction->getUrl())->toBe($expected)
-        ->and($traitAction->isVisible())->toBeTrue()
-        ->and($traitAction->getUrl())->toBe($expected);
+    foreach ([$factoryAction, $traitAction] as $action) {
+        expect($action->isVisible())->toBeTrue()
+            ->and($action->getUrl())->toStartWith($unsigned . '?')
+            ->and($action->getUrl())->not->toBe($unsigned);
+
+        assertValidPortalSignature($action->getUrl());
+    }
 });
 
-it('points the Invoice portal action at the named invoice portal route', function () {
+it('signs the Invoice portal action link so the portal does not 401 it', function () {
     expect(PortalUrl::exists('laravel-crm.portal.invoices.show'))->toBeTrue();
 
     $invoice = new Invoice(['external_id' => (string) Str::uuid()]);
 
-    $expected = route('laravel-crm.portal.invoices.show', $invoice->external_id);
+    $unsigned = route('laravel-crm.portal.invoices.show', $invoice->external_id);
 
     $factoryAction = InvoiceResource::invoicePortalActionFactory()->record($invoice);
     $traitAction = portalActionFromTrait(HasInvoicePortalAction::class, 'invoicePortalAction')->record($invoice);
 
-    expect($factoryAction->isVisible())->toBeTrue()
-        ->and($factoryAction->getUrl())->toBe($expected)
-        ->and($traitAction->isVisible())->toBeTrue()
-        ->and($traitAction->getUrl())->toBe($expected);
+    foreach ([$factoryAction, $traitAction] as $action) {
+        expect($action->isVisible())->toBeTrue()
+            ->and($action->getUrl())->toStartWith($unsigned . '?')
+            ->and($action->getUrl())->not->toBe($unsigned);
+
+        assertValidPortalSignature($action->getUrl());
+    }
+});
+
+/**
+ * The expiry only means anything if every surface agrees on it: a link copied
+ * out of the panel and a link core mailed are the same link, so they must not
+ * outlive each other. That is why the number is read from core's PortalLink
+ * rather than restated here.
+ */
+it('expires every portal link core.PortalLink::DAYS out, on all five surfaces', function () {
+    $this->travelTo(Carbon::parse('2026-09-07 12:00:00'));
+
+    $quote = new Quote(['external_id' => (string) Str::uuid()]);
+    $invoice = new Invoice(['external_id' => (string) Str::uuid()]);
+    $purchaseOrder = new PurchaseOrder(['external_id' => (string) Str::uuid()]);
+
+    Route::get('p/purchase-orders/{external_id}', fn () => '')
+        ->name(PurchaseOrderPortalLink::ROUTE);
+    Route::getRoutes()->refreshNameLookups();
+
+    $urls = [
+        'quote preview' => QuoteResource::portalActionFactory()->record($quote)->getUrl(),
+        'invoice preview' => InvoiceResource::invoicePortalActionFactory()->record($invoice)->getUrl(),
+        'purchase order preview' => PurchaseOrderPortalLink::signedFor($purchaseOrder),
+        'quote send' => PortalUrl::signedFor('laravel-crm.portal.quotes.show', $quote),
+        'invoice send' => PortalUrl::signedFor('laravel-crm.portal.invoices.show', $invoice),
+    ];
+
+    $expected = now()->addDays(PortalLink::DAYS)->getTimestamp();
+
+    foreach ($urls as $surface => $url) {
+        parse_str((string) parse_url((string) $url, PHP_URL_QUERY), $query);
+
+        expect((int) ($query['expires'] ?? 0))->toBe($expected, $surface);
+    }
+
+    expect(PurchaseOrderPortalLink::EXPIRY_DAYS)->toBe(PortalLink::DAYS);
 });
 
 it('no longer hard-codes the portal prefix anywhere under src/Resources', function () {

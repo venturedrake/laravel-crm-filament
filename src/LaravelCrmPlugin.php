@@ -6,6 +6,7 @@ use Filament\Contracts\Plugin;
 use Filament\Panel;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Pages\AcceptInvitation;
 use VentureDrake\LaravelCrmFilament\Pages\ActivityFeed;
@@ -276,7 +277,13 @@ class LaravelCrmPlugin implements Plugin
 
         // Core CRM stores enabled modules as a flat array of slugs:
         //   config('laravel-crm.modules') === ['leads', 'deals', ...]
-        return in_array($module, (array) config('laravel-crm.modules', []), true);
+        //
+        // Core's own rule (Support\Modules, and the @has*enabled directives
+        // before it) treats a falsy value — including `[]` — as "unconfigured,
+        // so everything is on". Restating the in_array() here got that backwards
+        // for the empty array, which is how a host that published the config and
+        // emptied the key ended up with a full core CRM beside an empty panel.
+        return Modules::enabled($module);
     }
 
     public function getNavigationGroup(): ?string

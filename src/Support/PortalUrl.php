@@ -6,6 +6,7 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
+use VentureDrake\LaravelCrm\Support\PortalLink;
 
 /**
  * Resolves public portal links through the base package's named routes
@@ -31,6 +32,12 @@ use Illuminate\Support\Facades\URL;
  * because that unloads `portal-routes.php` along with the rest of the web UI —
  * and that is precisely the configuration this plugin's own installer
  * recommends. The same `exists()` gate covers that case.
+ *
+ * Which is also why this class survives core 2.4.1's `Support\PortalLink`
+ * rather than being replaced by it: `PortalLink::for()` calls
+ * `URL::temporarySignedRoute()` unguarded and throws `RouteNotFoundException`
+ * on exactly that headless configuration. What is taken from core is the one
+ * thing that must not drift — the link lifetime, {@see PortalLink::DAYS}.
  */
 class PortalUrl
 {
@@ -45,6 +52,22 @@ class PortalUrl
         }
 
         return route($routeName, self::portalKey($record));
+    }
+
+    /**
+     * A signed portal URL valid for core's standard portal-link lifetime, or
+     * null when the base package does not register the route.
+     *
+     * This, not {@see self::for()}, is what a link a human is meant to follow
+     * needs: every portal controller in core opens with
+     * `abort_unless($request->hasValidSignature(), 401)`, so an unsigned URL is
+     * a 401 rather than a document. The expiry is core's own
+     * {@see PortalLink::DAYS} so a link the panel mints and a link core mails
+     * cannot outlive each other.
+     */
+    public static function signedFor(string $routeName, Model $record): ?string
+    {
+        return self::temporarySignedFor($routeName, $record, now()->addDays(PortalLink::DAYS));
     }
 
     /**

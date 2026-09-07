@@ -15,6 +15,7 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
 
 class Integrations extends Page implements HasForms
@@ -53,7 +54,7 @@ class Integrations extends Page implements HasForms
                 ->isActiveWhen(fn (): bool => request()->routeIs('filament.*.pages.integrations')),
         ];
 
-        if (in_array('sms-marketing', (array) config('laravel-crm.modules', []), true)) {
+        if (Modules::enabled('sms-marketing')) {
             $tabs[] = NavigationItem::make(__('laravel-crm-filament::labels.sections.clicksend'))
                 ->url(ClickSendIntegration::getUrl())
                 ->isActiveWhen(fn (): bool => request()->routeIs('filament.*.pages.clicksend'));

@@ -11,7 +11,7 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `^2.4`
+- `venturedrake/laravel-crm` `^2.4.2`
 
 ## Installation
 

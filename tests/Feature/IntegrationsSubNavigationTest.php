@@ -67,7 +67,10 @@ it('surfaces the ClickSend tab when sms-marketing module is enabled', function (
 });
 
 it('hides the ClickSend tab when sms-marketing module is disabled', function () {
-    config(['laravel-crm.modules' => []]);
+    // A configured list that omits sms-marketing, NOT an empty array: core's
+    // module rule reads a falsy `laravel-crm.modules` as "unconfigured, so
+    // everything is on", so `[]` enables the tab rather than hiding it.
+    config(['laravel-crm.modules' => ['leads', 'deals']]);
 
     $tabs = Integrations::integrationTabs();
     $urls = array_map(fn (NavigationItem $t) => $t->getUrl(), $tabs);
@@ -75,6 +78,14 @@ it('hides the ClickSend tab when sms-marketing module is disabled', function () 
     expect($urls)->not->toContain(ClickSendIntegration::getUrl());
     // Xero is always there.
     expect($urls)->toContain(Integrations::getUrl());
+});
+
+it('surfaces the ClickSend tab when laravel-crm.modules is empty, matching core', function () {
+    config(['laravel-crm.modules' => []]);
+
+    $urls = array_map(fn (NavigationItem $t) => $t->getUrl(), Integrations::integrationTabs());
+
+    expect($urls)->toContain(ClickSendIntegration::getUrl());
 });
 
 it('does not register the pre-parity manageClickSend header action on Integrations', function () {

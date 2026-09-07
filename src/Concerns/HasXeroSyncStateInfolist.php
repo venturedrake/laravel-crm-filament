@@ -7,6 +7,7 @@ use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Illuminate\Database\Eloquent\Model;
+use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroContactResource;
 
@@ -145,6 +146,6 @@ trait HasXeroSyncStateInfolist
             // No panel at all — final fall through.
         }
 
-        return in_array('xero', (array) config('laravel-crm.modules', []), true);
+        return Modules::enabled('xero');
     }
 }
