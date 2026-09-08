@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-09
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `^2.4.2`.** The floor moved from `^2.4`, so this is
+  breaking for anyone pinned to 2.4.0 or 2.4.1 — `PdfContactDetails`, `PortalLink` and `Modules`
+  all landed in 2.4.1. Update both packages together:
+
+  ```bash
+  composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
+  php artisan laravelcrm:filament-update
+  ```
+
+- **Republish core's assets.** Core 2.4.2 renamed its pdf.js worker to work around a server MIME
+  default, so `manifest.json` names a different file. Core's own `laravelcrm:upgrade` does this and
+  runs from its composer hook; `laravelcrm:filament-update` calls `laravelcrm:update` for you.
+
+- **The kanban boards now enforce permissions, and fail closed.** They previously authorized
+  nothing at all (see Security below). A board is now hidden unless the user passes the resource's
+  `canViewAny()`, and every drag or card-button write re-checks `canEdit()` on the record. **On an
+  install whose CRM permissions were never seeded this reads as "denied", not "allowed"** — the
+  boards will disappear for everyone until you re-seed. `laravelcrm:filament-update` does that via
+  `laravelcrm:update`. This is the opposite of how the plugin's settings pages degrade, and
+  deliberately so: a board that renders read-only until a command runs is recoverable, and one that
+  silently accepts writes from anyone is not.
+
+- **Settings → General is now tabbed.** Nothing about how it saves changed and no setting moved out
+  of the page, but the seven ID prefixes and the per-entity terms now live on their entity's tab
+  rather than in one flat column. `?tab=invoices` deep-links; an unrecognised tab falls back to
+  General, so an old bookmark still opens the page.
+
 ### Security
 
 - **The kanban boards accepted writes from any panel user.** Every board reaches the server through a
@@ -557,5 +588,6 @@ These landed on `develop` after 1.0.0 and were never written up. They ship in 1.
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.2.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.2.0
 [1.1.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.1.0
 [1.0.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.0.0

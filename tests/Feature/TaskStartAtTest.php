@@ -127,7 +127,11 @@ it('includes a task that starts before the window but is due inside it', functio
         'external_id' => (string) Str::uuid(),
         'name' => 'Started last week',
         'start_at' => now()->subWeek(),
-        'due_at' => now()->addHours(2),
+        // Anchored to the day, not to the clock: a bare `now()->addHours(2)`
+        // lands tomorrow whenever the suite runs after 22:00, which put the
+        // task outside the very window this asserts it falls inside. Every
+        // other case in this file already anchors the same way.
+        'due_at' => now()->startOfDay()->addHours(12),
         'user_owner_id' => $this->user->id,
     ]);
 

@@ -240,6 +240,21 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **System-check banner** rendered through Filament's `CONTENT_START` hook, sharing core's
   dismissal key.
 
+### v1.2 — core 2.4.1/2.4.2 parity
+
+- **PDF preview slide-over** beside the download button on quotes, orders, deliveries, invoices and
+  purchase orders, on index rows and show pages. Rendered by the browser's own viewer in an iframe,
+  served inline from a panel route that re-checks the `view` policy per record.
+- **"Get link"** on quotes, invoices and purchase orders, handing over the same signed portal URL
+  the customer receives by email.
+- **Logo removal** on Settings → General; a pending upload discards back to the saved logo.
+- **Settings → General split into tabs** — General plus one per entity, query-string-synced and
+  module-gated.
+- **Shared "Document contact details"** filling the From block on quote, order, delivery and
+  invoice PDFs.
+- **Kanban boards are permission-gated.** They previously authorized nothing — see the changelog's
+  Security note, and re-seed permissions on upgrade.
+
 ## User invitations
 
 Inviting a user mints a `UserInvitation` and mails a one-time link. The host user is created —
