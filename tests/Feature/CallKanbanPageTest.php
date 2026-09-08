@@ -52,6 +52,8 @@ it('buckets calls by finish_at presence', function () {
 });
 
 it('drag-to-done stamps finish_at and persists', function () {
+    actingAsCrmAdmin();
+
     $call = Call::create([
         'name' => 'Planned',
         'start_at' => now()->addHour(),
@@ -66,6 +68,8 @@ it('drag-to-done stamps finish_at and persists', function () {
 });
 
 it('drag-back-to-planned clears finish_at and persists', function () {
+    actingAsCrmAdmin();
+
     $call = Call::create([
         'name' => 'Done',
         'start_at' => now()->subDay(),
@@ -81,6 +85,8 @@ it('drag-back-to-planned clears finish_at and persists', function () {
 });
 
 it('drag to done is idempotent when call already done', function () {
+    actingAsCrmAdmin();
+
     $when = now()->subDays(2);
     $call = Call::create([
         'name' => 'Already done',

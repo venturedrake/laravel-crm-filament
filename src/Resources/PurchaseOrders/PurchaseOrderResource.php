@@ -29,6 +29,8 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\SalesDetailsSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPdfPreviewAction;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPortalLinkAction;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\HasXeroSyncStateInfolist;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -56,6 +58,8 @@ class PurchaseOrderResource extends Resource
     use HasCrmCustomFieldEntries;
     use HasCrmCustomFields;
     use HasLabels;
+    use HasPdfPreviewAction;
+    use HasPortalLinkAction;
     use HasPrimaryBulkActions;
     use HasXeroSyncStateInfolist;
     use UsesExternalIdRouting;
@@ -213,6 +217,14 @@ class PurchaseOrderResource extends Resource
                     ->button()
                     ->hiddenLabel()
                     ->icon('heroicon-m-arrow-down-tray'),
+                static::pdfPreviewAction('purchaseorder')
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-document-magnifying-glass'),
+                static::portalLinkAction(PurchaseOrderPortalLink::ROUTE)
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-link'),
                 static::purchaseOrderPortalActionFactory()
                     ->button()
                     ->hiddenLabel()

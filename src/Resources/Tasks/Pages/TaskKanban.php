@@ -6,10 +6,13 @@ use BackedEnum;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Collection;
 use VentureDrake\LaravelCrm\Models\Task;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Tasks\TaskResource;
 
 class TaskKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = TaskResource::class;
 
     protected string $view = 'laravel-crm-filament::tasks.kanban';
@@ -52,6 +55,8 @@ class TaskKanban extends Page
         if (! $task) {
             return;
         }
+
+        $this->authorizeKanbanEdit($task);
 
         if ($status === 'completed') {
             if (! $task->completed_at) {

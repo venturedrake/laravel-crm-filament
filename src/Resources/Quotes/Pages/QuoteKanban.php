@@ -9,10 +9,13 @@ use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 
 class QuoteKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = QuoteResource::class;
 
     protected string $view = 'laravel-crm-filament::quotes.kanban';
@@ -80,6 +83,8 @@ class QuoteKanban extends Page
         if (! $quote) {
             return;
         }
+
+        $this->authorizeKanbanEdit($quote);
         if ($accepted) {
             $quote->accepted_at = now();
         } else {
@@ -94,6 +99,8 @@ class QuoteKanban extends Page
         if (! $quote) {
             return;
         }
+
+        $this->authorizeKanbanEdit($quote);
         $quote->pipeline_stage_id = $stageId;
         if ($stageId) {
             $stage = PipelineStage::find($stageId);

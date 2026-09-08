@@ -32,6 +32,8 @@ use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPdfPreviewAction;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPortalLinkAction;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
@@ -60,6 +62,8 @@ class QuoteResource extends Resource
     use HasCrmCustomFields;
     use HasEncryptedGlobalSearch;
     use HasLabels;
+    use HasPdfPreviewAction;
+    use HasPortalLinkAction;
     use HasPrimaryBulkActions;
     use UsesExternalIdRouting;
 
@@ -238,6 +242,14 @@ class QuoteResource extends Resource
                     ->button()
                     ->hiddenLabel()
                     ->icon('heroicon-m-arrow-down-tray'),
+                static::pdfPreviewAction('quote')
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-document-magnifying-glass'),
+                static::portalLinkAction('laravel-crm.portal.quotes.show')
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-link'),
                 Actions\ViewAction::make()
                     ->button()
                     ->hiddenLabel(),

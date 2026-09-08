@@ -41,6 +41,14 @@ class ViewInvoice extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-arrow-down-tray'),
+            InvoiceResource::pdfPreviewAction('invoice')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-document-magnifying-glass'),
+            InvoiceResource::portalLinkAction('laravel-crm.portal.invoices.show')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-link'),
             Actions\EditAction::make()
                 ->button()
                 ->hiddenLabel()

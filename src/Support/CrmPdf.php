@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Response;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use VentureDrake\LaravelCrm\Services\SettingService;
 use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrm\Support\PdfLogo;
 use VentureDrake\LaravelCrm\Support\PdfTemplateRegistry;
+use VentureDrake\LaravelCrm\Support\PortalTeam;
 
 /**
  * One place where a CRM document becomes a PDF.
@@ -109,6 +111,89 @@ class CrmPdf
      */
     public static function viewData(string $type, Model $record): array
     {
+        return self::withDocumentSettings($record, fn (): array => self::buildViewData($type, $record));
+    }
+
+    /**
+     * Pin the settings service to `$record`'s own team for the duration of
+     * `$callback`, then put the shared instance back.
+     *
+     * Core 2.4.2 fixed this on the portal, where it was a cross-tenant leak:
+     * the settings read is `pluck()`ed by name, so with the team scope
+     * disengaged whichever team's row the database listed last supplied the
+     * organisation name, the ABN, the contact block and the logo for every
+     * tenant's documents alike. The panel reads exactly the same settings
+     * through the same service to build exactly the same PDF.
+     *
+     * The panel does not officially support teams — {@see TenancyGuard} warns
+     * and the installer refuses without `--allow-teams` — which makes this
+     * unreachable on a supported install and worth closing anyway on the one
+     * configuration where it is not.
+     *
+     * Swapped in the container rather than mutated in place, because the two
+     * readers that matter most resolve the service themselves:
+     * `PdfContactDetails::for()` and `PdfLogo::fromSettings()` both call
+     * `app('laravel-crm.settings')` internally, so pinning a local variable
+     * would miss them. And the binding is `scoped`, so a mutation would outlive
+     * this render and follow every later read in the request — `forTeam()` has
+     * no inverse to restore.
+     *
+     * Only when the document names a team, and that is not a shortcut. Pinning
+     * to a *null* team is not "read the sensible default" — `forTeam()` sets an
+     * override flag that is meaningful precisely because null is a value, so
+     * `SettingService::query()` drops the team scope and then filters to
+     * `global = 1` rows, or to `1 = 0` when the settings table is not listed in
+     * `laravel-crm.model_with_global`. It is not listed under any real install:
+     * the config names `settings` while the check compares
+     * `Setting::getTable()`, which carries the `crm_` prefix. So a document
+     * predating teams — or created outside one — resolved *no settings at all*
+     * and printed with no organisation name, no contact block, no logo, and a
+     * tax label silently falling back to the literal "Tax".
+     *
+     * Leaving it unpinned is also the safe answer rather than merely the
+     * populated one. The leak core closed is a portal leak: the portal is
+     * anonymous, so `BelongsToTeamsScope` disengages and `pluck()` hands over
+     * whichever tenant sorted last. In the panel the reader is a signed-in user
+     * with a current team, so the scope resolves to *their* team — the same
+     * answer every other settings read on the page already gives them, and
+     * never another tenant's.
+     *
+     * @template T
+     *
+     * @param  callable(): T  $callback
+     * @return T
+     */
+    protected static function withDocumentSettings(Model $record, callable $callback): mixed
+    {
+        if (! config('laravel-crm.teams')) {
+            return $callback();
+        }
+
+        $team = PortalTeam::forDocument($record);
+
+        if ($team === null) {
+            return $callback();
+        }
+
+        $original = app('laravel-crm.settings');
+
+        app()->instance(
+            'laravel-crm.settings',
+            (new SettingService)->forTeam($team),
+        );
+
+        try {
+            return $callback();
+        } finally {
+            app()->instance('laravel-crm.settings', $original);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function buildViewData(string $type, Model $record): array
+    {
         $settings = app('laravel-crm.settings');
 
         $common = [
@@ -190,9 +275,14 @@ class CrmPdf
 
         $pdfRelative = 'app/' . $relativeDir . '/' . self::filename($record, $type);
 
-        Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
-            ->loadView(self::viewFor($type, $record), self::viewData($type, $record))
-            ->save(storage_path($pdfRelative));
+        // Pinned across viewFor() as well as viewData(): the template choice
+        // falls back to the `pdf_template_{type}` setting, which is as
+        // team-scoped as the branding printed into it.
+        self::withDocumentSettings($record, function () use ($type, $record, $pdfRelative): void {
+            Pdf::setOption(['fontDir' => public_path('vendor/laravel-crm/fonts')])
+                ->loadView(self::viewFor($type, $record), self::viewData($type, $record))
+                ->save(storage_path($pdfRelative));
+        });
 
         return $pdfRelative;
     }

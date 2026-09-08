@@ -1,6 +1,7 @@
 <?php
 
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Address;
 use VentureDrake\LaravelCrm\Models\AddressType;
@@ -26,10 +27,36 @@ function parityGeneralSettingsSections(): array
     $schema = Schema::make($page);
     $schema = $page->form($schema);
 
-    return array_values(array_filter(
-        $schema->getComponents(withHidden: true),
-        fn ($c) => $c instanceof Section
-    ));
+    $sections = [];
+
+    // Since the 2.4.1-parity tab split the Sections sit inside the Tabs
+    // component: Tabs -> one `default` child schema -> Tabs\Tab -> its own
+    // child schema -> the Sections.
+    foreach ($schema->getComponents(withHidden: true) as $component) {
+        if ($component instanceof Section) {
+            $sections[] = $component;
+
+            continue;
+        }
+
+        if (! $component instanceof Tabs) {
+            continue;
+        }
+
+        foreach ($component->getChildSchemas() as $tabsSchema) {
+            foreach ($tabsSchema->getComponents(withHidden: true) as $tab) {
+                foreach ($tab->getChildSchemas() as $tabSchema) {
+                    foreach ($tabSchema->getComponents(withHidden: true) as $child) {
+                        if ($child instanceof Section) {
+                            $sections[] = $child;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return $sections;
 }
 
 it('(a) KEYS map contains exactly the expected 28 scalar keys in order', function (): void {
@@ -109,20 +136,19 @@ it('(a) every KEYS entry has a non-empty string label for the SettingService::se
     }
 });
 
-it('(b) the 6 scalar sections render in the expected order at the top of the form', function (): void {
+it('(b) the scalar sections render in the expected order on the General tab', function (): void {
     $sections = parityGeneralSettingsSections();
 
-    // The implementation renders 9 top-level Sections total (the 6 scalar
-    // sections named by the AC plus 3 contact-detail repeater Sections).
-    // Lock the first 6 — the scalar parity surface — in their AC-named order.
-    expect(count($sections))->toBeGreaterThanOrEqual(6);
+    // Was 6 scalar sections. `prefixes` is gone — the seven ID prefixes moved
+    // to the entity tab that owns each of them at the 2.4.1-parity split — so
+    // the General tab now opens with 5, followed by the 3 contact repeaters.
+    expect(count($sections))->toBeGreaterThanOrEqual(5);
 
-    $headings = array_map(fn (Section $s) => $s->getHeading(), array_slice($sections, 0, 6));
+    $headings = array_map(fn (Section $s) => $s->getHeading(), array_slice($sections, 0, 5));
 
     expect($headings)->toBe([
         __('laravel-crm-filament::labels.sections.branding'),
         __('laravel-crm-filament::labels.sections.localisation'),
-        __('laravel-crm-filament::labels.sections.prefixes'),
         __('laravel-crm-filament::labels.sections.document_defaults'),
         __('laravel-crm-filament::labels.sections.tax'),
         __('laravel-crm-filament::labels.sections.behaviour'),
@@ -138,7 +164,7 @@ it('(b) each section heading routes through the labels namespace (source-grep re
     $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
 
     $cursor = 0;
-    foreach (['branding', 'localisation', 'prefixes', 'document_defaults', 'tax', 'behaviour'] as $name) {
+    foreach (['branding', 'localisation', 'document_defaults', 'tax', 'behaviour'] as $name) {
         $needle = "Section::make('{$name}')";
         $pos = strpos($src, $needle, $cursor);
         expect($pos)->not->toBeFalse("Expected Section::make('{$name}') after source cursor {$cursor}");

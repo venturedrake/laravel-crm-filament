@@ -56,6 +56,8 @@ it('does NOT use Pipeline indirection (Features do not use Pipeline)', function 
 });
 
 it('moveFeature persists feature_status_id when given a valid external_id', function () {
+    actingAsCrmAdmin();
+
     if (! class_exists('VentureDrake\\LaravelCrm\\Models\\Feature')) {
         $this->markTestSkipped('Feature model not present in vendor lock; integration test requires upstream model.');
     }

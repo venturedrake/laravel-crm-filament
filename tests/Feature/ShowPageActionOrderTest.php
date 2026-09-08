@@ -101,6 +101,14 @@ it('ViewQuote header actions render in the documented order with Edit at gray co
         'convertToOrder',
         'previewPortal',
         'downloadPdf',
+        // Preview sits beside Download, not beside the ViewAction eye: the two
+        // render the same bytes, and an operator checking a document before
+        // sending it reaches for them together.
+        'previewPdf',
+        // Get link sits with Preview and Download rather than with Send: all
+        // three are ways of getting the document in front of the customer
+        // without committing to an email.
+        'getPortalLink',
         'edit',
         'delete',
     ]);

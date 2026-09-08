@@ -26,6 +26,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\PdfTemplateSelect;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPdfPreviewAction;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
@@ -51,6 +52,7 @@ class DeliveryResource extends Resource
 {
     use HasCrmCustomFields;
     use HasLabels;
+    use HasPdfPreviewAction;
     use HasPrimaryBulkActions;
     use UsesExternalIdRouting;
 
@@ -269,6 +271,10 @@ class DeliveryResource extends Resource
                     ->button()
                     ->hiddenLabel()
                     ->icon('heroicon-m-arrow-down-tray'),
+                static::pdfPreviewAction('delivery')
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-document-magnifying-glass'),
                 static::deliveryPortalActionFactory()
                     ->button()
                     ->hiddenLabel()

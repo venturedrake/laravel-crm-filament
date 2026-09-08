@@ -1,7 +1,9 @@
 <?php
 
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Support\PdfContactDetails;
 use VentureDrake\LaravelCrmFilament\Pages\GeneralSettings;
 
@@ -40,10 +42,12 @@ it('declares the full 28-key scalar setting map on GeneralSettings', function ()
     ]);
 });
 
-it('renders 9 top-level Sections including the phones/emails/addresses repeaters', function (): void {
+it('renders 8 Sections on the General tab including the phones/emails/addresses repeaters', function (): void {
+    // Was 9. `prefixes` is gone: the seven ID prefixes moved out to the entity
+    // tab that owns each of them, which is the point of the split.
     $page = (new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor();
     $components = generalSettingsTopLevelSections($page);
-    expect($components)->toHaveCount(9);
+    expect($components)->toHaveCount(8);
 
     // Section::make's first arg is the section identifier, but Filament v5
     // doesn't expose it as a public getter (no Section::getName). Walk the
@@ -51,7 +55,7 @@ it('renders 9 top-level Sections including the phones/emails/addresses repeaters
     $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
 
     $cursor = 0;
-    foreach (['branding', 'localisation', 'prefixes', 'document_defaults', 'tax', 'behaviour', 'phones', 'emails', 'addresses'] as $name) {
+    foreach (['branding', 'localisation', 'document_defaults', 'tax', 'behaviour', 'phones', 'emails', 'addresses'] as $name) {
         $needle = "Section::make('{$name}')";
         $pos = strpos($src, $needle, $cursor);
         expect($pos)->not->toBeFalse("expected Section::make('{$name}') after cursor {$cursor}");
@@ -66,7 +70,6 @@ it('each Section heading routes through the labels namespace', function (string 
 })->with([
     'branding' => ['branding', 'branding'],
     'localisation' => ['localisation', 'localisation'],
-    'prefixes' => ['prefixes', 'prefixes'],
     'document_defaults' => ['document_defaults', 'document_defaults'],
     'tax' => ['tax', 'tax'],
     'behaviour' => ['behaviour', 'behaviour'],
@@ -105,22 +108,174 @@ it('uses a Textarea keyed off core PdfContactDetails::SHARED_KEY for the shared 
 });
 
 /**
- * Ordering is load-bearing copy: the shared field sits above the invoice
- * override, and its helper text explains the chain, so an admin filling one in
- * knows what the other does.
+ * The chain is only usable if both ends explain themselves. Since the tab split
+ * the two fields no longer sit next to each other — the shared block is on
+ * General, the override is on the Invoices tab — so the helper text is the only
+ * thing telling an admin how they relate, and it has to name the other tab.
  */
-it('places the shared contact block above the invoice override and explains the chain', function (): void {
+it('explains the contact-details chain on both ends, across the tab split', function (): void {
     $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
 
     $shared = strpos($src, 'Textarea::make(PdfContactDetails::SHARED_KEY)');
     $invoice = strpos($src, "Textarea::make('invoice_contact_details')");
 
     expect($shared)->not->toBeFalse()
-        ->and($invoice)->not->toBeFalse()
-        ->and($shared)->toBeLessThan($invoice);
+        ->and($invoice)->not->toBeFalse();
 
-    expect(substr($src, (int) $shared, (int) $invoice - (int) $shared))->toContain('->helperText(');
-    expect($src)->toContain('Overrides the shared contact details above');
+    // The shared block points forward to the per-type override…
+    expect($src)->toContain('unless the document type overrides it on its own tab')
+        // …and the override points back at where the shared one lives.
+        ->toContain('Overrides the shared contact details on the General tab');
+});
+
+it('keeps the shared contact block on General and the override on the Invoices tab', function (): void {
+    $page = (new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor();
+
+    expect(generalSettingsFieldNamesOnTab($page, 'general'))
+        ->toContain(PdfContactDetails::SHARED_KEY)
+        ->not->toContain('invoice_contact_details');
+
+    expect(generalSettingsFieldNamesOnTab($page, 'invoices'))
+        ->toContain('invoice_contact_details')
+        ->toContain('invoice_prefix')
+        ->toContain('invoice_terms')
+        ->toContain('invoice_payment_instructions');
+});
+
+it('puts every ID prefix on the tab for the entity that owns it', function (): void {
+    $page = (new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor();
+
+    foreach (GeneralSettings::ENTITY_TABS as $tab => $config) {
+        expect(in_array($config['prefix'], generalSettingsFieldNamesOnTab($page, $tab), true))
+            ->toBeTrue("{$config['prefix']} should live on the {$tab} tab");
+    }
+
+    // …and nowhere else: a prefix left behind on General would still save, so
+    // the split would look done while showing the field twice.
+    $general = generalSettingsFieldNamesOnTab($page, 'general');
+
+    foreach (GeneralSettings::ENTITY_TABS as $config) {
+        expect($general)->not->toContain($config['prefix']);
+    }
+});
+
+it('hides an entity tab when its module is off, and shows it when the modules list is empty', function (): void {
+    $page = (new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor();
+
+    config(['laravel-crm.modules' => ['leads']]);
+    $names = generalSettingsTabNames($page);
+    expect($names)->toContain('leads')
+        ->not->toContain('invoices')
+        ->not->toContain('purchase-orders')
+        // General is never gated — it holds settings that belong to no entity.
+        ->toContain('general');
+
+    // Core reads an empty modules array as "everything on", so every tab
+    // returns rather than the page collapsing to General alone.
+    config(['laravel-crm.modules' => []]);
+    expect(generalSettingsTabNames($page))
+        ->toContain('invoices')
+        ->toContain('purchase-orders');
+});
+
+it('syncs the active tab to the query string so a tab deep-links', function (): void {
+    $page = (new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor();
+
+    expect(generalSettingsTabs($page)?->isTabPersistedInQueryString())->toBeTrue();
+});
+
+/**
+ * The other half of module gating, and the half a rendering assertion cannot
+ * reach.
+ *
+ * A hidden tab and an *ungated* tab both round-trip their state, because
+ * Filament renders every tab into the DOM. A tab whose module is off is neither
+ * — `entityTabs()` never builds it, so its fields contribute nothing to
+ * `getState()`. With `save()` writing `$data[$key] ?? null` across the whole
+ * KEYS map, that null reached `SettingService::set()` and blanked every setting
+ * on the missing tab: turning off purchase-orders in `laravel-crm.modules` and
+ * then saving anything on the General tab destroyed `purchase_order_prefix`,
+ * `purchase_order_terms` and `purchase_order_delivery_instructions` — rows core's
+ * own CRM still reads, with no screen left in the panel that could restore them.
+ *
+ * Before the tab split this could not happen: the prefixes and terms lived in
+ * always-rendered Sections.
+ */
+it('does not blank a disabled module\'s settings when saving another tab', function (): void {
+    $settings = app('laravel-crm.settings');
+
+    $settings->set('purchase_order_prefix', 'PO', 'Purchase order prefix');
+    $settings->set('purchase_order_terms', 'Supplier terms body', 'Purchase order terms');
+    $settings->set('purchase_order_delivery_instructions', 'Dock 3', 'Purchase order delivery instructions');
+    $settings->set('quote_terms', 'Quote terms body', 'Quote terms');
+    $settings->forgetCache();
+
+    // A configured list that omits purchase-orders — NOT an empty array, which
+    // core reads as "everything on".
+    config(['laravel-crm.modules' => ['leads', 'deals', 'quotes', 'orders', 'invoices', 'deliveries']]);
+
+    // On a throwaway instance: the tab-name helper rebuilds the form and resets
+    // `data` on whatever page it is handed, which would empty the page under
+    // test before it ever saved.
+    expect(generalSettingsTabNames((new ReflectionClass(GeneralSettings::class))->newInstanceWithoutConstructor()))
+        ->not->toContain('purchase-orders')
+        ->toContain('quotes');
+
+    $page = new class extends GeneralSettings
+    {
+        // The settings-page permission gate has its own tests; what is under
+        // test here is what save() writes once allowed.
+        public static function canEditCrmSettings(): bool
+        {
+            return true;
+        }
+    };
+
+    $page->mount();
+
+    // Edit something on General and save, exactly as an admin would.
+    $page->data['organization_name'] = 'Acme Inc';
+    $page->save();
+
+    $settings->forgetCache();
+
+    expect($settings->get('organization_name'))->toBe('Acme Inc')
+        // The tab that was never built keeps every one of its values.
+        ->and($settings->get('purchase_order_prefix'))->toBe('PO')
+        ->and($settings->get('purchase_order_terms'))->toBe('Supplier terms body')
+        ->and($settings->get('purchase_order_delivery_instructions'))->toBe('Dock 3')
+        // …and a tab that *was* built still round-trips normally.
+        ->and($settings->get('quote_terms'))->toBe('Quote terms body');
+});
+
+/**
+ * The inverse, so the fix is a skip and not a blanket "never write null":
+ * clearing a field on a tab that is on screen has to persist as a clear.
+ */
+it('still clears a rendered field that the user emptied', function (): void {
+    $settings = app('laravel-crm.settings');
+
+    $settings->set('quote_terms', 'Quote terms body', 'Quote terms');
+    $settings->forgetCache();
+
+    config(['laravel-crm.modules' => ['quotes']]);
+
+    $page = new class extends GeneralSettings
+    {
+        public static function canEditCrmSettings(): bool
+        {
+            return true;
+        }
+    };
+
+    $page->mount();
+
+    $page->data['quote_terms'] = '';
+    $page->save();
+
+    $settings->forgetCache();
+
+    expect((string) $settings->get('quote_terms'))->toBe('');
 });
 
 it('uses Select for language/country/currency/timezone/date_format/time_format', function (string $key): void {
@@ -146,10 +301,15 @@ it('sources Select options for country/currency/timezone/date_format/time_format
         ->toContain('VentureDrake\\LaravelCrm\\Http\\Helpers\\SelectOptions\\timeFormats');
 });
 
-it('save() writes every KEYS entry through SettingService::set with the entry label', function (): void {
+it('save() writes every rendered KEYS entry through SettingService::set with the entry label', function (): void {
     $src = file_get_contents((new ReflectionClass(GeneralSettings::class))->getFileName());
     expect($src)
-        ->toContain('$settings->set($key, $data[$key] ?? null, $label);')
+        ->toContain('$settings->set($key, $data[$key], $label);')
+        // Was `$data[$key] ?? null`, which blanked every setting on a tab whose
+        // module is off — those fields are never built, so getState() has no
+        // entry for them. The behavioural half is two tests above.
+        ->not->toContain('$settings->set($key, $data[$key] ?? null, $label);')
+        ->toContain('if (! array_key_exists($key, $data)) {')
         ->toContain('Notification::make()')
         ->toContain('->success()')
         ->toContain('->send();');
@@ -207,14 +367,122 @@ it('translation keys for the 3 new sections exist in en/fr/es labels.php', funct
 /**
  * @return array<int, Section>
  */
+/**
+ * The page's Sections, which since the 2.4.1-parity tab split live inside the
+ * Tabs component rather than at the top of the schema.
+ *
+ * @return array<int, Section>
+ */
 function generalSettingsTopLevelSections(GeneralSettings $page): array
+{
+    $sections = [];
+
+    foreach (generalSettingsTabComponents($page) as $tab) {
+        foreach ($tab->getChildSchemas() as $schema) {
+            foreach ($schema->getComponents(withHidden: true) as $component) {
+                if ($component instanceof Section) {
+                    $sections[] = $component;
+                }
+            }
+        }
+    }
+
+    return $sections;
+}
+
+/**
+ * The Tabs component the whole form now hangs off.
+ */
+function generalSettingsTabs(GeneralSettings $page): ?Tabs
 {
     $schema = Schema::make($page);
     $page->data = [];
     $schema = $page->form($schema);
 
-    return array_values(array_filter(
-        $schema->getComponents(withHidden: true),
-        fn ($c) => $c instanceof Section
-    ));
+    foreach ($schema->getComponents(withHidden: true) as $component) {
+        if ($component instanceof Tabs) {
+            return $component;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Every Tabs\Tab on the page, in order.
+ *
+ * Filament nests these one level deeper than it looks: Tabs has a single
+ * `default` child schema whose components are the Tab objects.
+ *
+ * @return array<int, Tabs\Tab>
+ */
+function generalSettingsTabComponents(GeneralSettings $page): array
+{
+    $tabs = [];
+
+    foreach (generalSettingsTabs($page)?->getChildSchemas() ?? [] as $schema) {
+        foreach ($schema->getComponents(withHidden: true) as $component) {
+            if ($component instanceof Tabs\Tab) {
+                $tabs[] = $component;
+            }
+        }
+    }
+
+    return $tabs;
+}
+
+/**
+ * A tab's identifier, recovered from the component id Filament builds from it
+ * (`data.purchase-orders::data::tab`). Tab has no accessor for the name it was
+ * made with, and the label is translated, so neither is a stable key to assert
+ * against.
+ */
+function generalSettingsTabName(Tabs\Tab $tab): string
+{
+    $id = (string) $tab->getId();
+
+    return Str::before(Str::after($id, 'data.'), '::');
+}
+
+/**
+ * The field names on one tab.
+ *
+ * @return array<int, string>
+ */
+function generalSettingsFieldNamesOnTab(GeneralSettings $page, string $tab): array
+{
+    $wanted = Str::slug($tab);
+
+    foreach (generalSettingsTabComponents($page) as $component) {
+        if (generalSettingsTabName($component) !== $wanted) {
+            continue;
+        }
+
+        $names = [];
+
+        foreach ($component->getChildSchemas() as $schema) {
+            foreach ($schema->getFlatComponents(withHidden: true) as $field) {
+                if (method_exists($field, 'getName')) {
+                    $names[] = $field->getName();
+                }
+            }
+        }
+
+        return array_values(array_filter($names));
+    }
+
+    return [];
+}
+
+/**
+ * The identifiers of the tabs currently rendered, in order.
+ *
+ * @return array<int, string>
+ */
+function generalSettingsTabNames(GeneralSettings $page): array
+{
+    return array_map(
+        fn (Tabs\Tab $tab): string => generalSettingsTabName($tab),
+        generalSettingsTabComponents($page),
+    );
 }

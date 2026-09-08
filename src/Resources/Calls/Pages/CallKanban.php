@@ -6,10 +6,13 @@ use BackedEnum;
 use Filament\Resources\Pages\Page;
 use Illuminate\Database\Eloquent\Collection;
 use VentureDrake\LaravelCrm\Models\Call;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Calls\CallResource;
 
 class CallKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = CallResource::class;
 
     protected string $view = 'laravel-crm-filament::calls.kanban';
@@ -47,6 +50,8 @@ class CallKanban extends Page
         if (! $call) {
             return;
         }
+
+        $this->authorizeKanbanEdit($call);
 
         if ($status === 'done') {
             if (! $call->finish_at) {

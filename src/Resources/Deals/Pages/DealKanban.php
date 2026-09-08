@@ -10,10 +10,13 @@ use Illuminate\Support\Facades\Schema;
 use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 
 class DealKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = DealResource::class;
 
     protected string $view = 'laravel-crm-filament::deals.kanban';
@@ -80,6 +83,8 @@ class DealKanban extends Page
         if (! $deal) {
             return;
         }
+
+        $this->authorizeKanbanEdit($deal);
         $deal->forceFill([
             'closed_at' => now(),
             'closed_status' => $won ? 'won' : 'lost',
@@ -96,6 +101,8 @@ class DealKanban extends Page
         if (! $deal) {
             return;
         }
+
+        $this->authorizeKanbanEdit($deal);
         $deal->pipeline_stage_id = $stageId;
         if ($stageId) {
             $stage = PipelineStage::find($stageId);

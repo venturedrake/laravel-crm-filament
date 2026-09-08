@@ -34,6 +34,10 @@ class ViewOrder extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-arrow-down-tray'),
+            OrderResource::pdfPreviewAction('order')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-document-magnifying-glass'),
             Actions\EditAction::make()
                 ->button()
                 ->hiddenLabel()

@@ -9,10 +9,14 @@ use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Lead;
 use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
+use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\LeadResource;
 
 class LeadKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = LeadResource::class;
 
     protected string $view = 'laravel-crm-filament::leads.kanban';
@@ -70,6 +74,12 @@ class LeadKanban extends Page
             return;
         }
 
+        // Both abilities, because the conversion exercises both: it writes the
+        // lead (marking it converted) and creates a Deal. Edit rights on a lead
+        // are not permission to create deals.
+        $this->authorizeKanbanEdit($lead);
+        $this->authorizeKanbanCreate(DealResource::class);
+
         LeadResource::doConvertToDeal($lead);
     }
 
@@ -79,6 +89,8 @@ class LeadKanban extends Page
         if (! $lead) {
             return;
         }
+
+        $this->authorizeKanbanEdit($lead);
 
         $lead->pipeline_stage_id = $stageId;
         if ($stageId) {

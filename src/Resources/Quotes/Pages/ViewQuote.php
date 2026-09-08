@@ -40,6 +40,14 @@ class ViewQuote extends ViewRecord
                 ->color('gray'),
             $this->quoteDownloadPdfAction()
                 ->hiddenLabel(),
+            QuoteResource::pdfPreviewAction('quote')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-document-magnifying-glass'),
+            QuoteResource::portalLinkAction('laravel-crm.portal.quotes.show')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-link'),
             Actions\EditAction::make()
                 ->button()
                 ->hiddenLabel()

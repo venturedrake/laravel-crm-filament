@@ -8,10 +8,13 @@ use Filament\Resources\Pages\Page;
 use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Feature;
 use VentureDrake\LaravelCrm\Models\FeatureStatus;
+use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Features\FeatureResource;
 
 class FeatureKanban extends Page
 {
+    use AuthorizesKanbanBoard;
+
     protected static string $resource = FeatureResource::class;
 
     protected string $view = 'laravel-crm-filament::features.kanban';
@@ -68,6 +71,8 @@ class FeatureKanban extends Page
         if (! $feature) {
             return;
         }
+
+        $this->authorizeKanbanEdit($feature);
 
         $feature->feature_status_id = $statusId;
         $feature->save();

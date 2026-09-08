@@ -61,6 +61,8 @@ it('doConvertToDeal is a no-op when the lead is already converted', function () 
 });
 
 it('LeadKanban::convertToDeal resolves the lead by external_id and delegates to the helper', function () {
+    actingAsCrmAdmin();
+
     $lead = Lead::create([
         'external_id' => (string) Str::uuid(),
         'title' => 'Kanban convert path',

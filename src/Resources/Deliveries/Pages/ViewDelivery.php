@@ -26,6 +26,10 @@ class ViewDelivery extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-arrow-down-tray'),
+            DeliveryResource::pdfPreviewAction('delivery')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-document-magnifying-glass'),
             $this->deliveryPortalAction()
                 ->button()
                 ->hiddenLabel()

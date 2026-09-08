@@ -31,6 +31,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
+use VentureDrake\LaravelCrmFilament\Concerns\HasPdfPreviewAction;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
 use VentureDrake\LaravelCrmFilament\Concerns\HasXeroSyncStateInfolist;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
@@ -62,6 +63,7 @@ class OrderResource extends Resource
     use HasCrmCustomFields;
     use HasEncryptedGlobalSearch;
     use HasLabels;
+    use HasPdfPreviewAction;
     use HasPrimaryBulkActions;
     use HasXeroSyncStateInfolist;
     use UsesExternalIdRouting;
@@ -219,6 +221,10 @@ class OrderResource extends Resource
                     ->button()
                     ->hiddenLabel()
                     ->icon('heroicon-m-arrow-down-tray'),
+                static::pdfPreviewAction('order')
+                    ->button()
+                    ->hiddenLabel()
+                    ->icon('heroicon-m-document-magnifying-glass'),
                 Actions\ViewAction::make()
                     ->button()
                     ->hiddenLabel(),

@@ -7,7 +7,69 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+### Security
+
+- **The kanban boards accepted writes from any panel user.** Every board reaches the server through a
+  public Livewire method invoked straight from the browser — `$wire.moveLead(id, stageId)` out of the
+  drag handler, `wire:click="convertToDeal('…')"` off a card button — and none of them authorized
+  anything. `Page::canAccess()` defaults to `true`, so the boards were reachable by any authenticated
+  panel user, and once mounted a caller could restage any lead, deal or quote by `external_id`, close
+  a deal won or lost, accept or reject a quote, complete a task, finish a call, restatus a feature,
+  or convert a lead into a deal — none of which they needed a permission for.
+
+  All six boards now gate access on the resource's own `canViewAny()`, and every mutation
+  re-authorizes the resolved record against `canEdit()` before writing (`convertToDeal` additionally
+  checks `DealResource::canCreate()`, since it creates a Deal). Fail-closed on an install whose
+  permissions were never seeded, matching `GuardsPoliciedResource`. Core closed a narrower version of
+  this at 2.4.1, where the batch reorder authorized only the first record and then wrote every id it
+  had been handed.
+
 ### Added
+
+- **A PDF preview slide-over on quotes, orders, deliveries, invoices and purchase orders**, beside
+  the download button on both the index rows and the show pages — core 2.4.1 added this to the CRM's
+  own UI and the panel had no equivalent, so checking a document before sending it meant a round
+  trip through the browser's download tray. The eye icon on those rows is Filament's `ViewAction`
+  and goes to the record page; the new button uses `document-magnifying-glass`, the same way core
+  resolved the same collision.
+
+  It renders the same bytes the download produces, through a new panel route
+  (`documents/{type}/{record}/preview`) registered inside the panel's auth middleware and served
+  `inline`. Being a panel user is not sufficient on its own: `DocumentPreviewController` re-checks
+  the record against the `view` policy, so preview grants exactly what download grants. The doc
+  type arrives as a route parameter and is resolved through a whitelist rather than being treated
+  as a class name.
+
+  Unlike core this uses the browser's own PDF viewer in an `<iframe>` rather than pdf.js. The
+  plugin ships no Vite bundle, so importing a viewer would mean taking on the worker-MIME class of
+  failure core spent 2.4.1 fixing, to gain nothing a native viewer does not already do.
+
+- **A "Get link" button on quotes, invoices and purchase orders**, beside Preview and Download on
+  both the index rows and the show pages. It hands over the same 14-day signed portal URL the
+  customer receives by email — previously the only way to obtain that link was to send the document.
+  It is minted through `PortalUrl::signedFor()`, the same call the send paths make, so the copied
+  link and the emailed link cannot differ in signature or lifetime. Read-only and copyable, because
+  a signed URL is unusable if a hand-selection clips the signature.
+
+- **The settings logo can be removed.** There had been no way to delete one, only to replace it —
+  and clearing the upload field cannot mean "delete", because Filament silently blanks a path it
+  cannot see on the disk, which is why `saveLogo()` treats a blank state as a no-op. Removal is now
+  an explicit button on the field, gated on `edit crm settings`. A *pending* upload discards back to
+  the saved logo rather than destroying artwork that is still printing on every PDF. The image file
+  is left in storage: it may be one core wrote, or shared with another install pointed at the same
+  disk, and unlinking bytes on the strength of a settings row is not recoverable.
+
+  Telling those two cases apart takes two questions asked of two different things, because the
+  uploader's state has three shapes and none of them is simply the path. `hydrateFiles()` rewrites
+  the string this page seeds at mount into a uuid-keyed map — the shape the mounted component and
+  every Livewire round-trip carry — dehydration on save flattens it back to a string, and a file the
+  user has only just picked sits there as a `TemporaryUploadedFile` with no stored path at all.
+  So "is anything in the uploader?" is asked of the raw state, and "is it the saved logo?" only of a
+  resolved path. Comparing raw state against `logo_file` compares an array with a string and is true
+  however identical the paths inside, which made every removal take the discard branch: the button
+  reported "Upload discarded" and left the logo in place, which given no other way to remove one
+  meant the feature did nothing at all. Resolving both questions to a path is the opposite failure —
+  a pending upload reads as an empty field and the saved logo gets deleted instead of kept.
 
 - **A "Document contact details" field on Settings → General.** Core 2.4.1 introduced a shared
   `pdf_contact_details` setting that fills the "From" block on quote, order, delivery and invoice
@@ -56,6 +118,53 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
   it now turns on along with everything else.
 
 ### Changed
+
+- **Settings → General is split across tabs** rather than one flat column of ~28 unrelated controls,
+  matching core 2.4.1. **General** keeps everything belonging to no single entity — identity,
+  localisation, tax defaults, the shared contact-details block, the two account-wide toggles and the
+  phone / email / address panels — and there is one tab per entity in the order records flow through
+  the CRM (**Leads, Deals, Quotes, Orders, Invoices, Deliveries, Purchase orders**), each holding
+  that entity's ID prefix beside its own terms. Tabs are query-string-synced, so
+  `/admin/general?tab=invoices` deep-links, and a tab is hidden when its module is off.
+
+  It is still one schema over one state path and one atomic save covering every tab, whichever one
+  is showing. No public property or method was renamed or removed, and `save()` does not branch on
+  the visible tab.
+
+  `save()` does now skip a key that the schema did not render, rather than defaulting it to null.
+  That distinction only exists because of the gating above: a tab whose module is off is not built
+  at all, so its fields contribute nothing to `getState()`, and writing null for them would blank
+  the prefix and terms rows core's own CRM still reads — an admin who had turned off
+  purchase-orders would have lost `purchase_order_prefix`, `purchase_order_terms` and
+  `purchase_order_delivery_instructions` the next time they saved anything on the General tab, with
+  no screen left in the panel that could restore them. A field that *was* rendered and cleared
+  still comes back present-and-null, so a deliberate clear persists as before.
+
+- **`laravelcrm:filament-upgrade` warns about drifted published views.** It md5-compares every blade
+  published under `resources/views/vendor/laravel-crm-filament` against the copy this release ships,
+  reporting both the views that have drifted and the ones the package no longer ships. A published
+  view is a frozen copy the view finder prefers, so one left at an older contract keeps rendering
+  after the component behind it stopped passing a variable — and the page 500s with nothing in the
+  upgrade path having said so. Warn-only, and never fails the composer run it fires from.
+
+- **Document PDFs pin the settings service to the document's own team** while rendering. Core 2.4.2
+  fixed this on the portal, where it was a cross-tenant leak: the settings read is `pluck()`ed by
+  name, so with the team scope disengaged whichever team's row sorted last supplied the organisation
+  name, ABN, contact block and logo for every tenant's documents alike. The panel builds the same
+  PDF from the same service. Only reachable on a host running `--allow-teams`, since panel
+  multi-tenancy is otherwise refused.
+
+  Only a document that names a team is pinned. Pinning a *null* team is not "read the sensible
+  default": `forTeam()` sets an override flag that is meaningful precisely because null is a value,
+  so the query drops the team scope and filters to `global = 1` rows — or to `1 = 0`, because the
+  settings table is never listed in `laravel-crm.model_with_global` (the config names `settings`
+  while the check compares `Setting::getTable()`, which carries the `crm_` prefix). A document
+  predating teams, or created outside one, therefore resolved *no settings at all* and printed with
+  no organisation name, no contact block, no logo, and a tax label falling back to the literal
+  "Tax". Leaving it unpinned is also the safe answer and not just the populated one: the leak core
+  closed is a portal leak, and the portal is anonymous, so the scope disengages there. In the panel
+  the reader is a signed-in user with a current team, so an unpinned read resolves to their own
+  team — the same answer every other settings read on the page gives them, never another tenant's.
 
 - **Requires `venturedrake/laravel-crm` `^2.4.2`** (was `^2.4`). The floor has to move because
   `PdfContactDetails`, `PortalLink` and `Modules` all landed in 2.4.1. Core 2.4.2 expects its

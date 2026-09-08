@@ -7,6 +7,7 @@ use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Contracts\Support\Htmlable;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmSideBySideRelationManagers;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
+use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 class ViewPurchaseOrder extends ViewRecord
 {
@@ -28,6 +29,14 @@ class ViewPurchaseOrder extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-arrow-down-tray'),
+            PurchaseOrderResource::pdfPreviewAction('purchaseorder')
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-document-magnifying-glass'),
+            PurchaseOrderResource::portalLinkAction(PurchaseOrderPortalLink::ROUTE)
+                ->button()
+                ->hiddenLabel()
+                ->icon('heroicon-m-link'),
             $this->purchaseOrderPortalAction()
                 ->button()
                 ->hiddenLabel()

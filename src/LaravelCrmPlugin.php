@@ -6,7 +6,9 @@ use Filament\Contracts\Plugin;
 use Filament\Panel;
 use Filament\View\PanelsRenderHook;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Route;
 use VentureDrake\LaravelCrm\Support\Modules;
+use VentureDrake\LaravelCrmFilament\Http\Controllers\DocumentPreviewController;
 use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Pages\AcceptInvitation;
 use VentureDrake\LaravelCrmFilament\Pages\ActivityFeed;
@@ -69,6 +71,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroContactResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroInvoiceResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroItemResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroPurchaseOrderResource;
+use VentureDrake\LaravelCrmFilament\Support\DocumentPreview;
 use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
 use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
@@ -525,6 +528,17 @@ class LaravelCrmPlugin implements Plugin
         // invitee accepting an invitation is by definition not a panel user
         // yet. See AcceptInvitation and InvitationUrl.
         $panel->routes(fn (Panel $panel) => AcceptInvitation::registerPanelRoute($panel));
+
+        // authenticatedRoutes(), by contrast: the PDF the preview drawer shows
+        // is a customer document, so it belongs behind the panel's auth stack.
+        // Being a panel user is still not enough on its own — the controller
+        // re-checks the `view` policy per record. See DocumentPreview.
+        $panel->authenticatedRoutes(function (): void {
+            Route::get(
+                'documents/{type}/{record}/preview',
+                DocumentPreviewController::class,
+            )->name(DocumentPreview::ROUTE);
+        });
     }
 
     protected function panelHasDashboard(Panel $panel): bool
