@@ -43,6 +43,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ViewDeal;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 class DealResource extends Resource
 {
@@ -168,19 +169,7 @@ class DealResource extends Resource
                 Tables\Columns\TextColumn::make('title')
                     ->sortable()
                     ->limit(50)
-                    ->searchable(query: function (Builder $query, string $search): Builder {
-                        return $query
-                            ->where('title', 'like', "%{$search}%")
-                            ->orWhereHas('person', function (Builder $q) use ($search): void {
-                                $q->where('first_name', 'like', "%{$search}%")
-                                    ->orWhere('last_name', 'like', "%{$search}%")
-                                    ->orWhere('middle_name', 'like', "%{$search}%")
-                                    ->orWhere('maiden_name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('organization', function (Builder $q) use ($search): void {
-                                $q->where('name', 'like', "%{$search}%");
-                            });
-                    }),
+                    ->searchable(query: fn (Builder $query, string $search): Builder => EncryptedContactSearch::titleOrContact($query, $search)),
 
                 Tables\Columns\TextColumn::make('labels.name')
                     ->label(__('laravel-crm-filament::labels.fields.labels'))

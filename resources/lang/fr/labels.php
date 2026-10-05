@@ -562,6 +562,7 @@ return [
     // Integrations page — per-integration descriptions surfaced on the Settings page
     'integrations' => [
         'xero_description' => 'Connectez-vous à la comptabilité Xero pour synchroniser les contacts, produits, devis et générer des factures.',
+        'xero_not_installed' => 'L\'intégration Xero nécessite le paquet dcblogdev/laravel-xero, que laravel-crm n\'installe plus automatiquement. Installez-le avec Composer, puis rechargez cette page. Les jetons Xero et les enregistrements synchronisés sont conservés.',
         'clicksend_description' => 'Connectez ClickSend pour envoyer des campagnes SMS depuis le CRM.',
         'clicksend_signup_prefix' => 'Vous n\'avez pas de compte ClickSend ? Inscrivez-vous sur',
         'clicksend_sender_id_hint' => 'Numéro de téléphone ou identifiant alphanumérique. Laissez vide pour utiliser la valeur par défaut globale.',

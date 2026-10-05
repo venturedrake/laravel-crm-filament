@@ -79,6 +79,24 @@ parameters:
 			path: src/Concerns/Forms/PurchaseOrderDeliverySection.php
 
 		-
+			message: '#^If condition is always true\.$#'
+			identifier: if.alwaysTrue
+			count: 1
+			path: src/Concerns/HasXeroSyncStateInfolist.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Concerns/HasXeroSyncStateInfolist.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>xero_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: src/Concerns/HasXeroSyncStateInfolist.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Organization\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 1
@@ -149,6 +167,18 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Pages/AcceptInvitation.php
+
+		-
+			message: '#^Relation ''causeable'' is not found in VentureDrake\\LaravelCrm\\Models\\Activity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: src/Pages/ActivityFeed.php
+
+		-
+			message: '#^Relation ''recordable'' is not found in VentureDrake\\LaravelCrm\\Models\\Activity model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: src/Pages/ActivityFeed.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Call\:\:\$external_id\.$#'
@@ -859,6 +889,12 @@ parameters:
 			path: src/Resources/Deliveries/DeliveryResource.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$addresses\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Resources/Deliveries/DeliveryResource.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Delivery\:\:\$external_id\.$#'
 			identifier: property.notFound
 			count: 2
@@ -897,12 +933,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:labels\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: src/Resources/Deliveries/DeliveryResource.php
-
-		-
-			message: '#^Call to function method_exists\(\) with VentureDrake\\LaravelCrm\\Models\\Delivery and ''getShippingAddress'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
 			count: 1
 			path: src/Resources/Deliveries/DeliveryResource.php
 
@@ -1309,26 +1339,8 @@ parameters:
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
-			message: '#^If condition is always true\.$#'
-			identifier: if.alwaysTrue
-			count: 1
-			path: src/Resources/Invoices/InvoiceResource.php
-
-		-
 			message: '#^Relation ''field'' is not found in VentureDrake\\LaravelCrm\\Models\\FieldModel model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
-			path: src/Resources/Invoices/InvoiceResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Resources/Invoices/InvoiceResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>xero_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Resources/Invoices/InvoiceResource.php
 
@@ -1699,26 +1711,8 @@ parameters:
 			path: src/Resources/Orders/OrderResource.php
 
 		-
-			message: '#^If condition is always true\.$#'
-			identifier: if.alwaysTrue
-			count: 1
-			path: src/Resources/Orders/OrderResource.php
-
-		-
 			message: '#^Relation ''field'' is not found in VentureDrake\\LaravelCrm\\Models\\FieldModel model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
-			path: src/Resources/Orders/OrderResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Resources/Orders/OrderResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>xero_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
@@ -1921,6 +1915,12 @@ parameters:
 			path: src/Resources/People/Pages/EditPerson.php
 
 		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/People/PersonResource.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1928,6 +1928,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/People/PersonResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$number\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/People/PersonResource.php
@@ -2083,6 +2089,12 @@ parameters:
 			path: src/Resources/ProductCategories/Pages/ViewProductCategory.php
 
 		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$currency\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Resources/Products/ProductResource.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pipeline_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2090,6 +2102,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pipeline_stage_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Products/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$unit_price\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Products/ProductResource.php
@@ -2126,6 +2144,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Products/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Product\:\:\$productPrices\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Products/ProductResource.php
@@ -2241,7 +2265,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$xeroPurchaseOrder\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 3
 			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
 
 		-
@@ -2257,26 +2281,8 @@ parameters:
 			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
 
 		-
-			message: '#^If condition is always true\.$#'
-			identifier: if.alwaysTrue
-			count: 1
-			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
-
-		-
 			message: '#^Relation ''field'' is not found in VentureDrake\\LaravelCrm\\Models\\FieldModel model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
-			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>status" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>xero_id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
 			count: 1
 			path: src/Resources/PurchaseOrders/PurchaseOrderResource.php
 
@@ -2797,10 +2803,34 @@ parameters:
 			path: src/Support/CrmPdf.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Organization\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Support/EncryptedContactSearch.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Person\:\:\$maiden_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/EncryptedContactSearch.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Person\:\:\$middle_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/EncryptedContactSearch.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$code\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Support/InvitationUrl.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:tasks\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Support/NextActivity.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'

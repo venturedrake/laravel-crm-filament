@@ -16,6 +16,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
@@ -135,6 +136,9 @@ class PurchaseOrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Edit and Delete hide on a PO already pushed to Xero; without
+            // this each of them asked the database per row.
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('xeroPurchaseOrder'))
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('laravel-crm-filament::labels.fields.created'))
@@ -235,12 +239,12 @@ class PurchaseOrderResource extends Resource
                     ->hiddenLabel(),
                 Actions\EditAction::make()
                     ->button()
-                    ->hidden(fn (?PurchaseOrder $record) => $record !== null && $record->xeroPurchaseOrder()->exists())
+                    ->hidden(fn (?PurchaseOrder $record) => $record?->xeroPurchaseOrder !== null)
                     ->hiddenLabel(),
                 Actions\DeleteAction::make()
                     ->button()
                     ->requiresConfirmation()
-                    ->hidden(fn (?PurchaseOrder $record) => $record !== null && $record->xeroPurchaseOrder()->exists())
+                    ->hidden(fn (?PurchaseOrder $record) => $record?->xeroPurchaseOrder !== null)
                     ->hiddenLabel(),
             ])
             ->toolbarActions([

@@ -39,6 +39,9 @@
     <div class="crm-calendar-toolbar">
         <div style="display:flex; align-items:center; gap:0.5rem;">
             <label>Owner</label>
+            @if ($this->ownerSearchEnabled())
+                <input type="search" wire:model.live.debounce.300ms="ownerSearch" placeholder="Search owners…" autocomplete="off">
+            @endif
             <select wire:model.live="ownerFilter">
                 <option value="">Everyone</option>
                 @foreach ($this->getOwners() as $id => $name)

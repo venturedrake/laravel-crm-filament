@@ -32,12 +32,14 @@ class RelatedPeopleRelationManager extends RelationManager
 
                     return Person::query()
                         ->when($ownerId, fn ($q) => $q->where('id', '!=', $ownerId))
-                        ->orderBy('first_name')
                         ->get()
                         ->mapWithKeys(fn (Person $person) => [
                             $person->id => trim(($person->first_name ?? '') . ' ' . ($person->last_name ?? '')),
                         ])
                         ->filter()
+                        // Sorted here, not in SQL: with encrypt_db_fields on,
+                        // first_name holds ciphertext.
+                        ->sort(SORT_NATURAL | SORT_FLAG_CASE)
                         ->toArray();
                 })
                 ->searchable()

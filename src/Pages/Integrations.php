@@ -3,11 +3,11 @@
 namespace VentureDrake\LaravelCrmFilament\Pages;
 
 use BackedEnum;
-use Dcblogdev\Xero\Facades\Xero;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Pages\Enums\SubNavigationPosition;
@@ -15,8 +15,11 @@ use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontFamily;
+use Illuminate\Support\Facades\Route;
 use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
+use VentureDrake\LaravelCrmFilament\Support\XeroIntegration;
 
 class Integrations extends Page implements HasForms
 {
@@ -85,6 +88,12 @@ class Integrations extends Page implements HasForms
         'xero_invoices' => 'Sync invoices to Xero',
     ];
 
+    /**
+     * ^1.1.3 rather than a bare require: core 2.4.2–2.4.4 still pin the
+     * package to exactly 1.1.3, and this constraint satisfies that pin too.
+     */
+    public const XERO_INSTALL_COMMAND = 'composer require dcblogdev/laravel-xero:^1.1.3';
+
     public function mount(): void
     {
         $settings = app('laravel-crm.settings');
@@ -96,6 +105,7 @@ class Integrations extends Page implements HasForms
 
     public function form(Schema $schema): Schema
     {
+        $installed = XeroIntegration::installed();
         $connected = $this->xeroIsConnected();
 
         return $schema
@@ -121,28 +131,33 @@ class Integrations extends Page implements HasForms
                                 // state, so it belongs behind the same gate as
                                 // the settings form, not merely `view`.
                                 ->visible(fn (): bool => static::canEditCrmSettings())
+                                // Core only registers its routes when
+                                // laravel-crm.user_interface is on, and the
+                                // headless install leaves it off.
+                                ->hidden(fn (): bool => ! Route::has('laravel-crm.integrations.xero.connect'))
                                 ->url(fn () => route('laravel-crm.integrations.xero.connect')),
                         ])->fullWidth(),
                     ])
-                    ->visible(! $connected),
+                    ->visible($installed && ! $connected),
+                // Core 2.4.5+ no longer installs dcblogdev/laravel-xero. Its
+                // connect route then bounces to core's own settings screen, so
+                // say what is missing here rather than offer a dead button.
+                Section::make('XeroNotInstalled')->heading(__('laravel-crm-filament::labels.sections.xero'))
+                    ->description(__('laravel-crm-filament::labels.integrations.xero_description'))
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->iconColor('warning')
+                    ->schema([
+                        TextEntry::make('xeroNotInstalled')
+                            ->hiddenLabel()
+                            ->state(__('laravel-crm-filament::labels.integrations.xero_not_installed')),
+                        TextEntry::make('xeroInstallCommand')
+                            ->hiddenLabel()
+                            ->state(self::XERO_INSTALL_COMMAND)
+                            ->fontFamily(FontFamily::Mono)
+                            ->copyable(),
+                    ])
+                    ->visible(! $installed),
             ]);
-    }
-
-    protected function xeroStatusLine(): string
-    {
-        try {
-            if (class_exists(Xero::class) && Xero::isConnected()) {
-                $tenant = method_exists(Xero::class, 'getTenantName')
-                    ? Xero::getTenantName()
-                    : 'Connected';
-
-                return "Connected to Xero: {$tenant}";
-            }
-        } catch (\Throwable $e) {
-            return 'Xero status unavailable';
-        }
-
-        return 'Not connected to Xero.';
     }
 
     protected function getHeaderActions(): array
@@ -156,7 +171,8 @@ class Integrations extends Page implements HasForms
                 ->url(fn () => route('laravel-crm.integrations.xero.disconnect'))
                 // Disconnecting tears down the org's Xero connection — a write,
                 // so it needs `edit crm settings`, not just `view`.
-                ->visible(fn () => $this->xeroIsConnected() && static::canEditCrmSettings()),
+                ->visible(fn () => $this->xeroIsConnected() && static::canEditCrmSettings())
+                ->hidden(fn (): bool => ! Route::has('laravel-crm.integrations.xero.disconnect')),
         ];
     }
 
@@ -167,12 +183,7 @@ class Integrations extends Page implements HasForms
 
     protected function xeroIsConnected(): bool
     {
-        try {
-            return class_exists(Xero::class)
-                && Xero::isConnected();
-        } catch (\Throwable $e) {
-            return false;
-        }
+        return XeroIntegration::connected();
     }
 
     protected function getFormActions(): array

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Throwable;
+use VentureDrake\LaravelCrm\Models\Activity;
 
 /**
  * Honours core CRM's `show_related_activity` setting on the inline-card
@@ -189,8 +190,17 @@ trait RollsUpRelatedActivity
      */
     public function relatedActivityRows(string $orderColumn = 'created_at', string $direction = 'desc'): EloquentCollection
     {
+        $query = $this->rolledUpActivityQuery();
+
+        // The activity timeline renders each row's causer and recordable;
+        // load them with the rows, as core's ActivityIndex has since 2.4.3,
+        // instead of once per row. The other timelines read neither.
+        if ($query->getModel() instanceof Activity) {
+            $query->with(['causeable', 'recordable']);
+        }
+
         /** @var EloquentCollection<int, Model> $rows */
-        $rows = $this->rolledUpActivityQuery()->orderBy($orderColumn, $direction)->get();
+        $rows = $query->orderBy($orderColumn, $direction)->get();
 
         return $rows;
     }

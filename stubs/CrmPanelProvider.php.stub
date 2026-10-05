@@ -71,7 +71,7 @@ class CrmPanelProvider extends PanelProvider
                 // ->withEmailMarketing()
                 // ->withSmsMarketing()
                 // ->withCustomers()
-                // ->withXero()
+                // ->withXero()   // needs: composer require dcblogdev/laravel-xero
                 // ->navigationGroup('CRM')
             );
     }

@@ -10,6 +10,7 @@ use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\OrganizationService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 /**
  * Shared "Contact" and "Organization" left-column Sections used by Lead +
@@ -48,6 +49,7 @@ class LeadDealContactSection
                     ->getOptionLabelFromRecordUsing(fn (Person $r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')))
                     ->searchable(['first_name', 'last_name', 'middle_name', 'maiden_name'])
                     ->preload()
+                    ->tap(fn (Forms\Components\Select $select) => EncryptedContactSearch::personSelect($select))
                     ->nullable()
                     ->createOptionForm([
                         Grid::make(2)->schema([
@@ -112,6 +114,7 @@ class LeadDealContactSection
                     ->relationship('organization', 'name')
                     ->searchable(['name'])
                     ->preload()
+                    ->tap(fn (Forms\Components\Select $select) => EncryptedContactSearch::organizationSelect($select))
                     ->nullable()
                     ->createOptionForm([
                         Forms\Components\TextInput::make('name')

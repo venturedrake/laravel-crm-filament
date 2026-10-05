@@ -13,6 +13,7 @@ use VentureDrake\LaravelCrm\Models\Contact;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesRelatedContacts;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 class RelatedOrganizationsRelationManager extends RelationManager
 {
@@ -27,7 +28,7 @@ class RelatedOrganizationsRelationManager extends RelationManager
         return $schema->components([
             Forms\Components\Select::make('organization_id')
                 ->label(__('laravel-crm-filament::labels.fields.organization'))
-                ->options(fn () => Organization::query()->orderBy('name')->pluck('name', 'id')->toArray())
+                ->options(fn () => EncryptedContactSearch::organizationOptions(null))
                 ->searchable()
                 ->preload()
                 ->required(),

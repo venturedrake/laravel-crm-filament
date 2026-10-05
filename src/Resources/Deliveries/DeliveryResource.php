@@ -14,6 +14,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Models\AddressType;
 use VentureDrake\LaravelCrm\Models\Delivery;
@@ -195,6 +196,7 @@ class DeliveryResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('addresses'))
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('laravel-crm-filament::labels.fields.created'))
@@ -319,12 +321,14 @@ class DeliveryResource extends Resource
      */
     protected static function formatShippingAddress(Delivery $record): ?string
     {
-        $address = method_exists($record, 'getShippingAddress')
-            ? $record->getShippingAddress()
-            : null;
-
-        if (! $address) {
-            $address = $record->addresses()->first();
+        // The table eager loads addresses, so read the collection: the cell
+        // calls this twice per row (state and tooltip), and core's
+        // getShippingAddress() only stopped re-querying at 2.4.3.
+        if ($record->relationLoaded('addresses')) {
+            $address = $record->addresses->firstWhere('address_type_id', 6)
+                ?? $record->addresses->first();
+        } else {
+            $address = $record->getShippingAddress() ?? $record->addresses()->first();
         }
 
         if (! $address) {

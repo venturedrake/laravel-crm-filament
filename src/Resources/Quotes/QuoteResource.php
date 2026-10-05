@@ -53,6 +53,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
@@ -153,19 +154,7 @@ class QuoteResource extends Resource
                 Tables\Columns\TextColumn::make('title')
                     ->sortable()
                     ->limit(50)
-                    ->searchable(query: function (Builder $query, string $search): Builder {
-                        return $query
-                            ->where('title', 'like', "%{$search}%")
-                            ->orWhereHas('person', function (Builder $q) use ($search): void {
-                                $q->where('first_name', 'like', "%{$search}%")
-                                    ->orWhere('last_name', 'like', "%{$search}%")
-                                    ->orWhere('middle_name', 'like', "%{$search}%")
-                                    ->orWhere('maiden_name', 'like', "%{$search}%");
-                            })
-                            ->orWhereHas('organization', function (Builder $q) use ($search): void {
-                                $q->where('name', 'like', "%{$search}%");
-                            });
-                    }),
+                    ->searchable(query: fn (Builder $query, string $search): Builder => EncryptedContactSearch::titleOrContact($query, $search)),
 
                 Tables\Columns\TextColumn::make('labels.name')
                     ->label(__('laravel-crm-filament::labels.fields.labels'))

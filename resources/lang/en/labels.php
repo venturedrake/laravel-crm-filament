@@ -372,6 +372,7 @@ return [
     // Integrations page — per-integration descriptions surfaced on the Settings page
     'integrations' => [
         'xero_description' => 'Connect to xero accounting to sync contacts, products, quotes & generate invoices.',
+        'xero_not_installed' => 'The Xero integration needs the dcblogdev/laravel-xero package, which laravel-crm no longer installs for you. Install it with Composer, then reload this page. Existing Xero tokens and synced records are kept.',
         'clicksend_description' => 'Connect ClickSend to send SMS marketing campaigns from the CRM.',
         'clicksend_signup_prefix' => 'Don\'t have a ClickSend account? Sign up at',
         'clicksend_sender_id_hint' => 'Phone number or alphanumeric sender ID. Leave blank to use the global default.',

@@ -52,7 +52,8 @@ trait HasPrimaryBulkActions
                     ->label(__('laravel-crm-filament::labels.fields.owner'))
                     ->options(fn () => static::primaryBulkActionOwnerOptions())
                     ->searchable()
-                    ->preload()
+                    ->getSearchResultsUsing(fn (?string $search): array => static::primaryBulkActionOwnerOptions($search))
+                    ->getOptionLabelUsing(fn ($value): ?string => static::primaryBulkActionOwnerLabel($value))
                     ->required(),
             ])
             ->action(function (Collection $records, array $data): void {
@@ -180,10 +181,14 @@ trait HasPrimaryBulkActions
     }
 
     /**
-     * Owner options sourced from the configured auth user model — same pattern
-     * as the LeadKanban / DealKanban owner filter.
+     * Owner options sourced from the configured auth user model, searched on
+     * the server and capped, like the board owner filter (FiltersBoardByOwner).
+     * Static ->options() over every user meant Filament searched them in the
+     * browser after shipping the lot.
+     *
+     * @return array<int|string, string>
      */
-    protected static function primaryBulkActionOwnerOptions(): array
+    protected static function primaryBulkActionOwnerOptions(?string $search = null): array
     {
         $userClass = config('auth.providers.users.model');
 
@@ -191,6 +196,24 @@ trait HasPrimaryBulkActions
             return [];
         }
 
-        return $userClass::query()->orderBy('name')->pluck('name', 'id')->all();
+        $search = trim((string) $search);
+
+        return $userClass::query()
+            ->when($search !== '', fn ($query) => $query->where('name', 'like', '%' . $search . '%'))
+            ->orderBy('name')
+            ->limit(50)
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    protected static function primaryBulkActionOwnerLabel(mixed $value): ?string
+    {
+        $userClass = config('auth.providers.users.model');
+
+        if (blank($value) || ! $userClass || ! class_exists($userClass)) {
+            return null;
+        }
+
+        return $userClass::query()->whereKey($value)->value('name');
     }
 }

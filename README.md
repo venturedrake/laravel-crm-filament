@@ -11,7 +11,11 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `^2.4.2`
+- `venturedrake/laravel-crm` `~2.4.2` — any 2.4 release from 2.4.2 on. The floor is 2.4.2 because the
+  panel uses support classes core added in 2.4.1 and 2.4.2; the cap is 2.5, so a new core minor
+  version is not picked up before the panel has been checked against it.
+- `dcblogdev/laravel-xero` `^1.1.3`, only if you use the Xero integration (`->withXero()`). See
+  [Xero](#xero).
 
 ## Installation
 
@@ -146,7 +150,7 @@ use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
         // ->withEmailMarketing()
         // ->withSmsMarketing()
         // ->withCustomers()
-        // ->withXero()
+        // ->withXero()               // needs dcblogdev/laravel-xero; see Xero
         // ->withFeatures()
         // ->withMonitoring()
         // ->withTeams()                 // the CRM *teams module*, not multi-tenancy
@@ -254,6 +258,34 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
   invoice PDFs.
 - **Kanban boards are permission-gated.** They previously authorized nothing — see the changelog's
   Security note, and re-seed permissions on upgrade.
+
+### Unreleased — core 2.4.3–2.4.7 parity
+
+- **Xero is optional, as it is in core from 2.4.5.** Core stopped installing
+  `dcblogdev/laravel-xero` so it can run on Guzzle 8. Without it, the Integrations page shows the
+  install command in place of a Connect button. See [Xero](#xero).
+- **Index pages no longer query per row.** People, Organizations, Products, Deliveries and
+  Purchase Orders now load their contact details, next activity, default price, shipping address
+  and Xero links with the list query, as core's indexes have since 2.4.3.
+- **The Owner filter on the boards and the calendar searches on the server.** It shows up to 20
+  owners, and a search box appears once a team has more users than that. Core made the same change
+  in 2.4.4.
+- **Contact and organization pickers work with `encrypt_db_fields` on**, matching core 2.4.6.
+
+## Xero
+
+Core `venturedrake/laravel-crm` no longer installs `dcblogdev/laravel-xero` from 2.4.5 on. That
+package caps `guzzlehttp/guzzle` at `^7`, and core moved it to `suggest` so apps can use Guzzle 8.
+If you use the Xero integration, require it yourself, in the same deploy as the core upgrade:
+
+```bash
+composer require dcblogdev/laravel-xero:^1.1.3
+```
+
+Without it, nothing errors. The Integrations page shows that command instead of "Connect Xero",
+and core stops syncing. Stored Xero tokens and the `crm_xero_*` mirror tables are kept, so
+installing the package restores the connection without re-authorising. Your app then stays on
+Guzzle 7.
 
 ## User invitations
 
@@ -410,7 +442,7 @@ Paths below assume the default `/crm` mount from the published `CrmPanelProvider
 - Email Templates, SMS Templates, Chat Widgets.
 - CRM Teams (with Team Members relation manager).
 - General settings page (key/value via `SettingService`).
-- Integrations page (Xero connect/disconnect + sync toggles, ClickSend status).
+- Integrations page (Xero connect/disconnect + sync toggles, or the install command when `dcblogdev/laravel-xero` is missing; ClickSend status).
 - Reminders page (per-user activity reminders).
 - Updates page (version check only; upgrades are run from the console).
 

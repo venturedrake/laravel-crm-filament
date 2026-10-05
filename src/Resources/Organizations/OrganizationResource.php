@@ -38,6 +38,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\EditOrganizati
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\ListOrganizations;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\ViewOrganization;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
+use VentureDrake\LaravelCrmFilament\Support\NextActivity;
 
 class OrganizationResource extends Resource
 {
@@ -179,11 +180,7 @@ class OrganizationResource extends Resource
 
                 Tables\Columns\TextColumn::make('next_activity')
                     ->label(__('laravel-crm-filament::labels.fields.next_activity'))
-                    ->state(fn ($record) => $record?->tasks()
-                        ->whereNull('completed_at')
-                        ->where('due_at', '>=', now())
-                        ->orderBy('due_at')
-                        ->first()?->due_at)
+                    ->state(fn ($record) => NextActivity::for($record))
                     ->dateTime(),
 
                 Tables\Columns\TextColumn::make('ownerUser.name')
@@ -203,6 +200,12 @@ class OrganizationResource extends Resource
                     'deals as lost_deals_count' => fn ($q) => $q->where('closed_status', 'lost'),
                     'deals as won_deals_count' => fn ($q) => $q->where('closed_status', 'won'),
                 ]);
+
+                NextActivity::eagerLoad($query);
+
+                if (LaravelCrmPlugin::get()->isModuleEnabled('xero')) {
+                    $query->with('xeroContact');
+                }
 
                 if ($encrypted) {
                     $accessor = HasEncryptedSearch::modifyQuery(fn ($r) => $r->name ?? '', ['name']);

@@ -10,11 +10,13 @@ use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
+use VentureDrake\LaravelCrmFilament\Concerns\FiltersBoardByOwner;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 
 class QuoteKanban extends Page
 {
     use AuthorizesKanbanBoard;
+    use FiltersBoardByOwner;
 
     protected static string $resource = QuoteResource::class;
 
@@ -24,8 +26,6 @@ class QuoteKanban extends Page
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-view-columns';
 
-    public ?int $ownerFilter = null;
-
     protected function getHeaderActions(): array
     {
         return [
@@ -33,13 +33,6 @@ class QuoteKanban extends Page
             Actions\CreateAction::make()
                 ->url(QuoteResource::getUrl('create')),
         ];
-    }
-
-    public function getOwners(): Collection
-    {
-        $userClass = config('auth.providers.users.model');
-
-        return $userClass::query()->orderBy('name')->pluck('name', 'id');
     }
 
     public function getStages(): Collection

@@ -7,6 +7,73 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+Catches up to `venturedrake/laravel-crm` 2.4.7, and stops pinning a single core patch release.
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `~2.4.2`** (was `^2.4.2`). The panel works on every core
+  release from 2.4.2 through 2.4.7 and picks up later 2.4 patches without a panel release. The
+  floor stays at 2.4.2: `PdfContactDetails`, `PortalLink` and `Modules` landed in 2.4.1, and
+  `PortalTeam::forDocument()` and `SettingService::forTeam()` in 2.4.2. The new cap is 2.5, so a
+  core minor release waits until the panel has been checked against it.
+
+- **If you use Xero, require `dcblogdev/laravel-xero` yourself, in the same deploy as core 2.4.5 or
+  later.** Core moved it from `require` to `suggest` so apps can use Guzzle 8, so updating core
+  removes it unless your own `composer.json` asks for it:
+
+  ```bash
+  composer require dcblogdev/laravel-xero:^1.1.3
+  ```
+
+  Without it, nothing errors and no job fails. The Integrations page shows that command instead
+  of "Connect Xero", and core stops syncing. Tokens and `crm_xero_*` rows are kept, so installing
+  the package restores the connection without re-authorising. The package caps Guzzle at `^7`.
+
+### Changed
+
+- **The Integrations page knows when the Xero package is missing.** It used to fall through to
+  "Connect Xero", which on core 2.4.5+ bounces to core's own settings screen. It now shows an
+  install notice with the command to copy. The panel gates on a new
+  `Support\XeroIntegration`, which probes the package's service provider the way core does. Core's
+  own `XeroIntegration` class only exists from 2.4.5. Connect and Disconnect also hide on a headless
+  install (`LARAVEL_CRM_USER_INTERFACE=false`), where core never registers their routes and the
+  page would otherwise throw `RouteNotFoundException`.
+- **The Owner filter on the deal, lead, quote and feature boards and the calendar searches on the
+  server.** It rendered one `<option>` per user on every round trip, and a board re-renders on every
+  card drag. It now lists up to 20 owners, keeps the selected owner in the list, and shows a search
+  box once a team has more users than that. Core made the same change in 2.4.4. The bulk **Assign
+  owner** action searches on the server too, instead of shipping every user to the browser.
+- **The index pages stop querying per row**, porting core 2.4.3:
+  - People: email and phone come from eager-loaded collections, not `getPrimaryEmail()` /
+    `getPrimaryPhone()`, which query per row on core before 2.4.3.
+  - People and Organizations: "Next activity" is one `withMin()` subselect on the list query
+    instead of a `tasks()` query per row. Core dropped its own column, which read an attribute that
+    never existed; the panel's column has always worked, so it stays.
+  - Organizations: the Xero contact link is eager loaded when the Xero module is on.
+  - Products: the default price reads the eager-loaded `productPrices`. On core before 2.4.3,
+    `getDefaultPrice()` re-queried both the currency setting and the prices, twice per row.
+  - Deliveries: the shipping address reads eager-loaded addresses instead of up to four queries per
+    row.
+  - Purchase orders: Edit and Delete check an eager-loaded Xero link instead of two `exists()`
+    queries per row.
+  - The activity feed and the activity timeline load each row's causer and recordable with the
+    rows.
+
+### Fixed
+
+- **Contact and organization pickers found nothing with `encrypt_db_fields` on.** The names are
+  stored as ciphertext, so Filament's SQL `LIKE` never matched, the list was sorted by ciphertext,
+  and the organization picker labelled its options with the ciphertext itself. This affected the
+  lead, deal, quote, order, invoice and purchase-order forms. The pickers, and the title search on
+  the lead, deal and quote tables, now match decrypted names in PHP, as core's autocompletes have
+  since 2.4.6. With encryption off, they still search in SQL. The Related organizations picker,
+  the order → purchase order supplier pickers, and the guest lists on calls, meetings and lunches
+  sort by decrypted name too.
+- **Clearing the contact or organization on a quote, order, invoice or purchase order did not
+  unlink it.** The edit pages read an empty select as "not submitted" and kept the record's current
+  link. They now unlink, as the lead and deal pages already did. A field the form does not submit
+  at all still keeps the link.
+
 ## [1.2.0] - 2026-09-09
 
 ### Upgrading

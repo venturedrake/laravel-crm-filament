@@ -9,11 +9,13 @@ use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Feature;
 use VentureDrake\LaravelCrm\Models\FeatureStatus;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
+use VentureDrake\LaravelCrmFilament\Concerns\FiltersBoardByOwner;
 use VentureDrake\LaravelCrmFilament\Resources\Features\FeatureResource;
 
 class FeatureKanban extends Page
 {
     use AuthorizesKanbanBoard;
+    use FiltersBoardByOwner;
 
     protected static string $resource = FeatureResource::class;
 
@@ -23,8 +25,6 @@ class FeatureKanban extends Page
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-view-columns';
 
-    public ?int $ownerFilter = null;
-
     protected function getHeaderActions(): array
     {
         return [
@@ -32,13 +32,6 @@ class FeatureKanban extends Page
             Actions\CreateAction::make()
                 ->url(FeatureResource::getUrl('create')),
         ];
-    }
-
-    public function getOwners(): Collection
-    {
-        $userClass = config('auth.providers.users.model');
-
-        return $userClass::query()->orderBy('name')->pluck('name', 'id');
     }
 
     /**

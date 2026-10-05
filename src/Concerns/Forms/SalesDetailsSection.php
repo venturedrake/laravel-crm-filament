@@ -12,6 +12,7 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Services\OrganizationService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 /**
  * Shared "Details" left-column Section used by Quote, Order, Invoice, and
@@ -170,6 +171,7 @@ class SalesDetailsSection
             ->getOptionLabelFromRecordUsing(fn (Person $r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')))
             ->searchable(['first_name', 'last_name', 'middle_name', 'maiden_name'])
             ->preload()
+            ->tap(fn (Forms\Components\Select $select) => EncryptedContactSearch::personSelect($select))
             ->nullable()
             ->createOptionForm([
                 Grid::make(2)->schema([
@@ -204,6 +206,7 @@ class SalesDetailsSection
             ->relationship('organization', 'name')
             ->searchable(['name'])
             ->preload()
+            ->tap(fn (Forms\Components\Select $select) => EncryptedContactSearch::organizationSelect($select))
             ->nullable()
             ->createOptionForm([
                 Forms\Components\TextInput::make('name')->required()->maxLength(255),

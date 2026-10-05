@@ -5,18 +5,19 @@ namespace VentureDrake\LaravelCrmFilament\Pages;
 use BackedEnum;
 use Carbon\Carbon;
 use Filament\Pages\Page;
-use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Activity;
 use VentureDrake\LaravelCrm\Models\Call;
 use VentureDrake\LaravelCrm\Models\Lunch;
 use VentureDrake\LaravelCrm\Models\Meeting;
 use VentureDrake\LaravelCrm\Models\Task;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesCrmSettingsPage;
+use VentureDrake\LaravelCrmFilament\Concerns\FiltersBoardByOwner;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 
 class CalendarPage extends Page
 {
     use AuthorizesCrmSettingsPage;
+    use FiltersBoardByOwner;
 
     protected static string $crmPermission = 'view crm activities';
 
@@ -29,8 +30,6 @@ class CalendarPage extends Page
     protected static ?int $navigationSort = 30;
 
     protected string $view = 'laravel-crm-filament::calendar.index';
-
-    public ?int $ownerFilter = null;
 
     /**
      * @var array<string,bool>
@@ -55,13 +54,6 @@ class CalendarPage extends Page
     public function updatedTypeFilters(): void
     {
         $this->dispatch('calendar-refetch');
-    }
-
-    public function getOwners(): Collection
-    {
-        $userClass = config('auth.providers.users.model');
-
-        return $userClass::query()->orderBy('name')->pluck('name', 'id');
     }
 
     /**

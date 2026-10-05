@@ -37,6 +37,7 @@ use VentureDrake\LaravelCrmFilament\Resources\People\Pages\CreatePerson;
 use VentureDrake\LaravelCrmFilament\Resources\People\Pages\EditPerson;
 use VentureDrake\LaravelCrmFilament\Resources\People\Pages\ListPeople;
 use VentureDrake\LaravelCrmFilament\Resources\People\Pages\ViewPerson;
+use VentureDrake\LaravelCrmFilament\Support\NextActivity;
 
 class PersonResource extends Resource
 {
@@ -147,11 +148,11 @@ class PersonResource extends Resource
 
                 Tables\Columns\TextColumn::make('email')
                     ->label(__('laravel-crm-filament::labels.fields.email'))
-                    ->state(fn ($record) => $record?->getPrimaryEmail()?->address),
+                    ->state(fn ($record) => static::primaryContactDetail($record, 'emails')?->address),
 
                 Tables\Columns\TextColumn::make('phone')
                     ->label(__('laravel-crm-filament::labels.fields.phone'))
-                    ->state(fn ($record) => $record?->getPrimaryPhone()?->number),
+                    ->state(fn ($record) => static::primaryContactDetail($record, 'phones')?->number),
 
                 Tables\Columns\TextColumn::make('open_deals_count')
                     ->label(__('laravel-crm-filament::labels.fields.open_deals'))
@@ -170,11 +171,7 @@ class PersonResource extends Resource
 
                 Tables\Columns\TextColumn::make('next_activity')
                     ->label(__('laravel-crm-filament::labels.fields.next_activity'))
-                    ->state(fn ($record) => $record?->tasks()
-                        ->whereNull('completed_at')
-                        ->where('due_at', '>=', now())
-                        ->orderBy('due_at')
-                        ->first()?->due_at)
+                    ->state(fn ($record) => NextActivity::for($record))
                     ->dateTime(),
 
                 Tables\Columns\TextColumn::make('ownerUser.name')
@@ -194,6 +191,12 @@ class PersonResource extends Resource
                     'deals as lost_deals_count' => fn ($q) => $q->where('closed_status', 'lost'),
                     'deals as won_deals_count' => fn ($q) => $q->where('closed_status', 'won'),
                 ]);
+
+                // The email and phone cells read these collections rather
+                // than getPrimaryEmail()/getPrimaryPhone(), which query per row
+                // on core before 2.4.3.
+                $query->with(['emails', 'phones']);
+                NextActivity::eagerLoad($query);
 
                 if ($encrypted) {
                     $accessor = HasEncryptedSearch::modifyQuery(
@@ -231,6 +234,23 @@ class PersonResource extends Resource
                     Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * The row flagged primary in a contact-detail relation (emails, phones),
+     * off the collection the list query eager loaded when there is one.
+     */
+    protected static function primaryContactDetail(?Model $record, string $relation): ?Model
+    {
+        if ($record === null) {
+            return null;
+        }
+
+        if ($record->relationLoaded($relation)) {
+            return $record->getRelation($relation)->firstWhere('primary', true);
+        }
+
+        return $record->{$relation}()->where('primary', 1)->first();
     }
 
     public static function infolist(Schema $schema): Schema

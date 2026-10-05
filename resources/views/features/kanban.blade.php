@@ -41,6 +41,10 @@
 
     <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1rem;">
         <label style="font-size:0.75rem; color:#6b7280;">Owner</label>
+        @if ($this->ownerSearchEnabled())
+            <input type="search" wire:model.live.debounce.300ms="ownerSearch" placeholder="Search owners…" autocomplete="off"
+                   style="font-size:0.875rem; padding:0.375rem 0.5rem; border-radius:0.375rem; border:1px solid #d1d5db; background:#fff;">
+        @endif
         <select wire:model.live="ownerFilter"
                 style="font-size:0.875rem; padding:0.375rem 0.5rem; border-radius:0.375rem; border:1px solid #d1d5db; background:#fff;">
             <option value="">Everyone</option>

@@ -72,10 +72,12 @@ class EditInvoice extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Invoice $record */
-        $person = isset($data['person_id'])
+        // A cleared select arrives as null and must unlink; only a field the
+        // form did not submit at all keeps the current link.
+        $person = array_key_exists('person_id', $data)
             ? Person::find($data['person_id'])
             : $record->person;
-        $organization = isset($data['organization_id'])
+        $organization = array_key_exists('organization_id', $data)
             ? Organization::find($data['organization_id'])
             : $record->organization;
 

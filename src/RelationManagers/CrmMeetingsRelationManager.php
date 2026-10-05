@@ -51,7 +51,7 @@ class CrmMeetingsRelationManager extends MeetingsRelationManager
                     ->searchable()
                     ->preload()
                     ->placeholder('Search ...')
-                    ->options(fn () => Person::query()->orderBy('first_name')->get()->pluck('name', 'id')->all())
+                    ->options(fn () => Person::query()->get()->pluck('name', 'id')->sort(SORT_NATURAL | SORT_FLAG_CASE)->all())
                     ->columnSpanFull(),
                 Forms\Components\TextInput::make('location')
                     ->label(__('laravel-crm-filament::labels.fields.location'))

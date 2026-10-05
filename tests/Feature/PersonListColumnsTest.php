@@ -97,13 +97,13 @@ it('renders ownerUser.name with the Unallocated placeholder', function () {
     expect($source)->toContain('labels.misc.unallocated');
 });
 
-it('reads email and phone via getPrimaryEmail / getPrimaryPhone state closures', function () {
+it('reads email and phone off the primary row of the eager-loaded collections', function () {
     $source = file_get_contents(__DIR__ . '/../../src/Resources/People/PersonResource.php');
 
     expect($source)->toContain("Tables\\Columns\\TextColumn::make('email')");
-    expect($source)->toContain('getPrimaryEmail()?->address');
+    expect($source)->toContain('primaryContactDetail($record, \'emails\')?->address');
     expect($source)->toContain("Tables\\Columns\\TextColumn::make('phone')");
-    expect($source)->toContain('getPrimaryPhone()?->number');
+    expect($source)->toContain('primaryContactDetail($record, \'phones\')?->number');
 });
 
 it('drops the prior first_name / last_name columns', function () {

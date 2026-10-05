@@ -16,6 +16,7 @@ use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 /**
@@ -118,7 +119,7 @@ trait HasOrderConvertToPurchaseOrderAction
                 ->schema(array_map(
                     fn (int $orderProductId, string $label) => Select::make('suppliers.' . $orderProductId)
                         ->label($label)
-                        ->options(fn () => Organization::query()->orderBy('name')->pluck('name', 'id')->all())
+                        ->options(fn () => EncryptedContactSearch::organizationOptions(null))
                         ->searchable()
                         ->preload(),
                     array_map('intval', array_keys($options)),

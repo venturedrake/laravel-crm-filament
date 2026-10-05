@@ -11,11 +11,13 @@ use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
+use VentureDrake\LaravelCrmFilament\Concerns\FiltersBoardByOwner;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 
 class DealKanban extends Page
 {
     use AuthorizesKanbanBoard;
+    use FiltersBoardByOwner;
 
     protected static string $resource = DealResource::class;
 
@@ -25,8 +27,6 @@ class DealKanban extends Page
 
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-view-columns';
 
-    public ?int $ownerFilter = null;
-
     protected function getHeaderActions(): array
     {
         return [
@@ -34,13 +34,6 @@ class DealKanban extends Page
             Actions\CreateAction::make()
                 ->url(DealResource::getUrl('create')),
         ];
-    }
-
-    public function getOwners(): Collection
-    {
-        $userClass = config('auth.providers.users.model');
-
-        return $userClass::query()->orderBy('name')->pluck('name', 'id');
     }
 
     public function getStages(): Collection

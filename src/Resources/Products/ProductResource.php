@@ -14,6 +14,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
@@ -164,9 +165,9 @@ class ProductResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                CrmMoney::column('price', fn ($record) => $record?->getDefaultPrice()?->currency)
+                CrmMoney::column('price', fn ($record) => static::defaultPrice($record)?->currency)
                     ->label(__('laravel-crm-filament::labels.money.price'))
-                    ->state(fn ($record) => optional($record->getDefaultPrice())->unit_price ?: null),
+                    ->state(fn ($record) => static::defaultPrice($record)?->unit_price ?: null),
 
                 Tables\Columns\TextColumn::make('taxRate.name')
                     ->label(__('laravel-crm-filament::labels.money.tax'))
@@ -231,8 +232,8 @@ class ProductResource extends Resource
                         'Code' => fn ($r) => $r->code,
                         'Category' => fn ($r) => optional($r->productCategory)->name,
                         'Unit' => fn ($r) => $r->unit,
-                        'Price' => fn ($r) => (optional($r->getDefaultPrice())->unit_price ?? 0) / 100,
-                        'Currency' => fn ($r) => optional($r->getDefaultPrice())->currency,
+                        'Price' => fn ($r) => (static::defaultPrice($r)->unit_price ?? 0) / 100,
+                        'Currency' => fn ($r) => static::defaultPrice($r)?->currency,
                         'Active' => fn ($r) => $r->active ? 'Yes' : 'No',
                         'Owner' => fn ($r) => optional($r->ownerUser)->name,
                         'Created' => fn ($r) => $r->created_at,
@@ -240,6 +241,27 @@ class ProductResource extends Resource
                     filename: 'products',
                 ),
             ]);
+    }
+
+    /**
+     * Product::getDefaultPrice() off the eager-loaded productPrices. Core only
+     * learned to read the loaded relation at 2.4.3; before that every call
+     * re-queried both the currency setting and the prices, and the price
+     * column calls it twice per row.
+     */
+    protected static function defaultPrice(?Product $record): ?Model
+    {
+        if ($record === null) {
+            return null;
+        }
+
+        if (! $record->relationLoaded('productPrices')) {
+            return $record->getDefaultPrice();
+        }
+
+        $currency = app('laravel-crm.settings')->get('currency');
+
+        return $record->productPrices->firstWhere('currency', filled($currency) ? $currency : 'USD');
     }
 
     public static function infolist(Schema $schema): Schema
