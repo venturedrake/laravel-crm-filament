@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-05
+
 Catches up to `venturedrake/laravel-crm` 2.4.7, and stops pinning a single core patch release.
 
 ### Upgrading
@@ -655,6 +657,7 @@ These landed on `develop` after 1.0.0 and were never written up. They ship in 1.
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.3.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.3.0
 [1.2.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.2.0
 [1.1.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.1.0
 [1.0.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.0.0

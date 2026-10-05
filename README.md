@@ -259,7 +259,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **Kanban boards are permission-gated.** They previously authorized nothing — see the changelog's
   Security note, and re-seed permissions on upgrade.
 
-### Unreleased — core 2.4.3–2.4.7 parity
+### v1.3 — core 2.4.3–2.4.7 parity
 
 - **Xero is optional, as it is in core from 2.4.5.** Core stopped installing
   `dcblogdev/laravel-xero` so it can run on Guzzle 8. Without it, the Integrations page shows the
