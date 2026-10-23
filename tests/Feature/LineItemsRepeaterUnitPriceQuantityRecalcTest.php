@@ -1,5 +1,6 @@
 <?php
 
+use Filament\Schemas\Components\Grid;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\Setting;
@@ -12,8 +13,9 @@ use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
  * invocation. Row layout:
  *   - children[0]: Hidden FK
  *   - children[1]: product Select
- *   - children[2]: nested Grid containing [unit_price|price, quantity, tax_amount?, amount]
- *   - children[3]: comments Textarea
+ *   - children[2]: variation Select (core 2.5.0)
+ *   - children[3]: nested Grid containing [unit_price|price, quantity, tax_amount?, amount]
+ *   - children[4]: comments Textarea
  */
 function row2FieldClosure(string $fkColumn, string $priceField, string $fieldName): Closure
 {
@@ -24,8 +26,8 @@ function row2FieldClosure(string $fkColumn, string $priceField, string $fieldNam
     $children = $childComponentsRef->getValue($repeater);
     $list = $children['default'] ?? $children;
 
-    // Position 2 is the nested Grid holding row 2.
-    $grid = $list[2];
+    // The nested Grid holding row 2.
+    $grid = collect($list)->first(fn ($component) => $component instanceof Grid);
     $gridChildrenRef = new ReflectionProperty($grid, 'childComponents');
     $gridChildrenRef->setAccessible(true);
     $gridChildren = $gridChildrenRef->getValue($grid);
@@ -169,10 +171,11 @@ it('source contains recalc-helper invocations and no inline tax-into-amount math
     expect($src)->not->toContain('(float) $get($priceField) + $tax');
 
     // The unit_price + quantity closures now both delegate to the helpers.
-    // There are three total call sites (product Select + unit_price + quantity).
+    // There are four total call sites (product Select + variation Select +
+    // unit_price + quantity).
     $recalcRowCount = substr_count($src, 'self::recalcRow($get, $set, $priceField);');
-    expect($recalcRowCount)->toBe(3);
+    expect($recalcRowCount)->toBe(4);
 
     $recalcFormTotalsCount = substr_count($src, 'self::recalcFormTotals($get, $set);');
-    expect($recalcFormTotalsCount)->toBe(3);
+    expect($recalcFormTotalsCount)->toBe(4);
 });

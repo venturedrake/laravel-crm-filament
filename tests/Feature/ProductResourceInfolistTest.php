@@ -103,8 +103,9 @@ it('no longer imports ProductVariationsRelationManager in ProductResource source
     expect($src)->not->toContain('ProductVariationsRelationManager::class');
 });
 
-it('leaves the ProductVariationsRelationManager.php file in place as dead code', function (): void {
-    $file = (new ReflectionClass(ProductVariationsRelationManager::class))->getFileName();
+it('mounts ProductVariationsRelationManager on the view page, read-only, not as a resource relation', function (): void {
+    $src = file_get_contents((new ReflectionClass(ViewProduct::class))->getFileName());
 
-    expect(file_exists($file))->toBeTrue();
+    expect($src)->toContain('Livewire::make(ProductVariationsRelationManager::class');
+    expect((new ReflectionClass(ProductVariationsRelationManager::class))->newInstanceWithoutConstructor()->isReadOnly())->toBeTrue();
 });

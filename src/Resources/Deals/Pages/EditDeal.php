@@ -9,6 +9,7 @@ use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\DealService;
+use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\Concerns\HasDealMarkLostAction;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\Concerns\HasDealMarkWonAction;
@@ -50,6 +51,7 @@ class EditDeal extends EditRecord
         $data['products'] = $this->record->dealProducts()->get()->map(fn ($line) => [
             'deal_product_id' => $line->id,
             'id' => $line->product_id,
+            'product_variation_id' => $line->product_variation_id,
             'price' => MoneyForm::centsToForm($line->price) ?? 0,
             'quantity' => $line->quantity,
             'amount' => MoneyForm::centsToForm($line->amount) ?? 0,
@@ -68,6 +70,10 @@ class EditDeal extends EditRecord
         /** @var Deal $record */
         $person = isset($data['person_id']) ? Person::find($data['person_id']) : null;
         $organization = isset($data['organization_id']) ? Organization::find($data['organization_id']) : null;
+
+        // Saved together, the person and organization become related
+        // contacts of each other, as core 2.5.0 does (#94).
+        app(PersonService::class)->linkToOrganization($person, $organization);
 
         app(DealService::class)->update(FormPayload::wrap($data), $record, $person, $organization);
         DealResource::saveCrmCustomFields($data, $record);

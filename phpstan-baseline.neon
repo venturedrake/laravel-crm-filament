@@ -631,6 +631,18 @@ parameters:
 			path: src/RelationManagers/NotesRelationManager.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ProductPrice\:\:\$currency\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/RelationManagers/ProductVariationsRelationManager.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ProductPrice\:\:\$unit_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/RelationManagers/ProductVariationsRelationManager.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
 			count: 2
@@ -955,8 +967,8 @@ parameters:
 			path: src/Resources/Deliveries/DeliveryResource.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
+			message: '#^Relation ''productVariation'' is not found in VentureDrake\\LaravelCrm\\Models\\OrderProduct model\.$#'
+			identifier: larastan.relationExistence
 			count: 1
 			path: src/Resources/Deliveries/DeliveryResource.php
 
@@ -1653,7 +1665,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$currency\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Resources/Orders/OrderResource.php
 
 		-
@@ -1690,6 +1702,24 @@ parameters:
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$user_owner_id\.$#'
 			identifier: property.notFound
 			count: 2
+			path: src/Resources/Orders/OrderResource.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/OrderResource.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Orders/OrderResource.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$product_variation_id\.$#'
+			identifier: property.notFound
+			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
 		-
@@ -1755,7 +1785,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$currency\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 3
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
@@ -1802,6 +1832,12 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Resources/Orders/Pages/ViewOrder.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\OrderProduct\:\:\$product_variation_id\.$#'
 			identifier: property.notFound
 			count: 2
 			path: src/Resources/Orders/Pages/ViewOrder.php
@@ -2825,6 +2861,18 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Support/InvitationUrl.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ProductVariation\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/LineItemVariation.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ProductVariation\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Support/LineItemVariation.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:tasks\(\)\.$#'

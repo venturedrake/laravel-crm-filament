@@ -41,7 +41,6 @@ class RoleSeeder
         'sms-templates',
         'customers',
         'products',
-        'product attributes',
         'teams',
         'features',
         'monitors',

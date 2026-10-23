@@ -10,12 +10,13 @@ use Throwable;
 /**
  * Turns a policy that throws on an un-seeded permission into a 403.
  *
- * Core 2.4.0 registers ActivityPolicy and ProductAttributePolicy for the first
- * time. Before that no policy resolved for those models, and Filament allows
- * when it finds none — so ProductAttributeResource was open to every panel
- * user, and now enforces four permissions.
+ * Core 2.4.0 registers ActivityPolicy for the first time. Before that no
+ * policy resolved for the model, and Filament allows when it finds none — so
+ * ActivityResource was open to every panel user. (Core 2.4.0 registered
+ * ProductAttributePolicy too; 2.5.0 removed it along with the model, and the
+ * panel's ProductAttributeResource with them.)
  *
- * Both policies call `$user->hasPermissionTo(...)` unguarded, which throws
+ * The policy calls `$user->hasPermissionTo(...)` unguarded, which throws
  * PermissionDoesNotExist when the host has never re-seeded (and a
  * QueryException when the Spatie tables are absent). Filament goes straight to
  * the Gate for a policied model, so ChecksCrmPermissions — which catches
@@ -28,7 +29,7 @@ use Throwable;
  * and deliberately so — that trait guards settings pages, this one guards a
  * resource core has decided should be permissioned.
  *
- * Upstream fix (recommended): have both policies try/catch, the way
+ * Upstream fix (recommended): have the policy try/catch, the way
  * FeatureService::isAdminCommenter() already does.
  */
 trait GuardsPoliciedResource

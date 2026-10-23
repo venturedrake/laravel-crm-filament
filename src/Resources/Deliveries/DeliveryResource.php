@@ -114,13 +114,13 @@ class DeliveryResource extends Resource
 
                             return OrderProduct::query()
                                 ->where('order_id', $orderId)
-                                ->with('product')
+                                ->with(['product', 'productVariation'])
                                 ->get()
                                 ->mapWithKeys(fn ($op) => [
                                     // The *remaining* quantity, not the ordered
                                     // one: an operator picking a line wants to
                                     // know what is still outstanding on it.
-                                    $op->id => ($op->product?->name ?? 'Line ' . $op->id)
+                                    $op->id => ($op->displayName() ?: 'Line ' . $op->id)
                                         . ' (' . Quantity::format(RemainingQuantity::forOrderProduct(
                                             $op,
                                             DeliveryProduct::class,

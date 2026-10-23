@@ -34,11 +34,21 @@ class EditProduct extends EditRecord
         /** @var Product $product */
         $product = $this->record;
 
-        $defaultPrice = $product->getDefaultPrice();
-        if ($defaultPrice) {
-            $data['unit_price'] = MoneyForm::centsToForm($defaultPrice->price);
-            $data['currency'] = $defaultPrice->currency ?: $data['currency'] ?? config('laravel-crm.default_currency', 'USD');
+        // The row ProductService::update() saves to (core 2.5.0). For a
+        // product priced only in another currency, the default price would
+        // load blanks that saving then writes over that price.
+        $primaryPrice = $product->getPrimaryPrice();
+        if ($primaryPrice) {
+            $data['unit_price'] = MoneyForm::centsToForm($primaryPrice->unit_price);
+            $data['currency'] = $primaryPrice->currency ?: $data['currency'] ?? config('laravel-crm.default_currency', 'USD');
         }
+
+        // Priced in the product price's currency, which is the one
+        // syncVariations() writes them in on save.
+        $data['variations'] = ProductResource::variationRows(
+            $product,
+            $primaryPrice->currency ?? app('laravel-crm.settings')->get('currency', 'USD'),
+        );
 
         return ProductResource::loadCrmCustomFieldsInto($data, $this->getRecord());
     }

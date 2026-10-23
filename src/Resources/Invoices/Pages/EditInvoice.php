@@ -9,6 +9,7 @@ use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
+use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
@@ -58,6 +59,7 @@ class EditInvoice extends EditRecord
                 'invoice_line_id' => $line->id,
                 'order_product_id' => $line->order_product_id,
                 'id' => $line->product_id,
+                'product_variation_id' => $line->product_variation_id,
                 'quantity' => $line->quantity,
                 'unit_price' => MoneyForm::centsToForm($line->price) ?? 0,
                 'tax_amount' => MoneyForm::centsToForm($line->tax_amount) ?? 0,
@@ -80,6 +82,10 @@ class EditInvoice extends EditRecord
         $organization = array_key_exists('organization_id', $data)
             ? Organization::find($data['organization_id'])
             : $record->organization;
+
+        // Saved together, the person and organization become related
+        // contacts of each other, as core 2.5.0 does (#94).
+        app(PersonService::class)->linkToOrganization($person, $organization);
 
         app(InvoiceService::class)->update(
             FormPayload::wrap($data),

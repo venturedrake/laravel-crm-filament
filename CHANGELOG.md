@@ -7,6 +7,69 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+Catches up to `venturedrake/laravel-crm` 2.5.0: product variations, the contact ↔ organization
+link, and the purchase-order line fix.
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `~2.5.0`** (was `~2.4.2`). Variations on line items only
+  persist through core 2.5.0's services, and core 2.5.0 deletes the `ProductAttribute` model the
+  panel's Product Attributes page was built on. Update both packages together:
+
+  ```bash
+  composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
+  php artisan laravelcrm:filament-update
+  ```
+
+  `laravelcrm:filament-update` runs core's `laravelcrm:update`, which runs core 2.5.0's three
+  migrations: the variation columns, the purchase-order line `comments` / `order_product_id`
+  columns, and the removal of the `crm product attributes` permissions.
+
+- **Settings → Product Attributes is gone**, along with `ProductAttributeResource`. It never had a
+  table to work against in core. Use custom fields attached to Products instead. A host that links
+  to the resource's routes (`filament.*.resources.product-attributes.*`) needs to drop those links.
+
+### Added
+
+- **Product variations.** The product form has a Variations section to add, edit, reorder,
+  deactivate and remove variations, each with its own SKU, barcode, price and active flag. Saving
+  hands the rows to core's `ProductService::syncVariations()`: a removed variation is
+  soft-deleted, so lines on it keep their label, and a variation without a price sells at the
+  product price. The product view page lists the variations, and the products index finds a
+  product by a variation's SKU.
+- **A variation select on line items** on deals, quotes, orders, invoices and purchase orders. It
+  appears only for a product with active variations, or for a line already on one. Picking a
+  variation prices the line from the variation's price in the document currency, falling back to
+  the product price. Changing the product clears the variation. Edit forms load each line's
+  variation.
+- **Conversions carry the variation**: quote → order, order → invoice and order → purchase order.
+  Order → purchase order uses the variation's own price row (`cost_per_unit`, then `unit_price`)
+  when it has one. The delivery and purchase-order line pickers show `Product — Variation`. PDFs,
+  emails and the portal print it through core's views.
+
+### Fixed
+
+- **A contact person and an organization saved together were never linked to each other.**
+  Saving a lead, deal, quote, order, invoice or purchase order with both now makes them related
+  contacts of each other, through core's `PersonService::linkToOrganization()`. An existing link is
+  not duplicated. Core makes this call in its Livewire components rather than its services, so
+  the panel's pages make it themselves.
+- **Purchase-order line edits are saved.** Core 2.5.0's `PurchaseOrderService::update()` reads the
+  `products` rows the form submits. The panel's `purchaseOrderLines` shim, which core never read in
+  a usable shape, is removed.
+- **Converting a quote to an order threw.** The labels copy plucked `crm_labelables.id`, a column
+  the pivot table does not have, so the conversion failed before the order was created. It now
+  plucks the label id.
+- **The product edit form loads the price that saving writes to.** It now uses
+  `Product::getPrimaryPrice()`, as core 2.5.0 does. For a product priced only in a currency other
+  than the install's, the form used to load blank and saving overwrote that price.
+
+### Removed
+
+- `ProductAttributeResource` and its pages, following core 2.5.0. `ProductVariationsRelationManager`,
+  which was dead code built on `ProductAttribute`, is now the read-only Variations list on the
+  product view page.
+
 ## [1.3.0] - 2026-10-05
 
 Catches up to `venturedrake/laravel-crm` 2.4.7, and stops pinning a single core patch release.

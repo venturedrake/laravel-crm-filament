@@ -11,9 +11,9 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `~2.4.2` — any 2.4 release from 2.4.2 on. The floor is 2.4.2 because the
-  panel uses support classes core added in 2.4.1 and 2.4.2; the cap is 2.5, so a new core minor
-  version is not picked up before the panel has been checked against it.
+- `venturedrake/laravel-crm` `~2.5.0` — any 2.5 release from 2.5.0 on. The floor is 2.5.0 because
+  product variations on line items persist only through core 2.5.0's services; the cap is 2.6, so a
+  new core minor version is not picked up before the panel has been checked against it.
 - `dcblogdev/laravel-xero` `^1.1.3`, only if you use the Xero integration (`->withXero()`). See
   [Xero](#xero).
 
@@ -272,6 +272,17 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
   in 2.4.4.
 - **Contact and organization pickers work with `encrypt_db_fields` on**, matching core 2.4.6.
 
+### Unreleased — core 2.5.0 parity
+
+- **Product variations.** The product form has a Variations section (SKU, barcode, price, active,
+  order), and the product view page lists them. Line items on deals, quotes, orders, invoices and
+  purchase orders get a variation select for any product that has variations. It prices the line
+  in the document currency, and conversions carry the variation forward.
+- **A contact and an organization saved together are linked** as related contacts of each other,
+  on leads, deals, quotes, orders, invoices and purchase orders.
+- **Purchase-order line edits are saved**, now that core reads the rows the form submits.
+- **Settings → Product Attributes is removed**, as it is in core.
+
 ## Xero
 
 Core `venturedrake/laravel-crm` no longer installs `dcblogdev/laravel-xero` from 2.4.5 on. That
@@ -364,14 +375,9 @@ policy, so they declare a permission directly:
 The dashboard's three data widgets — contacts stats, tasks due today and recent activity —
 additionally check `view crm contacts`, `view crm tasks` and `view crm activities`.
 
-Two notes for upgrades:
-
-- **Product attributes are now permission-gated.** Before core 2.4.0 no policy resolved for
-  them, and Filament allows when it finds none — so the resource was reachable by every panel
-  user. It now enforces `view|create|edit|delete crm product attributes`.
-- **Re-seed after upgrading.** Core's policies call `hasPermissionTo()` unguarded, which throws
-  when a permission row is missing. The plugin catches that on the policied resources so you get
-  a 403 rather than a 500 — but the fix is to run `php artisan laravelcrm:update`.
+**Re-seed after upgrading.** Core's policies call `hasPermissionTo()` unguarded, which throws when a
+permission row is missing. The plugin catches that on the policied resources so you get a 403
+rather than a 500 — but the fix is to run `php artisan laravelcrm:update`.
 
 The Pages' own checks deliberately fail *open* on an install that never seeded the permission
 (and log a warning when they do), so an upgrade cannot lock an operator out of their own

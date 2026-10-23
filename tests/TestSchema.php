@@ -449,7 +449,15 @@ class TestSchema
             $table->unsignedBigInteger('team_id')->nullable();
             $table->unsignedBigInteger('product_id')->nullable();
             $table->string('name')->nullable();
+            // Core 2.5.0's add_code_and_audit_columns_to_laravel_crm_product_variations_table.
             $table->string('code')->nullable();
+            $table->string('barcode')->nullable();
+            $table->integer('order')->nullable();
+            $table->boolean('active')->default(true);
+            $table->unsignedBigInteger('user_created_id')->nullable();
+            $table->unsignedBigInteger('user_updated_id')->nullable();
+            $table->unsignedBigInteger('user_deleted_id')->nullable();
+            $table->unsignedBigInteger('user_restored_id')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

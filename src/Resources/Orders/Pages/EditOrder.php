@@ -9,6 +9,7 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\OrderService;
+use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\OrderAddressTabs;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -50,6 +51,7 @@ class EditOrder extends EditRecord
             ->map(fn ($line) => [
                 'order_product_id' => $line->id,
                 'id' => $line->product_id,
+                'product_variation_id' => $line->product_variation_id,
                 'quantity' => $line->quantity,
                 'unit_price' => MoneyForm::centsToForm($line->price) ?? 0,
                 'tax_amount' => MoneyForm::centsToForm($line->tax_amount) ?? 0,
@@ -76,6 +78,10 @@ class EditOrder extends EditRecord
             : $record->organization;
 
         $data['addresses'] = OrderAddressTabs::fromFormData($data);
+
+        // Saved together, the person and organization become related
+        // contacts of each other, as core 2.5.0 does (#94).
+        app(PersonService::class)->linkToOrganization($person, $organization);
 
         app(OrderService::class)->update(
             FormPayload::wrap($data),

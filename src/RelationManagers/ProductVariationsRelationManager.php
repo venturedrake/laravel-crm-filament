@@ -2,67 +2,97 @@
 
 namespace VentureDrake\LaravelCrmFilament\RelationManagers;
 
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\CreateAction;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Ramsey\Uuid\Uuid;
-use VentureDrake\LaravelCrm\Models\ProductAttribute;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use VentureDrake\LaravelCrm\Models\Product;
+use VentureDrake\LaravelCrm\Models\ProductPrice;
+use VentureDrake\LaravelCrm\Models\ProductVariation;
+use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 
+/**
+ * The product show page's Variations card (core 2.5.0).
+ *
+ * Read-only: variations are edited on the product form, which hands the whole
+ * set to ProductService::syncVariations() so the row order, the soft deletes
+ * and the single price per row stay core's.
+ *
+ * Each price is the variation's own in the product price's currency. A
+ * variation without one sells at the product price, which is shown instead.
+ */
 class ProductVariationsRelationManager extends RelationManager
 {
     protected static string $relationship = 'productVariations';
 
     protected static ?string $title = 'Variations';
 
-    public function form(Schema $schema): Schema
+    private ?ProductPrice $productPrice = null;
+
+    private bool $productPriceLoaded = false;
+
+    public static function getTitle(Model $ownerRecord, string $pageClass): string
     {
-        return $schema->components([
-            Forms\Components\TextInput::make('name')
-                ->required()
-                ->maxLength(255),
+        return __('laravel-crm-filament::labels.sections.variations');
+    }
 
-            Forms\Components\Select::make('product_attribute_id')
-                ->label(__('laravel-crm-filament::labels.misc.attribute'))
-                ->options(fn () => ProductAttribute::query()->orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->preload(),
-
-            Forms\Components\Textarea::make('description')
-                ->rows(3)
-                ->columnSpanFull(),
-        ]);
+    public function isReadOnly(): bool
+    {
+        return true;
     }
 
     public function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('productPrices'))
             ->columns([
-                Tables\Columns\TextColumn::make('name')->sortable()->searchable(),
-                Tables\Columns\TextColumn::make('description')->limit(60)->toggleable(),
+                Tables\Columns\TextColumn::make('name')
+                    ->label(__('laravel-crm-filament::labels.fields.name')),
+                Tables\Columns\TextColumn::make('code')
+                    ->label(__('laravel-crm-filament::labels.money.sku')),
+                Tables\Columns\TextColumn::make('barcode')
+                    ->label(__('laravel-crm-filament::labels.money.barcode')),
+                CrmMoney::column('unit_price', fn ($record) => $this->priceRow($record)?->currency)
+                    ->label(__('laravel-crm-filament::labels.money.unit_price'))
+                    ->state(fn ($record) => $this->priceRow($record)?->unit_price)
+                    ->color(fn ($record) => $this->ownPrice($record) ? null : 'gray')
+                    ->placeholder('—'),
+                Tables\Columns\IconColumn::make('active')
+                    ->label(__('laravel-crm-filament::labels.fields.active'))
+                    ->boolean(),
             ])
-            ->headerActions([
-                CreateAction::make()
-                    ->mutateDataUsing(function (array $data): array {
-                        $data['external_id'] = (string) Uuid::uuid4();
+            ->emptyStateHeading(__('laravel-crm-filament::labels.money.no_variations'))
+            ->emptyStateDescription(null)
+            ->paginated(false)
+            ->headerActions([])
+            ->recordActions([])
+            ->toolbarActions([]);
+    }
 
-                        return $data;
-                    }),
-            ])
-            ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+    protected function ownPrice(ProductVariation $variation): ?ProductPrice
+    {
+        return $variation->priceFor($this->productPrice()?->currency);
+    }
+
+    protected function priceRow(ProductVariation $variation): ?ProductPrice
+    {
+        return $this->ownPrice($variation) ?? $this->productPrice();
+    }
+
+    /**
+     * The product's own price row, read once per request rather than per cell.
+     */
+    protected function productPrice(): ?ProductPrice
+    {
+        if (! $this->productPriceLoaded) {
+            /** @var Product $product */
+            $product = $this->getOwnerRecord();
+
+            $this->productPrice = $product->getPrimaryPrice();
+            $this->productPriceLoaded = true;
+        }
+
+        return $this->productPrice;
     }
 }

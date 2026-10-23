@@ -3,6 +3,7 @@
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrmFilament\RelationManagers\ProductVariationsRelationManager;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ViewProduct;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 
@@ -59,7 +60,7 @@ it('source pins the Livewire key to product-prices-{record-id}', function (): vo
     expect($src)->toContain("->key('product-prices-' . \$this->getRecord()->getKey())");
 });
 
-it('content() Schema root contains a single Grid with two columnSpan lg-1 children', function (): void {
+it('content() Schema root contains a Grid with two columnSpan lg-1 children, then the variations', function (): void {
     $modelClass = ProductResource::getModel();
     $instance = (new ReflectionClass(ViewProduct::class))->newInstanceWithoutConstructor();
     $instance->record = new $modelClass;
@@ -68,7 +69,7 @@ it('content() Schema root contains a single Grid with two columnSpan lg-1 childr
 
     $components = $schema->getComponents(withHidden: true);
 
-    expect($components)->toHaveCount(1);
+    expect($components)->toHaveCount(2);
     expect($components[0])->toBeInstanceOf(Grid::class);
     expect($components[0]->getColumns())->toBe(['default' => 1, 'lg' => 2]);
 
@@ -81,4 +82,7 @@ it('content() Schema root contains a single Grid with two columnSpan lg-1 childr
     expect($childList[0]->getColumnSpan())->toBe(['lg' => 1]);
     expect($childList[1])->toBeInstanceOf(Livewire::class);
     expect($childList[1]->getColumnSpan())->toBe(['lg' => 1]);
+
+    expect($components[1])->toBeInstanceOf(Livewire::class);
+    expect($components[1]->getComponent())->toBe(ProductVariationsRelationManager::class);
 });

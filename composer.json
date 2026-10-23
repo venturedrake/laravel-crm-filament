@@ -32,7 +32,7 @@
         "illuminate/contracts": "^11.0|^12.0|^13.0",
         "spatie/laravel-package-tools": "^1.15.0",
         "spatie/laravel-permission": "^6.0",
-        "venturedrake/laravel-crm": "~2.4.2"
+        "venturedrake/laravel-crm": "~2.5.0"
     },
     "require-dev": {
         "dcblogdev/laravel-xero": "^1.1.3",

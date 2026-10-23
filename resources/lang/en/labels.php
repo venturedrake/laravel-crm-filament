@@ -298,6 +298,10 @@ return [
         'product_category' => 'Product category',
         'pdf_template' => 'PDF template',
         'remaining' => 'remaining',
+        'variation' => 'Variation',
+        'no_variation' => '— None —',
+        'variation_price_fallback' => 'A variation without its own price sells at the product price.',
+        'no_variations' => 'This product has no variations.',
         'remaining_on_order_line' => ':quantity remaining on this order line',
     ],
 
@@ -464,6 +468,7 @@ return [
         'localisation' => 'Localisation',
         'pipeline_stages' => 'Pipeline stages',
         'usage' => 'Usage',
+        'variations' => 'Variations',
     ],
 
     // Actions
@@ -473,6 +478,7 @@ return [
         'edit' => 'Edit',
         'delete' => 'Delete',
         'add_line_item' => 'Add line item',
+        'add_variation' => 'Add variation',
         'create_product' => 'Create product',
         'save_sync_settings' => 'Save sync settings',
         'save_changes' => 'Save changes',
@@ -610,7 +616,6 @@ return [
         'crm_role' => 'CRM Role',
         'has_crm_access' => 'Has CRM access',
         'hours_before' => 'Hours before',
-        'attribute' => 'Attribute',
         'diff_from_gmt' => 'Diff from GMT',
         'private' => 'Private',
     ],

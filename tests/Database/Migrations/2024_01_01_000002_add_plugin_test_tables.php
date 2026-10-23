@@ -106,15 +106,6 @@ return new class extends Migration
             });
         }
 
-        if (! Schema::hasTable($prefix . 'product_attributes')) {
-            Schema::create($prefix . 'product_attributes', function (Blueprint $table) {
-                $table->bigIncrements('id');
-                $table->string('name');
-                $table->text('description')->nullable();
-                $table->timestamps();
-            });
-        }
-
         if (! Schema::hasTable($prefix . 'pipeline_stage_probabilities')) {
             Schema::create($prefix . 'pipeline_stage_probabilities', function (Blueprint $table) {
                 $table->bigIncrements('id');
@@ -335,7 +326,10 @@ return new class extends Migration
                 $table->decimal('tax_rate')->nullable();
                 $table->integer('tax_amount')->nullable();
                 $table->unsignedBigInteger('order_product_id')->nullable();
+                $table->unsignedBigInteger('product_variation_id')->nullable();
                 $table->text('comments')->nullable();
+                // PurchaseOrderService::update() writes the row order as of core 2.5.0.
+                $table->integer('order')->nullable();
                 $table->timestamps();
                 $table->softDeletes();
             });

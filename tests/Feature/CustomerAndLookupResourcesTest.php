@@ -7,7 +7,6 @@ use VentureDrake\LaravelCrm\Models\ContactType;
 use VentureDrake\LaravelCrm\Models\Customer;
 use VentureDrake\LaravelCrm\Models\Industry;
 use VentureDrake\LaravelCrm\Models\OrganizationType;
-use VentureDrake\LaravelCrm\Models\ProductAttribute;
 use VentureDrake\LaravelCrm\Models\Timezone;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\RelationManagers\ProductVariationsRelationManager;
@@ -21,7 +20,6 @@ use VentureDrake\LaravelCrmFilament\Resources\Customers\Pages\ViewCustomer;
 use VentureDrake\LaravelCrmFilament\Resources\Industries\IndustryResource;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
 use VentureDrake\LaravelCrmFilament\Resources\OrganizationTypes\OrganizationTypeResource;
-use VentureDrake\LaravelCrmFilament\Resources\ProductAttributes\ProductAttributeResource;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 use VentureDrake\LaravelCrmFilament\Resources\Timezones\TimezoneResource;
 use VentureDrake\LaravelCrmFilament\Services\CustomerService;
@@ -32,7 +30,6 @@ dataset('lookupResources', [
     'OrganizationType' => [OrganizationTypeResource::class, OrganizationType::class],
     'Industry' => [IndustryResource::class, Industry::class],
     'Timezone' => [TimezoneResource::class, Timezone::class],
-    'ProductAttribute' => [ProductAttributeResource::class, ProductAttribute::class],
 ]);
 
 it('binds CustomerResource to the Customer model with external_id routing', function () {
@@ -100,7 +97,7 @@ it('omits CustomerResource from the panel when the customers module is disabled'
     expect($panel->getResources())->not->toContain(CustomerResource::class);
 });
 
-it('registers all six lookup resources on the panel', function () {
+it('registers all five lookup resources on the panel', function () {
     $plugin = LaravelCrmPlugin::make();
     $panel = Filament::getPanel('admin', false) ?? Panel::make()->id('admin')->default();
     $plugin->register($panel);
@@ -111,7 +108,6 @@ it('registers all six lookup resources on the panel', function () {
         OrganizationTypeResource::class,
         IndustryResource::class,
         TimezoneResource::class,
-        ProductAttributeResource::class,
     ] as $resource) {
         expect($panel->getResources())->toContain($resource);
     }
@@ -127,10 +123,13 @@ it('no longer attaches the ProductVariations relation manager to ProductResource
     expect(ProductResource::getRelations())->not->toContain(ProductVariationsRelationManager::class);
 });
 
-it('wires a product_attribute_id Select onto the ProductVariations form', function () {
-    $source = file_get_contents((new ReflectionClass(ProductVariationsRelationManager::class))->getFileName());
-    expect($source)->toContain("Select::make('product_attribute_id')");
-    expect($source)->toContain('ProductAttribute::query()');
+it('no longer registers a Product Attributes resource, which core 2.5.0 removed', function () {
+    $plugin = LaravelCrmPlugin::make();
+    $panel = Panel::make()->id('admin-no-product-attributes');
+    $plugin->register($panel);
+
+    expect(collect($panel->getResources())->filter(fn (string $resource) => str_contains($resource, 'ProductAttribute')))->toBeEmpty();
+    expect(class_exists('VentureDrake\\LaravelCrmFilament\\Resources\\ProductAttributes\\ProductAttributeResource'))->toBeFalse();
 });
 
 it('provides a CustomerService with create+update signature', function () {

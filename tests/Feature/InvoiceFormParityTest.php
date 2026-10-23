@@ -114,6 +114,7 @@ it('LineItemsRepeater for Invoice uses invoice_line_id and unit_price', function
     expect($names)->toBe([
         'invoice_line_id',
         'id',
+        'product_variation_id',
         'unit_price',
         'quantity',
         'tax_amount',

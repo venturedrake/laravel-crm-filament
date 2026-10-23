@@ -5,10 +5,11 @@ namespace VentureDrake\LaravelCrmFilament\Services;
 use VentureDrake\LaravelCrm\Models\Customer;
 
 /**
- * Local CustomerService shim — core CRM does not yet ship one (CustomerController
- * persists directly). Mirrors the $request-fluent signature of the other core
- * services so call sites can route through ::create/::update via FormPayload.
- * Swap this out for a core service when one lands upstream.
+ * Local CustomerService shim — core CRM does not ship one. Its v1
+ * CustomerController persisted directly, and core 2.5.0 removed that controller
+ * and the `laravel-crm.customers.*` routes; the Customer model stays. Mirrors
+ * the $request-fluent signature of the other core services so call sites can
+ * route through ::create/::update via FormPayload.
  */
 class CustomerService
 {

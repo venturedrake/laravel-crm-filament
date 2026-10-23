@@ -53,7 +53,6 @@ use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Resources\Pipelines\PipelineResource;
 use VentureDrake\LaravelCrmFilament\Resources\PipelineStageProbabilities\PipelineStageProbabilityResource;
 use VentureDrake\LaravelCrmFilament\Resources\PipelineStages\PipelineStageResource;
-use VentureDrake\LaravelCrmFilament\Resources\ProductAttributes\ProductAttributeResource;
 use VentureDrake\LaravelCrmFilament\Resources\ProductCategories\ProductCategoryResource;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
@@ -393,7 +392,6 @@ class LaravelCrmPlugin implements Plugin
         $resources[] = OrganizationTypeResource::class;
         $resources[] = IndustryResource::class;
         $resources[] = TimezoneResource::class;
-        $resources[] = ProductAttributeResource::class;
         $resources[] = FieldGroupResource::class;
         $resources[] = FieldResource::class;
         $resources[] = RoleResource::class;

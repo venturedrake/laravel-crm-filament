@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\QuoteService;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -60,6 +61,7 @@ class EditQuote extends EditRecord
             ->map(fn ($line) => [
                 'quote_product_id' => $line->id,
                 'id' => $line->product_id,
+                'product_variation_id' => $line->product_variation_id,
                 'quantity' => $line->quantity,
                 'unit_price' => MoneyForm::centsToForm($line->price) ?? 0,
                 'tax_amount' => MoneyForm::centsToForm($line->tax_amount) ?? 0,
@@ -82,6 +84,10 @@ class EditQuote extends EditRecord
         $organization = array_key_exists('organization_id', $data)
             ? Organization::find($data['organization_id'])
             : $record->organization;
+
+        // Saved together, the person and organization become related
+        // contacts of each other, as core 2.5.0 does (#94).
+        app(PersonService::class)->linkToOrganization($person, $organization);
 
         app(QuoteService::class)->update(
             FormPayload::wrap($data),

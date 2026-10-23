@@ -9,6 +9,7 @@ use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\ProductPrice;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\RelationManagers\ProductPricesRelationManager;
+use VentureDrake\LaravelCrmFilament\RelationManagers\ProductVariationsRelationManager;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ViewProduct;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
@@ -84,7 +85,7 @@ it('declares content() locally on ViewProduct with Grid::make + Livewire::make a
 });
 
 // (f) Schema introspection — content() root is a Grid instance with 2 children
-// each carrying columnSpan(['lg' => 1]).
+// each carrying columnSpan(['lg' => 1]), then the full-width Variations card.
 it('content() Schema root is a Grid with two children each spanning lg-1', function (): void {
     $page = (new ReflectionClass(ViewProduct::class))->newInstanceWithoutConstructor();
     $page->record = new Product;
@@ -93,7 +94,7 @@ it('content() Schema root is a Grid with two children each spanning lg-1', funct
     $page->content($schema);
 
     $components = $schema->getComponents(withHidden: true);
-    expect($components)->toHaveCount(1);
+    expect($components)->toHaveCount(2);
     expect($components[0])->toBeInstanceOf(Grid::class);
 
     $ref = new ReflectionProperty(Grid::class, 'childComponents');
@@ -105,6 +106,9 @@ it('content() Schema root is a Grid with two children each spanning lg-1', funct
     expect($childList[0]->getColumnSpan())->toBe(['lg' => 1]);
     expect($childList[1])->toBeInstanceOf(Livewire::class);
     expect($childList[1]->getColumnSpan())->toBe(['lg' => 1]);
+
+    expect($components[1])->toBeInstanceOf(Livewire::class);
+    expect($components[1]->getComponent())->toBe(ProductVariationsRelationManager::class);
 });
 
 // (g) ProductPricesRelationManager: relationship='productPrices', isReadOnly()=true,

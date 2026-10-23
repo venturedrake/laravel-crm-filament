@@ -8,6 +8,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Livewire;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrmFilament\RelationManagers\ProductPricesRelationManager;
+use VentureDrake\LaravelCrmFilament\RelationManagers\ProductVariationsRelationManager;
 use VentureDrake\LaravelCrmFilament\Resources\Products\ProductResource;
 
 class ViewProduct extends ViewRecord
@@ -43,6 +44,8 @@ class ViewProduct extends ViewRecord
                     ->key('product-prices-' . $this->getRecord()->getKey())
                     ->columnSpan(['lg' => 1]),
             ]),
+            Livewire::make(ProductVariationsRelationManager::class, $ownerData)
+                ->key('product-variations-' . $this->getRecord()->getKey()),
         ]);
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
+use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -53,6 +54,7 @@ class EditPurchaseOrder extends EditRecord
                 'purchase_order_line_id' => $line->id,
                 'order_product_id' => $line->order_product_id,
                 'id' => $line->product_id,
+                'product_variation_id' => $line->product_variation_id,
                 'quantity' => $line->quantity,
                 'unit_price' => MoneyForm::centsToForm($line->price) ?? 0,
                 'tax_amount' => MoneyForm::centsToForm($line->tax_amount) ?? 0,
@@ -66,9 +68,6 @@ class EditPurchaseOrder extends EditRecord
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // PurchaseOrderService::update reads $request->purchaseOrderLines, create reads $request->products.
-        $data['purchaseOrderLines'] = $data['products'] ?? [];
-
         /** @var PurchaseOrder $record */
         // A cleared select arrives as null and must unlink; only a field the
         // form did not submit at all keeps the current link.
@@ -78,6 +77,10 @@ class EditPurchaseOrder extends EditRecord
         $organization = array_key_exists('organization_id', $data)
             ? Organization::find($data['organization_id'])
             : $record->organization;
+
+        // Saved together, the person and organization become related
+        // contacts of each other, as core 2.5.0 does (#94).
+        app(PersonService::class)->linkToOrganization($person, $organization);
 
         app(PurchaseOrderService::class)->update(
             FormPayload::wrap($data),

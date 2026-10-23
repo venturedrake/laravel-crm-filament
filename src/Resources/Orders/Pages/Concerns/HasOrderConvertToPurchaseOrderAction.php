@@ -12,12 +12,12 @@ use Filament\Schemas\Components\Utilities\Get;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Models\Organization;
-use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
 
 /**
  * Convert-to-PurchaseOrder action on the Order view page.
@@ -30,9 +30,10 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
  * still raised, as a single purchase order against the order's own person /
  * organization, so no selected line is silently dropped.
  *
- * Line pricing picks the supplier price (Product->getDefaultPrice()->cost_per_unit)
- * when available, falling back to the product's default unit_price and then to
- * the order line's own price.
+ * Line pricing picks the product's supplier price (cost_per_unit) when
+ * available, falling back to the unit_price (the line variation's own, in the
+ * order currency, when it has one, else the product's default price) and then
+ * to the order line's own price.
  */
 trait HasOrderConvertToPurchaseOrderAction
 {
@@ -131,8 +132,8 @@ trait HasOrderConvertToPurchaseOrderAction
 
     /**
      * Order line options keyed by order product id, as
-     * "Product name × quantity" (falling back to the line id when the product
-     * has been deleted).
+     * "Product — Variation × quantity" (falling back to the line id when the
+     * product has been deleted).
      *
      * @return array<int, string>
      */
@@ -141,7 +142,7 @@ trait HasOrderConvertToPurchaseOrderAction
         $options = [];
 
         foreach ($record->orderProducts as $orderProduct) {
-            $name = optional($orderProduct->product)->name ?? '#' . $orderProduct->id;
+            $name = $orderProduct->displayName() ?: '#' . $orderProduct->id;
 
             // Quantity::format drops trailing zeros, so 2.000 reads "2"
             // and 3.500 reads "3.5" — a (float) cast renders 3.5 as "3.5" but
@@ -187,7 +188,7 @@ trait HasOrderConvertToPurchaseOrderAction
             // order raised against the order's own person / organization.
             $key = ($supplierId === null || $supplierId === '') ? '' : (int) $supplierId;
 
-            $groups[$key][] = $this->purchaseOrderLineFromOrderProduct($orderProduct);
+            $groups[$key][] = $this->purchaseOrderLineFromOrderProduct($orderProduct, $record->currency);
         }
 
         $payloads = [];
@@ -230,13 +231,14 @@ trait HasOrderConvertToPurchaseOrderAction
     /**
      * @return array<string, mixed>
      */
-    protected function purchaseOrderLineFromOrderProduct(OrderProduct $orderProduct): array
+    protected function purchaseOrderLineFromOrderProduct(OrderProduct $orderProduct, ?string $currency = null): array
     {
-        $unitPrice = $this->resolveSupplierUnitPrice($orderProduct->product_id, $orderProduct->price);
+        $unitPrice = $this->resolveSupplierUnitPrice($orderProduct, $currency);
         $quantity = Quantity::toFloat($orderProduct->quantity);
 
         return [
             'id' => $orderProduct->product_id,
+            'product_variation_id' => $orderProduct->product_variation_id,
             'order_product_id' => $orderProduct->id,
             'quantity' => $orderProduct->quantity,
             'unit_price' => $unitPrice,
@@ -245,20 +247,13 @@ trait HasOrderConvertToPurchaseOrderAction
         ];
     }
 
-    private function resolveSupplierUnitPrice(?int $productId, ?int $orderProductPriceCents): float
+    private function resolveSupplierUnitPrice(OrderProduct $orderProduct, ?string $currency): float
     {
-        if ($productId && $product = Product::find($productId)) {
-            $price = $product->getDefaultPrice();
-
-            if ($price && $price->cost_per_unit) {
-                return $price->cost_per_unit / 100;
-            }
-
-            if ($price && $price->unit_price) {
-                return $price->unit_price / 100;
-            }
-        }
-
-        return $orderProductPriceCents !== null ? $orderProductPriceCents / 100 : 0;
+        return LineItemVariation::supplierUnitPrice(
+            $orderProduct->product_id,
+            $orderProduct->product_variation_id,
+            $currency,
+            $orderProduct->price,
+        );
     }
 }

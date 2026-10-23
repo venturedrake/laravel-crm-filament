@@ -17,7 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
-use VentureDrake\LaravelCrm\Models\Product;
+use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrm\Support\Quantity;
@@ -55,6 +55,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 class OrderResource extends Resource
@@ -496,12 +497,13 @@ class OrderResource extends Resource
         $products = [];
 
         foreach ($record->orderProducts as $orderProduct) {
-            $unitPrice = static::resolveSupplierUnitPriceStatic($orderProduct->product_id, $orderProduct->price);
+            $unitPrice = static::resolveSupplierUnitPriceStatic($orderProduct, $record->currency);
             $quantity = Quantity::toFloat($orderProduct->quantity);
             $amount = $unitPrice * $quantity;
 
             $products[] = [
                 'id' => $orderProduct->product_id,
+                'product_variation_id' => $orderProduct->product_variation_id,
                 'order_product_id' => $orderProduct->id,
                 'quantity' => $orderProduct->quantity,
                 'unit_price' => $unitPrice,
@@ -524,21 +526,14 @@ class OrderResource extends Resource
         ];
     }
 
-    protected static function resolveSupplierUnitPriceStatic(?int $productId, ?int $orderProductPriceCents): float
+    protected static function resolveSupplierUnitPriceStatic(OrderProduct $orderProduct, ?string $currency): float
     {
-        if ($productId && $product = Product::find($productId)) {
-            $price = $product->getDefaultPrice();
-
-            if ($price && $price->cost_per_unit) {
-                return $price->cost_per_unit / 100;
-            }
-
-            if ($price && $price->unit_price) {
-                return $price->unit_price / 100;
-            }
-        }
-
-        return $orderProductPriceCents !== null ? $orderProductPriceCents / 100 : 0;
+        return LineItemVariation::supplierUnitPrice(
+            $orderProduct->product_id,
+            $orderProduct->product_variation_id,
+            $currency,
+            $orderProduct->price,
+        );
     }
 
     protected static function renderOrderPdfToDisk(Order $record): string

@@ -29,6 +29,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\EditProduct;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ListProducts;
 use VentureDrake\LaravelCrmFilament\Resources\Products\Pages\ViewProduct;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class ProductResource extends Resource
 {
@@ -124,7 +125,78 @@ class ProductResource extends Resource
             $components[] = $customFields;
         }
 
+        $components[] = static::variationsSection();
+
         return $schema->components($components);
+    }
+
+    /**
+     * Core 2.5.0 product variations. The rows are handed to
+     * ProductService::syncVariations() as `variations`: a row with an id
+     * updates that variation, one without creates it, and a removed row is
+     * soft-deleted, so lines on it keep their label. The row order becomes the
+     * display order. Each row has one price, in the product's own currency.
+     */
+    protected static function variationsSection(): Section
+    {
+        return Section::make(__('laravel-crm-filament::labels.sections.variations'))
+            ->description(__('laravel-crm-filament::labels.money.variation_price_fallback'))
+            ->schema([
+                Forms\Components\Repeater::make('variations')
+                    ->hiddenLabel()
+                    ->schema([
+                        Forms\Components\Hidden::make('id'),
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+                        Grid::make(4)->schema([
+                            Forms\Components\TextInput::make('code')
+                                ->label(__('laravel-crm-filament::labels.money.sku'))
+                                ->maxLength(255),
+                            Forms\Components\TextInput::make('barcode')
+                                ->label(__('laravel-crm-filament::labels.money.barcode'))
+                                ->maxLength(255),
+                            Forms\Components\TextInput::make('unit_price')
+                                ->label(__('laravel-crm-filament::labels.money.price'))
+                                ->numeric()
+                                ->minValue(0),
+                            Forms\Components\Toggle::make('active')
+                                ->label(__('laravel-crm-filament::labels.fields.active'))
+                                ->default(true)
+                                ->inline(false),
+                        ]),
+                    ])
+                    ->itemLabel(fn (array $state): ?string => filled($state['name'] ?? null) ? $state['name'] : null)
+                    ->addActionLabel(__('laravel-crm-filament::labels.actions.add_variation'))
+                    ->defaultItems(0)
+                    ->reorderable()
+                    ->collapsible(),
+            ])
+            ->collapsible()
+            ->columnSpanFull();
+    }
+
+    /**
+     * Repeater rows for a product's variations, each priced in $currency
+     * (major units), or null where the variation has no price of its own in
+     * that currency.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function variationRows(Product $product, ?string $currency): array
+    {
+        return $product->productVariations()
+            ->with('productPrices')
+            ->get()
+            ->map(fn ($variation) => [
+                'id' => $variation->id,
+                'name' => $variation->name,
+                'code' => $variation->code,
+                'barcode' => $variation->barcode,
+                'unit_price' => MoneyForm::centsToForm($variation->priceFor($currency)?->unit_price),
+                'active' => (bool) $variation->active,
+            ])
+            ->all();
     }
 
     public static function table(Table $table): Table
@@ -152,7 +224,13 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('code')
                     ->label(__('laravel-crm-filament::labels.money.sku'))
                     ->sortable()
-                    ->searchable()
+                    // A variation's SKU finds its parent product, as core's
+                    // products index does from 2.5.0.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(
+                        fn (Builder $query) => $query
+                            ->where('code', 'like', "%{$search}%")
+                            ->orWhereHas('productVariations', fn (Builder $variations) => $variations->where('code', 'like', "%{$search}%"))
+                    ))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('productCategory.name')

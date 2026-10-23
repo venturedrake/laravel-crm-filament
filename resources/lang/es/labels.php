@@ -294,6 +294,10 @@ return [
         'product_category' => 'Categoría de producto',
         'pdf_template' => 'Plantilla PDF',
         'remaining' => 'restante',
+        'variation' => 'Variante',
+        'no_variation' => '— Ninguna —',
+        'variation_price_fallback' => 'Una variante sin precio propio se vende al precio del producto.',
+        'no_variations' => 'Este producto no tiene variantes.',
         'remaining_on_order_line' => 'Quedan :quantity en esta línea de pedido',
     ],
 
@@ -411,6 +415,7 @@ return [
         'localisation' => 'Localización',
         'pipeline_stages' => 'Etapas del pipeline',
         'usage' => 'Uso',
+        'variations' => 'Variantes',
     ],
 
     'actions' => [
@@ -419,6 +424,7 @@ return [
         'edit' => 'Editar',
         'delete' => 'Eliminar',
         'add_line_item' => 'Añadir línea',
+        'add_variation' => 'Añadir variante',
         'create_product' => 'Crear producto',
         'save_sync_settings' => 'Guardar ajustes de sincronización',
         'save_changes' => 'Guardar cambios',
@@ -554,7 +560,6 @@ return [
         'crm_role' => 'Rol CRM',
         'has_crm_access' => 'Tiene acceso al CRM',
         'hours_before' => 'Horas antes',
-        'attribute' => 'Atributo',
         'diff_from_gmt' => 'Diferencia GMT',
         'private' => 'Privado',
     ],

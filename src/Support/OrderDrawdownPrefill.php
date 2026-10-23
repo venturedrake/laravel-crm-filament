@@ -49,6 +49,7 @@ class OrderDrawdownPrefill
 
             return [
                 'id' => $orderProduct->product_id,
+                'product_variation_id' => $orderProduct->product_variation_id,
                 'order_product_id' => $orderProduct->id,
                 'quantity' => $remaining,
                 'unit_price' => $unitPrice,

@@ -67,6 +67,7 @@ it('LineItemsRepeater produces a reorderable Repeater with the expected FK and r
     expect($names)->toBe([
         'deal_product_id',
         'id',
+        'product_variation_id',
         'price',
         'quantity',
         'amount',

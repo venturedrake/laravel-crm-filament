@@ -12,6 +12,7 @@ use VentureDrake\LaravelCrm\Services\ProductService;
 use VentureDrake\LaravelCrm\Support\Money;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
+use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
 
@@ -20,7 +21,8 @@ use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
  * and PurchaseOrder create/edit forms.
  *
  * Row layout (mirroring core CRM's tfoot stacked rows):
- *   row 1 — hidden FK + product Select (full width)
+ *   row 1 — hidden FK + product Select (full width), then the variation
+ *           Select when the product has variations
  *   row 2 — nested Grid: unit_price + quantity + tax_amount + amount
  *           (3-col on Deal — no tax_amount)
  *   row 3 — comments Textarea (full width, 2 rows)
@@ -126,10 +128,38 @@ class LineItemsRepeater
                     ->createOptionUsing(fn (array $data) => self::createProduct($data))
                     ->live()
                     ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
-                        $product = Product::find($state);
-                        if ($product && method_exists($product, 'getDefaultPrice')) {
-                            $price = $product->getDefaultPrice();
-                            $set($priceField, $price ? $price->unit_price / 100 : 0);
+                        // A variation belongs to one product, so a new product
+                        // clears it. With no variation the price is the
+                        // product's default price (getDefaultPrice()), exactly
+                        // as before variations existed.
+                        $set('product_variation_id', null);
+
+                        $price = LineItemVariation::unitPrice($state, null, self::documentCurrency($get));
+                        if ($price !== null) {
+                            $set($priceField, $price);
+                        }
+                        self::recalcRow($get, $set, $priceField);
+                        self::recalcFormTotals($get, $set);
+                    }),
+                // Core 2.5.0 product variations. Only a product with active
+                // variations gets the select - or a line already on one, which
+                // keeps it listed once it has been deactivated or deleted.
+                // Hidden, it is not submitted, and core's services store null.
+                Forms\Components\Select::make('product_variation_id')
+                    ->label(__('laravel-crm-filament::labels.money.variation'))
+                    ->placeholder(__('laravel-crm-filament::labels.money.no_variation'))
+                    ->options(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')))
+                    ->visible(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')) !== [])
+                    ->live()
+                    ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
+                        $productId = $get('id');
+                        $variation = LineItemVariation::resolve($productId, $state);
+
+                        // Falls back to the product price when the variation
+                        // has none in the document currency.
+                        $price = LineItemVariation::unitPrice($productId, $variation?->getKey(), self::documentCurrency($get));
+                        if ($price !== null) {
+                            $set($priceField, $price);
                         }
                         self::recalcRow($get, $set, $priceField);
                         self::recalcFormTotals($get, $set);
@@ -245,6 +275,18 @@ class LineItemsRepeater
             : null;
 
         return is_string($currency) && $currency !== '' ? $currency : 'USD';
+    }
+
+    /**
+     * The document's currency, from a field directly on a row. A variation is
+     * priced in it; null (a form without a currency field) means the install
+     * currency, as core's ModelProducts does when no currency is bound.
+     */
+    private static function documentCurrency($get): ?string
+    {
+        $currency = $get('../../currency');
+
+        return is_string($currency) && $currency !== '' ? $currency : null;
     }
 
     /**

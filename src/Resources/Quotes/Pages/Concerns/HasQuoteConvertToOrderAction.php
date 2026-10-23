@@ -64,6 +64,7 @@ trait HasQuoteConvertToOrderAction
         foreach ($record->quoteProducts as $quoteProduct) {
             $products[] = [
                 'id' => $quoteProduct->product_id,
+                'product_variation_id' => $quoteProduct->product_variation_id,
                 'quote_product_id' => $quoteProduct->id,
                 'quantity' => $quoteProduct->quantity,
                 'unit_price' => $quoteProduct->price !== null ? $quoteProduct->price / 100 : 0,
@@ -87,7 +88,7 @@ trait HasQuoteConvertToOrderAction
             'user_owner_id' => $record->user_owner_id,
             'products' => $products,
             'addresses' => [],
-            'labels' => $record->labels()->pluck($record->labels()->getTable() . '.id')->all(),
+            'labels' => $record->labels()->pluck($record->labels()->getRelated()->qualifyColumn('id'))->all(),
         ];
     }
 

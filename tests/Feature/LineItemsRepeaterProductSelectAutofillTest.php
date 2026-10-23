@@ -155,8 +155,10 @@ it('triggers recalcRow tax_amount computation when priceField is unit_price', fu
 it('source contains the bug-fix invariants for US-004', function () {
     $src = file_get_contents(__DIR__ . '/../../src/Concerns/Forms/LineItemsRepeater.php');
 
-    // Reads unit_price column from getDefaultPrice (NOT $price->price).
-    expect($src)->toContain('$price->unit_price / 100');
+    // Prices through LineItemVariation::unitPrice(), i.e. core 2.5.0's
+    // Product::unitPriceFor(), which reads the unit_price column of
+    // getDefaultPrice() for a line with no variation (NOT $price->price).
+    expect($src)->toContain('LineItemVariation::unitPrice($state, null, self::documentCurrency($get))');
     expect($src)->not->toContain('$price->price /');
 
     // Closure signature picks up $get so it can drive recalc helpers.
