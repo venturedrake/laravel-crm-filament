@@ -49,6 +49,12 @@ link, and the purchase-order line fix.
 
 ### Fixed
 
+- **Tables could not be scrolled sideways after a Filament update.** A host whose composer hooks
+  never ran `filament:upgrade` kept serving the Filament stylesheet from its first install. On
+  Filament v5 that copy sized the content area at `100vw` beside the sidebar, so the right-hand
+  side of every resource table, scrollbar included, sat off-screen. `laravelcrm:filament-upgrade`,
+  which the installer adds to `post-autoload-dump`, now runs `filament:assets` too, so every
+  `composer install` republishes the stylesheet for the installed Filament release.
 - **A contact person and an organization saved together were never linked to each other.**
   Saving a lead, deal, quote, order, invoice or purchase order with both now makes them related
   contacts of each other, through core's `PersonService::linkToOrganization()`. An existing link is

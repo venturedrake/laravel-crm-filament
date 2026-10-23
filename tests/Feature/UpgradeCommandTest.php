@@ -54,6 +54,18 @@ class ThrowingCacheClearCommand extends Command
     }
 }
 
+class ThrowingAssetsCommand extends Command
+{
+    protected $signature = 'filament:assets';
+
+    protected $description = 'An asset publish that blows up.';
+
+    public function handle(): int
+    {
+        throw new RuntimeException('public/ is not writable');
+    }
+}
+
 /**
  * The command source, for the guarantees that are properties of the code rather
  * than of any observable state.
@@ -68,7 +80,7 @@ beforeEach(function () {
 });
 
 it('clears the Filament component cache and the framework caches, and exits SUCCESS', function () {
-    foreach ([UpgradeCommand::FILAMENT_CACHE_COMMAND, ...UpgradeCommand::CACHE_COMMANDS] as $name) {
+    foreach ([UpgradeCommand::FILAMENT_CACHE_COMMAND, UpgradeCommand::FILAMENT_ASSETS_COMMAND, ...UpgradeCommand::CACHE_COMMANDS] as $name) {
         Artisan::registerCommand(new FakeCacheClearCommand($name));
     }
 
@@ -134,4 +146,30 @@ it('does not call core laravelcrm:upgrade, which has its own composer hook', fun
     // double the work on every composer install.
     expect(upgradeCommandSource())->not->toContain("call('laravelcrm:upgrade'")
         ->not->toContain("callSilent('laravelcrm:upgrade'");
+});
+
+it('republishes Filament\'s assets, so the stylesheet matches the installed Filament', function () {
+    // A host whose composer hooks never run filament:upgrade kept serving the
+    // stylesheet from its first install. Filament v5's old
+    // `.fi-main-ctn { width: 100vw }` then pushed every table's horizontal
+    // scrollbar off-screen.
+    Artisan::registerCommand(new FakeCacheClearCommand(UpgradeCommand::FILAMENT_ASSETS_COMMAND));
+
+    $this->artisan('laravelcrm:filament-upgrade')->assertSuccessful();
+
+    expect(FakeCacheClearCommand::$calls)->toHaveKey(UpgradeCommand::FILAMENT_ASSETS_COMMAND);
+});
+
+it('survives an asset publish that throws, rather than failing the composer run', function () {
+    Artisan::registerCommand(new ThrowingAssetsCommand);
+
+    $this->artisan('laravelcrm:filament-upgrade')
+        ->expectsOutputToContain('Could not run filament:assets')
+        ->assertSuccessful();
+});
+
+it('probes for filament:assets rather than assuming it is registered', function () {
+    expect(Artisan::all())->toHaveKey(UpgradeCommand::FILAMENT_ASSETS_COMMAND);
+
+    expect(upgradeCommandSource())->toContain('$application->has(self::FILAMENT_ASSETS_COMMAND)');
 });

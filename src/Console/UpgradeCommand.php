@@ -26,9 +26,16 @@ use VentureDrake\LaravelCrmFilament\LaravelCrmFilamentServiceProvider;
  *  - It exits SUCCESS when there is nothing it can do, rather than failing the
  *    composer run.
  *
- * Thinner than core's because this package ships no compiled assets — there is
- * nothing to publish into public/ and no content-hashed bundle to prune. What
- * is left is cache clearing, and `filament:optimize-clear` is the load-bearing
+ * Thinner than core's because this package ships no compiled assets of its
+ * own — no content-hashed bundle to prune. It does republish Filament's
+ * (`filament:assets`): the panel renders with whatever copy of Filament's CSS
+ * and JS sits in public/, and a host whose composer hooks never run
+ * `filament:upgrade` keeps serving the copy from its first install after
+ * Filament itself has moved on. Markup from the new release styled by the old
+ * stylesheet breaks in ways that look like panel bugs — v5's old
+ * `.fi-main-ctn { width: 100vw }` pushed every table's scrollbar off-screen.
+ *
+ * The rest is cache clearing, and `filament:optimize-clear` is the load-bearing
  * one: Filament caches the panel's discovered components under
  * bootstrap/cache/filament/, so a host that cached them before the upgrade
  * simply does not see the new resources and pages.
@@ -61,15 +68,23 @@ class UpgradeCommand extends Command
      */
     public const FILAMENT_CACHE_COMMAND = 'filament:optimize-clear';
 
+    /**
+     * Republishes Filament's CSS and JS into public/, so the stylesheet matches
+     * the installed Filament release.
+     */
+    public const FILAMENT_ASSETS_COMMAND = 'filament:assets';
+
     protected $signature = 'laravelcrm:filament-upgrade';
 
-    protected $description = 'Clear cached Filament components, config, routes and views. Safe to run on every composer install — touches no database';
+    protected $description = 'Republish Filament\'s assets and clear cached Filament components, config, routes and views. Safe to run on every composer install — touches no database';
 
     public function handle(): int
     {
         $this->info('Upgrading the Laravel CRM Filament panel...');
 
         $this->clearFilamentComponentCache();
+
+        $this->publishFilamentAssets();
 
         $this->info('Clearing cached config, routes and views...');
 
@@ -206,6 +221,33 @@ class UpgradeCommand extends Command
             // worked but the panel does not show it".
             $this->warn('Could not run ' . self::FILAMENT_CACHE_COMMAND . ': ' . $e->getMessage());
             $this->warn('Run "php artisan ' . self::FILAMENT_CACHE_COMMAND . '" manually, or new CRM resources and pages may not appear.');
+        }
+    }
+
+    /**
+     * Republish Filament's CSS and JS into public/.
+     *
+     * Probed for the same reason as clearFilamentComponentCache(). A failure
+     * warns rather than fails: a read-only public/ on a build box is not a
+     * broken install, and the stale copy it leaves still renders.
+     */
+    protected function publishFilamentAssets(): void
+    {
+        $application = $this->getApplication();
+
+        if ($application === null || ! $application->has(self::FILAMENT_ASSETS_COMMAND)) {
+            $this->info('Skipping ' . self::FILAMENT_ASSETS_COMMAND . ': the command is not registered.');
+
+            return;
+        }
+
+        $this->info('Publishing Filament assets...');
+
+        try {
+            $this->callSilent(self::FILAMENT_ASSETS_COMMAND);
+        } catch (Throwable $e) {
+            $this->warn('Could not run ' . self::FILAMENT_ASSETS_COMMAND . ': ' . $e->getMessage());
+            $this->warn('Run "php artisan ' . self::FILAMENT_ASSETS_COMMAND . '" manually, or the panel may render with a stylesheet from an older Filament release.');
         }
     }
 }

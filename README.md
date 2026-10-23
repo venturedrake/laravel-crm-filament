@@ -32,7 +32,7 @@ Once the CRM package is confirmed installed, the command inspects the host app f
 - **Only the plugin's own `crm` panel already installed** → re-runs the standalone publish (use `--force` to overwrite).
 - **One or more other panels detected** → asks whether to publish a standalone `/crm` panel or inject the plugin into an existing panel.
 
-Either way it publishes and runs the plugin's own migration, records the panel database version it has just brought the schema up to (so a fresh install does not report an update it has already applied), and appends `@php artisan laravelcrm:filament-upgrade --ansi` to your `composer.json` `post-autoload-dump` scripts, so future `composer install` runs clear the cached Filament panel components for you — see [Updating](#updating). Pass `--no-composer-hook` to skip that. If your `composer.json` cannot be parsed it is left untouched and the line to add is printed instead.
+Either way it publishes and runs the plugin's own migration, records the panel database version it has just brought the schema up to (so a fresh install does not report an update it has already applied), and appends `@php artisan laravelcrm:filament-upgrade --ansi` to your `composer.json` `post-autoload-dump` scripts, so future `composer install` runs republish Filament's assets and clear the cached Filament panel components for you — see [Updating](#updating). Pass `--no-composer-hook` to skip that. If your `composer.json` cannot be parsed it is left untouched and the line to add is printed instead.
 
 ### Branch A — standalone `/crm` panel
 
@@ -94,7 +94,7 @@ Two commands, mirroring the split `venturedrake/laravel-crm` uses:
 
 | Command | Does | When |
 | --- | --- | --- |
-| `laravelcrm:filament-upgrade` | Clears the cached Filament panel components, config, routes and views. **Never touches the database, never prompts.** | Automatically, from your app's `post-autoload-dump` composer hook — so `composer install` on a production box does it too |
+| `laravelcrm:filament-upgrade` | Republishes Filament's CSS and JS (`filament:assets`) and clears the cached Filament panel components, config, routes and views. **Never touches the database, never prompts.** | Automatically, from your app's `post-autoload-dump` composer hook — so `composer install` on a production box does it too |
 | `laravelcrm:filament-update` | Runs `laravelcrm:filament-upgrade`, then `laravelcrm:update`, then publishes and runs this package's migrations. Exits non-zero if any of it fails. | Explicitly, by you or your deploy script |
 
 `laravelcrm:filament-update` runs **`laravelcrm:update` before its own migrations** — core's schema
