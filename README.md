@@ -272,7 +272,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
   in 2.4.4.
 - **Contact and organization pickers work with `encrypt_db_fields` on**, matching core 2.4.6.
 
-### Unreleased — core 2.5.0 parity
+### v1.4 — core 2.5.0 parity
 
 - **Product variations.** The product form has a Variations section (SKU, barcode, price, active,
   order), and the product view page lists them. Line items on deals, quotes, orders, invoices and

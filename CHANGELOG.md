@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-23
+
 Catches up to `venturedrake/laravel-crm` 2.5.0: product variations, the contact ↔ organization
 link, and the purchase-order line fix.
 
@@ -726,6 +728,7 @@ These landed on `develop` after 1.0.0 and were never written up. They ship in 1.
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.4.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.4.0
 [1.3.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.3.0
 [1.2.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.2.0
 [1.1.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.1.0
