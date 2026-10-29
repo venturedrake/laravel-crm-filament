@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+Catches up to `venturedrake/laravel-crm` 2.6.0: the order form and delivery options, line
+ordering, and the v1 → v2 upgrade guard.
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `~2.6.0`** (was `~2.5.0`). The panel reads the new order
+  form and delivery options through core 2.6.0's `Support\FormOptions` and
+  `Support\DeliveryOptions`, and passes them to the `OrderService` and `DeliveryService` arguments
+  that 2.6.0 added. Update both packages together:
+
+  ```bash
+  composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
+  php artisan laravelcrm:filament-update
+  ```
+
+  Core 2.6.0 has no new migrations. A host still on a v1 CRM database must run
+  `php artisan laravelcrm:v2` first. See Changed.
+
+### Added
+
+- **Order form options (`laravel-crm.orders.form`).** The panel's order form follows the same
+  keys as core's:
+  - `description`, `labels` and `custom_fields` set to `false` remove those fields.
+  - `unallocated_owner` set to `false` makes the owner required. A new order defaults to the
+    signed-in user, and an order with no owner opens on the signed-in user.
+  - `addresses` lists the address tabs to show (`['billing', 'shipping']`). With one listed, it
+    is shown as a card titled for that type, without tabs. With none, the card is removed.
+
+  Hidden fields are never cleared. On edit, an existing description, labels, custom field values
+  and an address of an unlisted type are kept, because the pages pass the options on to
+  `OrderService`.
+- **Delivery options (`laravel-crm.deliveries`).** `delivered_on` set to `false` removes
+  "Delivered on" from the delivery form, table, view page and CSV export. Saving no longer writes
+  the column, so a stored date is kept. The navigation badge, which counts deliveries not yet
+  delivered, is hidden too, because with this setting every delivery would count.
+  `delivery_expected_label` names a `laravel-crm::lang` key for the expected date's label. Left
+  at the default, or set to a key that does not exist, the panel keeps its own "Expected" label.
+  The delivery PDFs are rendered by core and pick up the label themselves.
+
+### Changed
+
+- **`laravelcrm:filament-update` and `laravelcrm:filament-install` refuse to run on a v1 CRM
+  database.** Core 2.6.0 refuses `migrate` and `laravelcrm:update` while a v1 table
+  (`organisations`, `organisation_types`, `clients`) exists. Running either before
+  `laravelcrm:v2` creates empty v2 tables next to the v1 ones, and the v1 data is then stranded.
+  Core's check only runs for the command typed at the prompt, not for one run from inside another
+  command, and the panel's commands run both that way. They now run core's check first, print its
+  message, and exit `1` before changing anything.
+
+### Fixed
+
+- **Line items lost their order when a document was reopened.** The line items repeater can be
+  reordered, and core saves each line's position. But the quote, order, invoice and
+  purchase-order edit pages loaded lines in creation order, so the next save put them back. Edit
+  pages now load lines in their saved order. Quote → order, order → invoice, order → delivery and
+  order → purchase order conversions also copy lines in that order.
+- **A chat conversation whose lead was deleted could not be converted again.** "Convert to lead"
+  was hidden whenever `lead_id` was set. It is now hidden only while the lead exists, as in core
+  2.6.0. The conversations table eager-loads the visitor, latest message and lead.
+- **Editing an invoice changed the tax on its existing lines.** The bug was in core's
+  `InvoiceService::update()`, and core 2.6.0 fixes it. The panel's invoice edit page now has a
+  regression test for it.
+- **Deleting a user who owns CRM records failed with an integrity violation.** Core 2.6.0's
+  `UserObserver` now releases the user's CRM references before the delete, so the panel's user
+  delete actions work. A user who owns a team still cannot be deleted.
+
 ## [1.4.0] - 2026-10-23
 
 Catches up to `venturedrake/laravel-crm` 2.5.0: product variations, the contact ↔ organization

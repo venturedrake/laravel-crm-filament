@@ -204,6 +204,7 @@ return [
         'collect' => 'Retrait',
         'delivery_address' => 'Adresse de livraison',
         'delivery_instructions' => 'Instructions de livraison',
+        'billing_address' => 'Adresse de facturation',
         'shipping_address' => 'Adresse de livraison',
         'features' => 'Fonctionnalités',
         'monitoring' => 'Surveillance',

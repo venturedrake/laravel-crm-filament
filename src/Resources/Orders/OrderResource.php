@@ -20,6 +20,7 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrm\Support\FormOptions;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
@@ -96,11 +97,23 @@ class OrderResource extends Resource
         return 'info';
     }
 
+    /**
+     * Core 2.6.0's install-wide order form toggles (config
+     * laravel-crm.orders.form). The create and edit pages pass the same
+     * object to OrderService, so a field the form hides is left as stored.
+     */
+    public static function orderForm(): FormOptions
+    {
+        return FormOptions::for('orders');
+    }
+
     public static function form(Schema $schema): Schema
     {
+        $orderForm = static::orderForm();
+
         $details = SalesDetailsSection::make([
             'title' => false,
-            'description' => true,
+            'description' => $orderForm->shows('description'),
             'reference' => true,
             'currency' => true,
             'issueDateKey' => null,
@@ -108,20 +121,23 @@ class OrderResource extends Resource
             'terms' => false,
             'stage' => false,
             'owner' => true,
+            'ownerRequired' => ! $orderForm->allowsUnallocatedOwner(),
             'pdfTemplate' => 'order',
-            'labels' => true,
+            'labels' => $orderForm->shows('labels'),
             'labelsField' => fn () => static::labelsField(),
-            'customFields' => static::crmCustomFieldsSection(Order::class),
+            'customFields' => $orderForm->shows('custom_fields')
+                ? static::crmCustomFieldsSection(Order::class)
+                : null,
         ]);
 
         return $schema->components([
             Grid::make(['default' => 1, 'lg' => 2])->columnSpanFull()->schema([
                 Grid::make(1)
                     ->columnSpan(['lg' => 1])
-                    ->schema([
+                    ->schema(array_values(array_filter([
                         $details,
-                        OrderAddressTabs::make(),
-                    ]),
+                        OrderAddressTabs::make($orderForm->addressTypes()),
+                    ]))),
 
                 Section::make(__('laravel-crm-filament::labels.sections.products'))
                     ->columnSpan(['lg' => 1])
@@ -496,7 +512,7 @@ class OrderResource extends Resource
     {
         $products = [];
 
-        foreach ($record->orderProducts as $orderProduct) {
+        foreach ($record->orderProducts()->orderBy('order')->orderBy('id')->get() as $orderProduct) {
             $unitPrice = static::resolveSupplierUnitPriceStatic($orderProduct, $record->currency);
             $quantity = Quantity::toFloat($orderProduct->quantity);
             $amount = $unitPrice * $quantity;

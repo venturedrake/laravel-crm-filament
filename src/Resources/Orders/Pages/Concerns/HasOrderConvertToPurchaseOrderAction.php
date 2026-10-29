@@ -141,7 +141,7 @@ trait HasOrderConvertToPurchaseOrderAction
     {
         $options = [];
 
-        foreach ($record->orderProducts as $orderProduct) {
+        foreach ($record->orderProducts()->orderBy('order')->orderBy('id')->get() as $orderProduct) {
             $name = $orderProduct->displayName() ?: '#' . $orderProduct->id;
 
             // Quantity::format drops trailing zeros, so 2.000 reads "2"
@@ -175,7 +175,7 @@ trait HasOrderConvertToPurchaseOrderAction
 
         $groups = [];
 
-        foreach ($record->orderProducts as $orderProduct) {
+        foreach ($record->orderProducts()->orderBy('order')->orderBy('id')->get() as $orderProduct) {
             if ($selected !== null && ! in_array((int) $orderProduct->id, $selected, true)) {
                 continue;
             }

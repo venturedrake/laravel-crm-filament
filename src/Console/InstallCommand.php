@@ -10,6 +10,7 @@ use Illuminate\Filesystem\Filesystem;
 use ReflectionClass;
 use stdClass;
 use Throwable;
+use VentureDrake\LaravelCrmFilament\Console\Concerns\GuardsCrmV2Upgrade;
 use VentureDrake\LaravelCrmFilament\Console\Concerns\ProbesConsoleCommands;
 use VentureDrake\LaravelCrmFilament\Console\Concerns\StampsPanelDbVersion;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
@@ -17,6 +18,7 @@ use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 
 class InstallCommand extends Command
 {
+    use GuardsCrmV2Upgrade;
     use ProbesConsoleCommands;
     use StampsPanelDbVersion;
 
@@ -46,6 +48,14 @@ class InstallCommand extends Command
     public function handle(Filesystem $files): int
     {
         if (! $this->ensureTenancySupported()) {
+            return self::FAILURE;
+        }
+
+        // Before the nested laravelcrm:install and migrate, which would
+        // strand a v1 database's data. See GuardsCrmV2Upgrade.
+        if ($blocker = $this->crmV2UpgradeBlocker('migrate')) {
+            $this->components->error($blocker);
+
             return self::FAILURE;
         }
 

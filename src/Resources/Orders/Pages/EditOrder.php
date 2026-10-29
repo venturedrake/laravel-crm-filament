@@ -47,7 +47,16 @@ class EditOrder extends EditRecord
 
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
-        $data['products'] = $order->orderProducts
+        // Without "Unallocated" on offer, an order with no owner opens on the
+        // signed-in user, as core's OrderEdit does.
+        if (empty($data['user_owner_id']) && ! OrderResource::orderForm()->allowsUnallocatedOwner()) {
+            $data['user_owner_id'] = auth()->id();
+        }
+
+        $data['products'] = $order->orderProducts()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get()
             ->map(fn ($line) => [
                 'order_product_id' => $line->id,
                 'id' => $line->product_id,
@@ -77,20 +86,28 @@ class EditOrder extends EditRecord
             ? Organization::find($data['organization_id'])
             : $record->organization;
 
-        $data['addresses'] = OrderAddressTabs::fromFormData($data);
+        $form = OrderResource::orderForm();
+
+        $data['addresses'] = OrderAddressTabs::fromFormData($data, $form->addressTypes());
 
         // Saved together, the person and organization become related
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
+        // With the form options, a hidden description, hidden labels and an
+        // address of a hidden type are left as stored.
         app(OrderService::class)->update(
             FormPayload::wrap($data),
             $record,
             $person,
             $organization,
             $record->client,
+            form: $form,
         );
-        OrderResource::saveCrmCustomFields($data, $record);
+
+        if ($form->shows('custom_fields')) {
+            OrderResource::saveCrmCustomFields($data, $record);
+        }
 
         return $record->refresh();
     }

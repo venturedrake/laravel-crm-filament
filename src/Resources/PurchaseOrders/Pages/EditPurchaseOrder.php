@@ -49,7 +49,10 @@ class EditPurchaseOrder extends EditRecord
 
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
-        $data['products'] = $po->purchaseOrderLines
+        $data['products'] = $po->purchaseOrderLines()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get()
             ->map(fn ($line) => [
                 'purchase_order_line_id' => $line->id,
                 'order_product_id' => $line->order_product_id,

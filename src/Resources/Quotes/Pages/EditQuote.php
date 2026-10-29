@@ -57,7 +57,10 @@ class EditQuote extends EditRecord
 
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
-        $data['products'] = $quote->quoteProducts
+        $data['products'] = $quote->quoteProducts()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get()
             ->map(fn ($line) => [
                 'quote_product_id' => $line->id,
                 'id' => $line->product_id,

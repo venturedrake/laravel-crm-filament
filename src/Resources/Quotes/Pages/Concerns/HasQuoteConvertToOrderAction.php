@@ -61,7 +61,7 @@ trait HasQuoteConvertToOrderAction
     {
         $products = [];
 
-        foreach ($record->quoteProducts as $quoteProduct) {
+        foreach ($record->quoteProducts()->orderBy('order')->orderBy('id')->get() as $quoteProduct) {
             $products[] = [
                 'id' => $quoteProduct->product_id,
                 'product_variation_id' => $quoteProduct->product_variation_id,

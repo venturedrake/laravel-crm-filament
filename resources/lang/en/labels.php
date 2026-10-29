@@ -207,6 +207,7 @@ return [
         'collect' => 'Collect',
         'delivery_address' => 'Delivery address',
         'delivery_instructions' => 'Delivery instructions',
+        'billing_address' => 'Billing address',
         'shipping_address' => 'Shipping address',
         'features' => 'Features',
         'monitoring' => 'Monitoring',

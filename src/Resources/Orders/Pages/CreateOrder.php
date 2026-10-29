@@ -21,14 +21,19 @@ class CreateOrder extends CreateRecord
         $person = isset($data['person_id']) ? Person::find($data['person_id']) : null;
         $organization = isset($data['organization_id']) ? Organization::find($data['organization_id']) : null;
 
-        $data['addresses'] = OrderAddressTabs::fromFormData($data);
+        $form = OrderResource::orderForm();
+
+        $data['addresses'] = OrderAddressTabs::fromFormData($data, $form->addressTypes());
 
         // Saved together, the person and organization become related
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
-        $record = app(OrderService::class)->create(FormPayload::wrap($data), $person, $organization);
-        OrderResource::saveCrmCustomFields($data, $record);
+        $record = app(OrderService::class)->create(FormPayload::wrap($data), $person, $organization, form: $form);
+
+        if ($form->shows('custom_fields')) {
+            OrderResource::saveCrmCustomFields($data, $record);
+        }
 
         return $record;
     }

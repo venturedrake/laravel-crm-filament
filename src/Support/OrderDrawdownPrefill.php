@@ -136,7 +136,9 @@ class OrderDrawdownPrefill
     {
         $products = [];
 
-        foreach ($order->orderProducts as $orderProduct) {
+        // In the order's own line order, so the invoice or delivery lists its
+        // lines the way the order does.
+        foreach ($order->orderProducts()->orderBy('order')->orderBy('id')->get() as $orderProduct) {
             $remaining = RemainingQuantity::forOrderProduct($orderProduct, $drawdownModel, $relation);
 
             if (! Quantity::isPositive($remaining)) {

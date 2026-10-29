@@ -33,6 +33,8 @@ use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
  *   terms             bool    Render Textarea 'terms' (5 rows)
  *   stage             bool    Render Select 'pipeline_stage_id'
  *   owner             bool    Render Select 'user_owner_id'
+ *   ownerRequired     bool    Make the owner required, defaulting a new
+ *                              record to the signed-in user (no "unallocated")
  *   labels            bool    Render the `labelsField()` static
  *                              (passed in via $opts['labelsField'] callback)
  *   labelsField       callable Returns the Select for labels (since
@@ -61,6 +63,7 @@ class SalesDetailsSection
             'terms' => true,
             'stage' => false,
             'owner' => false,
+            'ownerRequired' => false,
             'labels' => false,
             'labelsField' => null,
             'customFields' => null,
@@ -140,11 +143,17 @@ class SalesDetailsSection
         }
 
         if ($opts['owner']) {
-            $components[] = Forms\Components\Select::make('user_owner_id')
+            $owner = Forms\Components\Select::make('user_owner_id')
                 ->label(__('laravel-crm-filament::labels.fields.owner'))
                 ->relationship('ownerUser', 'name')
                 ->searchable()
                 ->preload();
+
+            if ($opts['ownerRequired']) {
+                $owner->required()->default(fn () => auth()->id());
+            }
+
+            $components[] = $owner;
         }
 
         if ($opts['pdfTemplate'] !== null) {

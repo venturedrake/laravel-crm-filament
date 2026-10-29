@@ -733,7 +733,7 @@ parameters:
 			path: src/Resources/Chat/ChatConversationResource.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ChatConversation\:\:\$lead_id\.$#'
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\ChatConversation\:\:\$lead\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Chat/ChatConversationResource.php
@@ -1356,11 +1356,6 @@ parameters:
 			count: 1
 			path: src/Resources/Invoices/InvoiceResource.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$invoiceLines\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/EditInvoice.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$organization\.$#'
@@ -1674,11 +1669,6 @@ parameters:
 			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/OrderResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
@@ -1764,11 +1754,6 @@ parameters:
 			count: 1
 			path: src/Resources/Orders/Pages/EditOrder.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Orders/Pages/EditOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
@@ -1788,11 +1773,6 @@ parameters:
 			count: 3
 			path: src/Resources/Orders/Pages/ViewOrder.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
-			identifier: property.notFound
-			count: 2
-			path: src/Resources/Orders/Pages/ViewOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
@@ -2220,11 +2200,6 @@ parameters:
 			count: 1
 			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$purchaseOrderLines\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$external_id\.$#'
@@ -2340,11 +2315,6 @@ parameters:
 			count: 2
 			path: src/Resources/Quotes/Pages/EditQuote.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$quoteProducts\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/EditQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
@@ -2436,11 +2406,6 @@ parameters:
 			count: 1
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$quoteProducts\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$reference\.$#'
@@ -2883,7 +2848,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$orderProducts\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Support/OrderDrawdownPrefill.php
 
 		-

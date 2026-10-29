@@ -10,6 +10,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Models\ChatConversation;
@@ -87,6 +88,8 @@ class ChatConversationResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // lead backs the convert action's visibility on every row.
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['visitor', 'latestMessage', 'lead']))
             ->columns([
                 Tables\Columns\TextColumn::make('chat_id')
                     ->label('#')
@@ -192,7 +195,9 @@ class ChatConversationResource extends Resource
             ->label(__('laravel-crm-filament::labels.actions.convert_to_lead'))
             ->icon('heroicon-o-arrow-right-circle')
             ->color('success')
-            ->visible(fn (?ChatConversation $record): bool => $record !== null && ! $record->lead_id)
+            // The lead, not lead_id: a conversation whose lead was since deleted
+            // can be converted again, as in core 2.6.0.
+            ->visible(fn (?ChatConversation $record): bool => $record !== null && ! $record->lead)
             ->action(function (ChatConversation $record): void {
                 $visitor = $record->visitor;
                 $person = $visitor?->person;

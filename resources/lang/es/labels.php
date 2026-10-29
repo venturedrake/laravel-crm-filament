@@ -204,6 +204,7 @@ return [
         'collect' => 'Recoger',
         'delivery_address' => 'Dirección de entrega',
         'delivery_instructions' => 'Instrucciones de entrega',
+        'billing_address' => 'Dirección de facturación',
         'shipping_address' => 'Dirección de envío',
         'features' => 'Características',
         'monitoring' => 'Monitoreo',

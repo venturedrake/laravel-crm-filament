@@ -4,6 +4,7 @@ namespace VentureDrake\LaravelCrmFilament\Console;
 
 use Illuminate\Console\Command;
 use Throwable;
+use VentureDrake\LaravelCrmFilament\Console\Concerns\GuardsCrmV2Upgrade;
 use VentureDrake\LaravelCrmFilament\Console\Concerns\ProbesConsoleCommands;
 use VentureDrake\LaravelCrmFilament\Console\Concerns\StampsPanelDbVersion;
 
@@ -29,6 +30,7 @@ use VentureDrake\LaravelCrmFilament\Console\Concerns\StampsPanelDbVersion;
  */
 class UpdateCommand extends Command
 {
+    use GuardsCrmV2Upgrade;
     use ProbesConsoleCommands;
     use StampsPanelDbVersion;
 
@@ -61,6 +63,14 @@ class UpdateCommand extends Command
         }
 
         $this->info('Updating the Laravel CRM Filament panel...');
+
+        // Before laravelcrm:update and migrate, which would strand a v1
+        // database's data. See GuardsCrmV2Upgrade.
+        if ($blocker = $this->crmV2UpgradeBlocker(self::CRM_UPDATE_COMMAND)) {
+            $this->failWith($blocker);
+
+            return self::FAILURE;
+        }
 
         if ($this->call(self::UPGRADE_COMMAND) !== self::SUCCESS) {
             $this->failWith(self::UPGRADE_COMMAND . ' failed.');

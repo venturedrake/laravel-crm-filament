@@ -21,6 +21,7 @@ use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
+use VentureDrake\LaravelCrm\Support\DeliveryOptions;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
@@ -72,6 +73,12 @@ class DeliveryResource extends Resource
 
     public static function getNavigationBadge(): ?string
     {
+        // The badge counts deliveries not yet delivered. With "Delivered on"
+        // switched off nothing ever sets it, so every delivery would count.
+        if (! DeliveryOptions::showsDeliveredOn()) {
+            return null;
+        }
+
         $count = Delivery::query()->whereNull('delivered_on')->count();
 
         return $count > 0 ? (string) $count : null;
@@ -93,9 +100,10 @@ class DeliveryResource extends Resource
                     ->preload()
                     ->required(),
                 Forms\Components\DatePicker::make('delivery_expected')
-                    ->label(__('laravel-crm-filament::labels.money.expected')),
+                    ->label(static::expectedLabel()),
                 Forms\Components\DatePicker::make('delivered_on')
-                    ->label(__('laravel-crm-filament::labels.money.delivered_on')),
+                    ->label(__('laravel-crm-filament::labels.money.delivered_on'))
+                    ->visible(fn (): bool => DeliveryOptions::showsDeliveredOn()),
             ]),
 
             PdfTemplateSelect::make('delivery'),
@@ -237,7 +245,7 @@ class DeliveryResource extends Resource
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('delivery_expected')
-                    ->label(__('laravel-crm-filament::labels.money.expected'))
+                    ->label(static::expectedLabel())
                     ->date()
                     ->sortable()
                     ->toggleable(),
@@ -246,7 +254,8 @@ class DeliveryResource extends Resource
                     ->label(__('laravel-crm-filament::labels.money.delivered_on'))
                     ->date()
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable()
+                    ->visible(fn (): bool => DeliveryOptions::showsDeliveredOn()),
 
                 Tables\Columns\TextColumn::make('ownerUser.name')
                     ->label(__('laravel-crm-filament::labels.fields.owner'))
@@ -297,20 +306,36 @@ class DeliveryResource extends Resource
                 static::primaryBulkActionGroup(),
                 Actions\BulkActionGroup::make([
                     ExportsCsv::action(
-                        columns: [
+                        columns: array_filter([
                             'ID' => fn ($r) => $r->delivery_id,
                             'Order' => fn ($r) => optional($r->order)->order_id,
                             'Reference' => fn ($r) => optional($r->order)->reference,
                             'Total' => fn ($r) => (optional($r->order)->total ?? 0) / 100,
                             'Expected' => fn ($r) => $r->delivery_expected,
-                            'Delivered on' => fn ($r) => $r->delivered_on,
+                            'Delivered on' => DeliveryOptions::showsDeliveredOn()
+                                ? fn ($r) => $r->delivered_on
+                                : null,
                             'Owner' => fn ($r) => optional($r->ownerUser)->name,
                             'Created' => fn ($r) => $r->created_at,
-                        ],
+                        ]),
                         filename: 'deliveries',
                     ),
                 ]),
             ]);
+    }
+
+    /**
+     * The label on delivery_expected: the panel's own "Expected", unless the
+     * host picked one through core 2.6.0's
+     * laravel-crm.deliveries.delivery_expected_label.
+     */
+    public static function expectedLabel(): string
+    {
+        if (DeliveryOptions::expectedLabelKey() === DeliveryOptions::DEFAULT_EXPECTED_LABEL) {
+            return __('laravel-crm-filament::labels.money.expected');
+        }
+
+        return ucfirst(DeliveryOptions::expectedLabel());
     }
 
     /**
@@ -381,12 +406,13 @@ class DeliveryResource extends Resource
                         ->label(__('laravel-crm-filament::labels.fields.reference')),
 
                     TextEntry::make('delivery_expected')
-                        ->label(__('laravel-crm-filament::labels.money.expected'))
+                        ->label(static::expectedLabel())
                         ->date(),
 
                     TextEntry::make('delivered_on')
                         ->label(__('laravel-crm-filament::labels.money.delivered_on'))
-                        ->date(),
+                        ->date()
+                        ->visible(fn (): bool => DeliveryOptions::showsDeliveredOn()),
 
                     TextEntry::make('shipping_address')
                         ->label(__('laravel-crm-filament::labels.sales.shipping_address'))

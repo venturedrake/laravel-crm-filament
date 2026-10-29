@@ -11,9 +11,9 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `~2.5.0` — any 2.5 release from 2.5.0 on. The floor is 2.5.0 because
-  product variations on line items persist only through core 2.5.0's services; the cap is 2.6, so a
-  new core minor version is not picked up before the panel has been checked against it.
+- `venturedrake/laravel-crm` `~2.6.0` — any 2.6 release from 2.6.0 on. The floor is 2.6.0 because
+  the order form and delivery options are read through support classes core added in 2.6.0; the cap
+  is 2.7, so a new core minor version is not picked up before the panel has been checked against it.
 - `dcblogdev/laravel-xero` `^1.1.3`, only if you use the Xero integration (`->withXero()`). See
   [Xero](#xero).
 
@@ -282,6 +282,19 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
   on leads, deals, quotes, orders, invoices and purchase orders.
 - **Purchase-order line edits are saved**, now that core reads the rows the form submits.
 - **Settings → Product Attributes is removed**, as it is in core.
+
+### Unreleased — core 2.6.0 parity
+
+- **Order form options.** `laravel-crm.orders.form` trims the panel's order form the same way it
+  trims core's: hide the description, labels or custom fields, take "Unallocated" off the owner
+  select, and choose which address tabs to show. Hidden fields are left as stored on save.
+- **Delivery options.** `laravel-crm.deliveries.delivered_on` hides "Delivered on" from the
+  delivery form, table and view page. `delivery_expected_label` relabels the expected date.
+- **Line items stay in the order you drag them into.** Edit pages and conversions load lines in
+  their saved order.
+- **Chat:** a conversation whose lead was deleted can be converted again.
+- **`laravelcrm:filament-install` and `laravelcrm:filament-update` refuse to run on a v1 CRM
+  database**, as core's `migrate` and `laravelcrm:update` now do. Run `laravelcrm:v2` first.
 
 ## Xero
 

@@ -9,6 +9,7 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\AddressType;
+use VentureDrake\LaravelCrm\Support\FormOptions;
 
 /**
  * Tabbed Billing / Shipping addresses card for the Order create/edit form.
@@ -18,21 +19,37 @@ use VentureDrake\LaravelCrm\Models\AddressType;
  * helpers `toFormData(Order $order)` / `fromFormData(array $data)` on
  * the Create + Edit pages to flatten / re-inflate against the
  * `addresses[]` array shape that `OrderService::create/update` consumes.
+ *
+ * Which tabs render follows core 2.6.0's `laravel-crm.orders.form.addresses`
+ * (FormOptions::addressTypes()): one type renders as a plain card titled
+ * for that type, and none hides the card.
  */
 class OrderAddressTabs
 {
-    public static function make(): Section
+    /**
+     * @param  list<string>|null  $types  FormOptions::ADDRESS_TYPES keys; null shows both.
+     */
+    public static function make(?array $types = null): ?Section
     {
+        $types ??= array_keys(FormOptions::ADDRESS_TYPES);
+
+        if ($types === []) {
+            return null;
+        }
+
+        if (count($types) === 1) {
+            return Section::make(__('laravel-crm-filament::labels.sales.' . $types[0] . '_address'))
+                ->schema(self::addressFields($types[0] . '_address'));
+        }
+
         return Section::make(__('laravel-crm-filament::labels.contact.addresses'))
             ->schema([
                 Tabs::make('addresses_tabs')
-                    ->tabs([
-                        Tab::make(__('laravel-crm-filament::labels.contact.billing'))
-                            ->schema(self::addressFields('billing_address')),
-
-                        Tab::make(__('laravel-crm-filament::labels.contact.shipping'))
-                            ->schema(self::addressFields('shipping_address')),
-                    ])
+                    ->tabs(array_map(
+                        fn (string $type) => Tab::make(__('laravel-crm-filament::labels.contact.' . $type))
+                            ->schema(self::addressFields($type . '_address')),
+                        $types,
+                    ))
                     ->columnSpanFull(),
             ]);
     }
@@ -62,23 +79,26 @@ class OrderAddressTabs
     /**
      * Re-inflate the form's tabbed state into the `addresses[]` shape
      * that OrderService::create/update consumes.
+     *
+     * Only the listed types are sent. A type the form hides is left out
+     * rather than sent empty, and OrderService::update() keeps the
+     * addresses of every type FormOptions::hiddenAddressTypeIds() names.
+     *
+     * @param  list<string>|null  $types  FormOptions::ADDRESS_TYPES keys; null sends both.
      */
-    public static function fromFormData(array $data): array
+    public static function fromFormData(array $data, ?array $types = null): array
     {
+        $types ??= array_keys(FormOptions::ADDRESS_TYPES);
+
         $addresses = [];
 
-        $billing = $data['billing_address'] ?? null;
-        if (is_array($billing) && self::hasAnyField($billing)) {
-            $addresses[] = array_merge($billing, [
-                'address_type_id' => self::billingTypeId(),
-            ]);
-        }
-
-        $shipping = $data['shipping_address'] ?? null;
-        if (is_array($shipping) && self::hasAnyField($shipping)) {
-            $addresses[] = array_merge($shipping, [
-                'address_type_id' => self::shippingTypeId(),
-            ]);
+        foreach ($types as $type) {
+            $address = $data[$type . '_address'] ?? null;
+            if (is_array($address) && self::hasAnyField($address)) {
+                $addresses[] = array_merge($address, [
+                    'address_type_id' => self::typeId(FormOptions::ADDRESS_TYPES[$type]),
+                ]);
+            }
         }
 
         return $addresses;
@@ -161,11 +181,16 @@ class OrderAddressTabs
 
     protected static function billingTypeId(): ?int
     {
-        return AddressType::query()->where('name', 'Billing')->value('id');
+        return self::typeId('Billing');
     }
 
     protected static function shippingTypeId(): ?int
     {
-        return AddressType::query()->where('name', 'Shipping')->value('id');
+        return self::typeId('Shipping');
+    }
+
+    protected static function typeId(string $name): ?int
+    {
+        return AddressType::query()->where('name', $name)->value('id');
     }
 }

@@ -42,7 +42,7 @@ it('OrderResource source uses the shared form concerns and the 2-col Grid + Addr
     $source = file_get_contents(__DIR__ . '/../../src/Resources/Orders/OrderResource.php');
     expect($source)->toContain("Grid::make(['default' => 1, 'lg' => 2])");
     expect($source)->toContain('SalesDetailsSection::make([');
-    expect($source)->toContain('OrderAddressTabs::make()');
+    expect($source)->toContain('OrderAddressTabs::make($orderForm->addressTypes())');
     expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'order_product_id',");
     expect($source)->toContain('MoneyTotalsRow::make()');
 });

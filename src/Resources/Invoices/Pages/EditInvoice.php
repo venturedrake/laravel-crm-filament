@@ -54,7 +54,10 @@ class EditInvoice extends EditRecord
 
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
-        $data['products'] = $invoice->invoiceLines
+        $data['products'] = $invoice->invoiceLines()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->get()
             ->map(fn ($line) => [
                 'invoice_line_id' => $line->id,
                 'order_product_id' => $line->order_product_id,
