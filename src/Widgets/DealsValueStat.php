@@ -13,6 +13,8 @@ use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class DealsValueStat extends StatsOverviewWidget
 {
+    protected static ?int $sort = 2;
+
     protected ?string $heading = null;
 
     public function getHeading(): ?string

@@ -12,6 +12,8 @@ class DealStatusDoughnutChart extends ChartWidget
 {
     use HasChartRangeFilter;
 
+    protected static ?int $sort = 7;
+
     protected int | string | array $columnSpan = ['default' => 1, 'md' => 1, 'xl' => 1];
 
     public ?string $filter = 'last_30_days';

@@ -705,6 +705,7 @@ return [
         'unpaid_count' => ':count impayées',
         'paid_count' => ':count payées',
         'people_orgs_breakdown' => ':people personnes · :organizations organisations',
+        'new_count' => ':count nouvelles',
         'revenue_trend' => 'Tendance des revenus',
         'paid_invoices' => 'Factures payées',
         'orders' => 'Commandes',

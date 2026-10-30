@@ -113,11 +113,11 @@ it('ContactsStatsOverview extends StatsOverviewWidget', function () {
     expect(is_subclass_of(ContactsStatsOverview::class, StatsOverviewWidget::class))->toBeTrue();
 });
 
-it('ContactsStatsOverview getStats() returns exactly 1 Stat on empty DB', function () {
+it('ContactsStatsOverview getStats() returns 3 Stats on empty DB', function () {
     $ref = new ReflectionMethod(ContactsStatsOverview::class, 'getStats');
     $ref->setAccessible(true);
     $stats = $ref->invoke(new ContactsStatsOverview);
 
-    expect($stats)->toBeArray()->toHaveCount(1);
-    expect($stats[0])->toBeInstanceOf(Stat::class);
+    expect($stats)->toBeArray()->toHaveCount(3);
+    expect($stats)->each->toBeInstanceOf(Stat::class);
 });

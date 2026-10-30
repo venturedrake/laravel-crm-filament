@@ -2,6 +2,8 @@
 
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use VentureDrake\LaravelCrm\Models\Organization;
+use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\CrmStatsOverview;
 use VentureDrake\LaravelCrmFilament\Widgets\DealsValueStat;
@@ -22,12 +24,12 @@ it('DealsValueStat extends StatsOverviewWidget and returns 4 columns', function 
     expect($ref->invoke(new DealsValueStat))->toBe(4);
 });
 
-it('ContactsStatsOverview extends StatsOverviewWidget and returns 1 column', function () {
+it('ContactsStatsOverview extends StatsOverviewWidget and returns 3 columns', function () {
     expect(is_subclass_of(ContactsStatsOverview::class, StatsOverviewWidget::class))->toBeTrue();
 
     $ref = new ReflectionMethod(ContactsStatsOverview::class, 'getColumns');
     $ref->setAccessible(true);
-    expect($ref->invoke(new ContactsStatsOverview))->toBe(1);
+    expect($ref->invoke(new ContactsStatsOverview))->toBe(3);
 });
 
 it('each stats widget getHeading() renders localised label with period suffix', function () {
@@ -111,12 +113,12 @@ it('DealsValueStat omits per-module stats when the owning module is off', functi
     expect($labels)->not->toContain(__('laravel-crm-filament::labels.dashboard.orders_created'));
 });
 
-it('ContactsStatsOverview returns a single stat with people/organizations breakdown subtitle', function () {
+it('ContactsStatsOverview leads with a new-contacts stat carrying the people/organizations breakdown', function () {
     $ref = new ReflectionMethod(ContactsStatsOverview::class, 'getStats');
     $ref->setAccessible(true);
     $stats = $ref->invoke(new ContactsStatsOverview);
 
-    expect($stats)->toHaveCount(1);
+    expect($stats)->toHaveCount(3);
     expect($stats[0])->toBeInstanceOf(Stat::class);
     expect($stats[0]->getLabel())->toBe(__('laravel-crm-filament::labels.dashboard.new_contacts'));
 
@@ -149,5 +151,23 @@ it('ContactsStatsOverview renders without errors when no rows exist', function (
     $ref = new ReflectionMethod(ContactsStatsOverview::class, 'getStats');
     $ref->setAccessible(true);
     $stats = $ref->invoke(new ContactsStatsOverview);
-    expect($stats)->toBeArray()->toHaveCount(1);
+    expect($stats)->toBeArray()->toHaveCount(3);
+});
+
+it('ContactsStatsOverview shows all-time people and organization totals with the 30-day count beneath', function () {
+    Person::create(['first_name' => 'Old', 'last_name' => 'Timer'])
+        ->forceFill(['created_at' => now()->subDays(90)])->save();
+    Person::create(['first_name' => 'New', 'last_name' => 'Comer']);
+    Organization::create(['name' => 'Acme']);
+
+    $ref = new ReflectionMethod(ContactsStatsOverview::class, 'getStats');
+    $ref->setAccessible(true);
+    [, $people, $organizations] = $ref->invoke(new ContactsStatsOverview);
+
+    expect($people->getLabel())->toBe(__('laravel-crm-filament::labels.sales.people'))
+        ->and($people->getValue())->toBe('2')
+        ->and($people->getDescription())->toBe(__('laravel-crm-filament::labels.dashboard.new_count', ['count' => 1]))
+        ->and($organizations->getLabel())->toBe(__('laravel-crm-filament::labels.sales.organizations'))
+        ->and($organizations->getValue())->toBe('1')
+        ->and($organizations->getDescription())->toBe(__('laravel-crm-filament::labels.dashboard.new_count', ['count' => 1]));
 });

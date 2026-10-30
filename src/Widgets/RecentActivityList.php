@@ -10,6 +10,8 @@ use VentureDrake\LaravelCrm\Models\Activity;
 
 class RecentActivityList extends TableWidget
 {
+    protected static ?int $sort = 10;
+
     protected static ?string $heading = 'Recent activity';
 
     protected int | string | array $columnSpan = 'full';

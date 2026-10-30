@@ -10,6 +10,8 @@ use VentureDrake\LaravelCrm\Models\Task;
 
 class TasksDueTodayList extends TableWidget
 {
+    protected static ?int $sort = 9;
+
     protected static ?string $heading = null;
 
     protected int | string | array $columnSpan = 'full';
@@ -17,6 +19,15 @@ class TasksDueTodayList extends TableWidget
     public function getHeading(): ?string
     {
         return __('laravel-crm-filament::labels.dashboard.upcoming_tasks');
+    }
+
+    /**
+     * TableWidget renders getTableHeading(), not getHeading(), and falls back
+     * to the humanised class name ("Tasks Due Today List") when it is null.
+     */
+    protected function getTableHeading(): string
+    {
+        return $this->getHeading();
     }
 
     public function table(Table $table): Table

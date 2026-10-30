@@ -13,6 +13,8 @@ class LeadsVsDealsChart extends ChartWidget
 {
     use HasChartRangeFilter;
 
+    protected static ?int $sort = 6;
+
     protected int | string | array $columnSpan = 1;
 
     public ?string $filter = 'last_30_days';

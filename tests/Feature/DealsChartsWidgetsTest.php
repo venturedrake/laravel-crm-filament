@@ -73,6 +73,18 @@ it('DealsPipelineValueChart getData() sums non-closed deal amounts by pipeline s
     expect($data['datasets'][0]['data'][$qualifiedIdx])->toEqual(1000.0);
 });
 
+it('DealsPipelineValueChart only charts stages from deal pipelines', function () {
+    $deals = Pipeline::create(['name' => 'Sales', 'model' => Deal::class, 'order' => 0]);
+    $leads = Pipeline::create(['name' => 'Leads', 'model' => Lead::class, 'order' => 1]);
+    PipelineStage::create(['name' => 'Negotiation', 'pipeline_id' => $deals->id, 'order' => 0]);
+    PipelineStage::create(['name' => 'Qualified To Buy', 'pipeline_id' => $leads->id, 'order' => 1]);
+
+    $method = new ReflectionMethod(DealsPipelineValueChart::class, 'getData');
+    $method->setAccessible(true);
+
+    expect($method->invoke(new DealsPipelineValueChart)['labels'])->toBe(['Negotiation']);
+});
+
 // ----------------------------------------------------------------------------
 // LeadsVsDealsChart
 // ----------------------------------------------------------------------------

@@ -9,6 +9,8 @@ use VentureDrake\LaravelCrm\Models\Person;
 
 class ContactsStatsOverview extends StatsOverviewWidget
 {
+    protected static ?int $sort = 3;
+
     protected ?string $heading = null;
 
     public function getHeading(): ?string
@@ -19,9 +21,13 @@ class ContactsStatsOverview extends StatsOverviewWidget
             ]);
     }
 
+    /**
+     * Three tiles so the row lines up with the Sales row above it; a lone
+     * full-width tile left most of the row empty.
+     */
     protected function getColumns(): int
     {
-        return 1;
+        return 3;
     }
 
     protected function getStats(): array
@@ -45,6 +51,16 @@ class ContactsStatsOverview extends StatsOverviewWidget
                 'people' => $peopleCount,
                 'organizations' => $orgsCount,
             ]))->color('primary'),
+            Stat::make(
+                __('laravel-crm-filament::labels.sales.people'),
+                (string) Person::query()->count(),
+            )->description(__('laravel-crm-filament::labels.dashboard.new_count', ['count' => $peopleCount]))
+                ->color('success'),
+            Stat::make(
+                __('laravel-crm-filament::labels.sales.organizations'),
+                (string) Organization::query()->count(),
+            )->description(__('laravel-crm-filament::labels.dashboard.new_count', ['count' => $orgsCount]))
+                ->color('warning'),
         ];
     }
 }

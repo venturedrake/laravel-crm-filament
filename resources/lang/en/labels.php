@@ -716,6 +716,7 @@ return [
         'unpaid_count' => ':count unpaid',
         'paid_count' => ':count paid',
         'people_orgs_breakdown' => ':people people · :organizations organizations',
+        'new_count' => ':count new',
         'revenue_trend' => 'Revenue trend',
         'paid_invoices' => 'Paid invoices',
         'orders' => 'Orders',
