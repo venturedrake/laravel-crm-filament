@@ -165,7 +165,7 @@ it('source contains the bug-fix invariants for US-004', function () {
     expect($src)->not->toContain('$price->price /');
 
     // Closure signature picks up $get so it can drive recalc helpers.
-    expect($src)->toContain('function ($state, $get, $set) use ($priceField)');
+    expect($src)->toContain('function ($state, $get, $set) use ($priceField, $withTotals)');
 
     // After the unit_price $set, both recalc helpers fire.
     expect($src)->toContain('self::recalcRow($get, $set, $priceField);');

@@ -10,6 +10,7 @@ use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Concerns\RefreshesMoneyTotalsAfterSave;
 use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -20,6 +21,7 @@ class EditInvoice extends EditRecord
     use Concerns\HasInvoiceMarkPaidAction;
     use Concerns\HasInvoicePortalAction;
     use Concerns\HasInvoiceSendAction;
+    use RefreshesMoneyTotalsAfterSave;
     use SurfacesServiceValidation;
 
     protected static string $resource = InvoiceResource::class;
@@ -48,18 +50,31 @@ class EditInvoice extends EditRecord
         ];
     }
 
+    /**
+     * The form has no discount or adjustment (MoneyTotalsRow::make(withAdjustments: false)).
+     *
+     * @return list<string>
+     */
+    protected function moneyTotalsStatePaths(): array
+    {
+        return ['sub_total', 'tax', 'total'];
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var Invoice $invoice */
         $invoice = $this->record;
 
-        foreach (['sub_total', 'discount', 'tax', 'total'] as $field) {
+        foreach (['discount', 'tax', 'total'] as $field) {
             $value = $data[$field] ?? null;
             if ($value !== null) {
                 $data[$field] = MoneyForm::centsToForm($value);
             }
         }
 
+        // The columns are `subtotal` and `adjustments`; the form's fields are
+        // `sub_total` and `adjustment`.
+        $data['sub_total'] = MoneyForm::centsToForm($data['subtotal'] ?? null);
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
         $data['products'] = $invoice->invoiceLines()

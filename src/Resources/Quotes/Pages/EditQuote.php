@@ -11,6 +11,7 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\QuoteService;
+use VentureDrake\LaravelCrmFilament\Concerns\RefreshesMoneyTotalsAfterSave;
 use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -23,6 +24,7 @@ class EditQuote extends EditRecord
     use Concerns\HasQuoteRejectAction;
     use Concerns\HasQuoteSendAction;
     use Concerns\HasQuoteUnacceptAction;
+    use RefreshesMoneyTotalsAfterSave;
     use SurfacesServiceValidation;
 
     protected static string $resource = QuoteResource::class;
@@ -101,13 +103,16 @@ class EditQuote extends EditRecord
         /** @var Quote $quote */
         $quote = $this->record;
 
-        foreach (['sub_total', 'discount', 'tax', 'total'] as $field) {
+        foreach (['discount', 'tax', 'total'] as $field) {
             $value = $data[$field] ?? null;
             if ($value !== null) {
                 $data[$field] = MoneyForm::centsToForm($value);
             }
         }
 
+        // The columns are `subtotal` and `adjustments`; the form's fields are
+        // `sub_total` and `adjustment`.
+        $data['sub_total'] = MoneyForm::centsToForm($data['subtotal'] ?? null);
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
         $data['products'] = $quote->quoteProducts()

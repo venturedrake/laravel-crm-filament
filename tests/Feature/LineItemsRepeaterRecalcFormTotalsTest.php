@@ -7,7 +7,7 @@ function recalcFormTotalsInvoke(array $rows): array
     $form = ['sub_total' => null, 'tax' => null, 'total' => null];
 
     $get = function (string $path) use ($rows) {
-        if ($path === '../../') {
+        if ($path === '../') {
             return $rows;
         }
 
@@ -16,9 +16,9 @@ function recalcFormTotalsInvoke(array $rows): array
 
     $set = function (string $path, $value) use (&$form): void {
         $map = [
-            '../../../sub_total' => 'sub_total',
-            '../../../tax' => 'tax',
-            '../../../total' => 'total',
+            '../../sub_total' => 'sub_total',
+            '../../tax' => 'tax',
+            '../../total' => 'total',
         ];
 
         if (isset($map[$path])) {
@@ -107,9 +107,9 @@ it('handles a null result from $get gracefully (no rows yet hydrated)', function
     $get = fn (string $path) => null;
     $set = function (string $path, $value) use (&$form): void {
         $map = [
-            '../../../sub_total' => 'sub_total',
-            '../../../tax' => 'tax',
-            '../../../total' => 'total',
+            '../../sub_total' => 'sub_total',
+            '../../tax' => 'tax',
+            '../../total' => 'total',
         ];
         if (isset($map[$path])) {
             $form[$map[$path]] = $value;

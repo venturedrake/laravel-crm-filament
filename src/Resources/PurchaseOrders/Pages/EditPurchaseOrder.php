@@ -11,6 +11,7 @@ use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\PurchaseOrderDeliverySection;
+use VentureDrake\LaravelCrmFilament\Concerns\RefreshesMoneyTotalsAfterSave;
 use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -19,6 +20,7 @@ use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 class EditPurchaseOrder extends EditRecord
 {
     use Concerns\HasPurchaseOrderSendAction;
+    use RefreshesMoneyTotalsAfterSave;
     use SurfacesServiceValidation;
 
     protected static string $resource = PurchaseOrderResource::class;
@@ -44,18 +46,31 @@ class EditPurchaseOrder extends EditRecord
         ];
     }
 
+    /**
+     * The form has no discount or adjustment (MoneyTotalsRow::make(withAdjustments: false)).
+     *
+     * @return list<string>
+     */
+    protected function moneyTotalsStatePaths(): array
+    {
+        return ['sub_total', 'tax', 'total'];
+    }
+
     protected function mutateFormDataBeforeFill(array $data): array
     {
         /** @var PurchaseOrder $po */
         $po = $this->record;
 
-        foreach (['sub_total', 'discount', 'tax', 'total'] as $field) {
+        foreach (['discount', 'tax', 'total'] as $field) {
             $value = $data[$field] ?? null;
             if ($value !== null) {
                 $data[$field] = MoneyForm::centsToForm($value);
             }
         }
 
+        // The columns are `subtotal` and `adjustments`; the form's fields are
+        // `sub_total` and `adjustment`.
+        $data['sub_total'] = MoneyForm::centsToForm($data['subtotal'] ?? null);
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
         // Core 2.7.0 calls pickup `pickup` (the panel used to save `collect`),

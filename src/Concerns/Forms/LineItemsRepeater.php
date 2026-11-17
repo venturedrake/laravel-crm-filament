@@ -67,15 +67,22 @@ class LineItemsRepeater
         ?string $drawdownKey = null,
         bool $withOrderProductId = false,
     ): Forms\Components\Repeater {
+        // Only the documents with a unit price carry the Subtotal / Tax /
+        // Total summary. Deal has none to update, and writing them would
+        // leave stray keys in its form state.
+        $withTotals = $priceField === 'unit_price';
+
         $row2Fields = [
             Forms\Components\TextInput::make($priceField)
                 ->label(__('laravel-crm-filament::labels.money.unit_price'))
                 ->numeric()
                 ->live()
                 ->extraInputAttributes(fn (Forms\Components\TextInput $component): array => self::keepTypedPrice($component->getStatePath()))
-                ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
+                ->afterStateUpdated(function ($state, $get, $set) use ($priceField, $withTotals) {
                     self::recalcRow($get, $set, $priceField);
-                    self::recalcFormTotals($get, $set);
+                    if ($withTotals) {
+                        self::recalcFormTotals($get, $set);
+                    }
                 }),
             Forms\Components\TextInput::make('quantity')
                 ->numeric()
@@ -90,7 +97,7 @@ class LineItemsRepeater
                 // Debounced: typing "0." used to fire a recalc against a
                 // non-numeric partial on every keystroke, across three fields.
                 ->live(debounce: '500ms')
-                ->afterStateUpdated(function ($state, $get, $set) use ($priceField, $drawdownModel, $drawdownRelation, $drawdownKey) {
+                ->afterStateUpdated(function ($state, $get, $set) use ($priceField, $withTotals, $drawdownModel, $drawdownRelation, $drawdownKey) {
                     // Mirrors core's ModelProducts::clampQuantity(). The server
                     // rule above is the guard; this is the UX.
                     $max = self::rowRemaining($get, $drawdownModel, $drawdownRelation, $drawdownKey);
@@ -101,7 +108,9 @@ class LineItemsRepeater
                     }
 
                     self::recalcRow($get, $set, $priceField);
-                    self::recalcFormTotals($get, $set);
+                    if ($withTotals) {
+                        self::recalcFormTotals($get, $set);
+                    }
                 }),
         ];
 
@@ -139,7 +148,7 @@ class LineItemsRepeater
                     ->createOptionModalHeading(__('laravel-crm-filament::labels.actions.create_product'))
                     ->createOptionUsing(fn (array $data) => self::createProduct($data))
                     ->live()
-                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField) {
+                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField, $withTotals) {
                         // A variation belongs to one product, so a new product
                         // clears it. With no variation the price is the
                         // product's default price (getDefaultPrice()), exactly
@@ -152,7 +161,9 @@ class LineItemsRepeater
                             $set($priceField, $price);
                         }
                         self::recalcRow($get, $set, $priceField);
-                        self::recalcFormTotals($get, $set);
+                        if ($withTotals) {
+                            self::recalcFormTotals($get, $set);
+                        }
                     }),
                 // Core 2.5.0 product variations. Only a product with active
                 // variations gets the select - or a line already on one, which
@@ -164,7 +175,7 @@ class LineItemsRepeater
                     ->options(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')))
                     ->visible(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')) !== [])
                     ->live()
-                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField) {
+                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField, $withTotals) {
                         $productId = $get('id');
                         $variation = LineItemVariation::resolve($productId, $state);
 
@@ -176,7 +187,9 @@ class LineItemsRepeater
                             $set($priceField, $price);
                         }
                         self::recalcRow($get, $set, $priceField);
-                        self::recalcFormTotals($get, $set);
+                        if ($withTotals) {
+                            self::recalcFormTotals($get, $set);
+                        }
                     }),
                 Grid::make($row2Cols)->schema($row2Fields),
                 Forms\Components\Textarea::make('comments')
@@ -491,10 +504,11 @@ class LineItemsRepeater
     /**
      * Aggregate sibling rows up to the form-level `sub_total`, `tax`, and
      * `total` fields. Designed to be called from inside a row field's
-     * reactive `afterStateUpdated` closure, where Filament's relative
-     * paths resolve as follows:
-     *   ../../        → the rows array keyed by row UUID
-     *   ../../../X    → the form-level field X (sub_total / tax / total)
+     * reactive `afterStateUpdated` closure. Filament resolves a relative
+     * path from the row's container (`data.products.{uuid}`), so, as in
+     * documentCurrency():
+     *   ../         → `data.products`, the rows keyed by row UUID
+     *   ../../X     → `data.X`, the form-level field (sub_total / tax / total)
      *
      * Mirrors core CRM's LiveQuoteItems::calculateAmounts (lines 155-161)
      * exactly: sums each row's `amount` into sub_total, each row's
@@ -504,7 +518,7 @@ class LineItemsRepeater
      */
     private static function recalcFormTotals($get, $set): void
     {
-        $rows = $get('../../') ?? [];
+        $rows = $get('../') ?? [];
 
         // Summed in integer cents, as core's DocumentTotals sums the saved
         // lines, so the header the form shows is the one the service stores.
@@ -516,9 +530,9 @@ class LineItemsRepeater
             $tax += Money::toInteger($row['tax_amount'] ?? 0) ?? 0;
         }
 
-        $set('../../../sub_total', (float) MoneyForm::centsToForm($subTotal));
-        $set('../../../tax', (float) MoneyForm::centsToForm($tax));
-        $set('../../../total', (float) MoneyForm::centsToForm($subTotal + $tax));
+        $set('../../sub_total', (float) MoneyForm::centsToForm($subTotal));
+        $set('../../tax', (float) MoneyForm::centsToForm($tax));
+        $set('../../total', (float) MoneyForm::centsToForm($subTotal + $tax));
     }
 
     /**

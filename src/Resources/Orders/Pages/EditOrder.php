@@ -11,6 +11,7 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\OrderService;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\OrderAddressTabs;
+use VentureDrake\LaravelCrmFilament\Concerns\RefreshesMoneyTotalsAfterSave;
 use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
@@ -18,6 +19,7 @@ use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class EditOrder extends EditRecord
 {
+    use RefreshesMoneyTotalsAfterSave;
     use SurfacesServiceValidation;
 
     protected static string $resource = OrderResource::class;
@@ -49,13 +51,16 @@ class EditOrder extends EditRecord
         /** @var Order $order */
         $order = $this->record;
 
-        foreach (['sub_total', 'discount', 'tax', 'total'] as $field) {
+        foreach (['discount', 'tax', 'total'] as $field) {
             $value = $data[$field] ?? null;
             if ($value !== null) {
                 $data[$field] = MoneyForm::centsToForm($value);
             }
         }
 
+        // The columns are `subtotal` and `adjustments`; the form's fields are
+        // `sub_total` and `adjustment`.
+        $data['sub_total'] = MoneyForm::centsToForm($data['subtotal'] ?? null);
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
 
         // Without "Unallocated" on offer, an order with no owner opens on the
