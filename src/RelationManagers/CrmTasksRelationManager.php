@@ -6,6 +6,7 @@ use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
+use VentureDrake\LaravelCrm\Models\Task;
 use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmTasksRelationManager extends TasksRelationManager
@@ -37,7 +38,13 @@ class CrmTasksRelationManager extends TasksRelationManager
 
     public function form(Schema $schema): Schema
     {
+        // The schema is a standalone Livewire form, so nothing binds a model to
+        // it. The owner/assignee Selects use ->relationship(), which resolves
+        // the relationship off the model; without one it hits null and the tab
+        // 500s ("hasAttribute() on null"). The class string is enough: no
+        // record means fill() still takes the plain arrays used below.
         return $schema
+            ->model(Task::class)
             ->statePath('data')
             ->components([
                 Forms\Components\TextInput::make('name')
