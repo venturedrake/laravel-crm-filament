@@ -5,6 +5,7 @@ namespace VentureDrake\LaravelCrmFilament\RelationManagers;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
 
 class CrmNotesRelationManager extends NotesRelationManager
@@ -48,7 +49,10 @@ class CrmNotesRelationManager extends NotesRelationManager
     {
         $data = $this->form->getState();
 
+        // crm_notes.external_id is NOT NULL with no default, and core's
+        // NoteObserver doesn't fill it in. Core's own notes form sets it.
         $note = $this->getOwnerRecord()->notes()->create([
+            'external_id' => Uuid::uuid4()->toString(),
             'content' => $data['content'],
             'noted_at' => $data['noted_at'] ?? null,
             'user_created_id' => auth()->id(),

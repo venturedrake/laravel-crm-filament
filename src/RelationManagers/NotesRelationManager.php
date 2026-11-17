@@ -9,6 +9,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrmFilament\Concerns\LogsCrmActivity;
 
 class NotesRelationManager extends RelationManager
@@ -50,6 +51,8 @@ class NotesRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc')
             ->headerActions([
                 Actions\CreateAction::make()
+                    // Core's NoteObserver doesn't set external_id, and the column is NOT NULL.
+                    ->mutateDataUsing(fn (array $data): array => [...$data, 'external_id' => Uuid::uuid4()->toString()])
                     ->after(fn (Model $record, RelationManager $livewire) => static::logCrmActivity($livewire->getOwnerRecord(), $record)),
             ])
             ->recordActions([
