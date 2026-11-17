@@ -165,6 +165,12 @@ guard.
 
 ### Fixed
 
+- **A note could not be added from a record's Notes tab
+  ([#6](https://github.com/venturedrake/laravel-crm-filament/issues/6)).** Saving failed with
+  "Field 'external_id' doesn't have a default value". Core's `crm_notes.external_id` column is
+  required and has no default, and core does not fill it in when a note is created, so this
+  affected fully updated installs too. The panel now generates the note's `external_id`, as
+  core's own notes form does.
 - **A note could not be saved without editing its timestamp first
   ([#5](https://github.com/venturedrake/laravel-crm-filament/issues/5)).** The inline notes
   form set "Noted at" to the current time with seconds, such as `2026-11-17T03:59:16`. On
