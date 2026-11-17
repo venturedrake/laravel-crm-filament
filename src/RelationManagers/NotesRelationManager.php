@@ -26,7 +26,7 @@ class NotesRelationManager extends RelationManager
                 ->required()
                 ->rows(4)
                 ->columnSpanFull(),
-            Forms\Components\DateTimePicker::make('noted_at'),
+            Forms\Components\DateTimePicker::make('noted_at')->seconds(false),
             Forms\Components\Toggle::make('pinned'),
         ]);
     }

@@ -26,7 +26,7 @@ class CrmNotesRelationManager extends NotesRelationManager
 
         $this->form->fill([
             'content' => null,
-            'noted_at' => now(),
+            'noted_at' => now()->startOfMinute(),
         ]);
     }
 
@@ -39,7 +39,8 @@ class CrmNotesRelationManager extends NotesRelationManager
                     ->required()
                     ->rows(4)
                     ->columnSpanFull(),
-                Forms\Components\DateTimePicker::make('noted_at'),
+                Forms\Components\DateTimePicker::make('noted_at')
+                    ->seconds(false),
             ]);
     }
 
@@ -57,7 +58,7 @@ class CrmNotesRelationManager extends NotesRelationManager
 
         $this->form->fill([
             'content' => null,
-            'noted_at' => now(),
+            'noted_at' => now()->startOfMinute(),
         ]);
 
         Notification::make()
@@ -88,7 +89,7 @@ class CrmNotesRelationManager extends NotesRelationManager
 
         $this->form->fill([
             'content' => null,
-            'noted_at' => now(),
+            'noted_at' => now()->startOfMinute(),
         ]);
     }
 
@@ -120,7 +121,7 @@ class CrmNotesRelationManager extends NotesRelationManager
 
         $this->form->fill([
             'content' => null,
-            'noted_at' => now(),
+            'noted_at' => now()->startOfMinute(),
         ]);
 
         Notification::make()
@@ -143,7 +144,7 @@ class CrmNotesRelationManager extends NotesRelationManager
             $this->editingId = null;
             $this->form->fill([
                 'content' => null,
-                'noted_at' => now(),
+                'noted_at' => now()->startOfMinute(),
             ]);
         }
 

@@ -29,7 +29,7 @@ class CrmTasksRelationManager extends TasksRelationManager
             'name' => null,
             'description' => null,
             'start_at' => null,
-            'due_at' => now(),
+            'due_at' => now()->startOfMinute(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
         ]);
@@ -56,7 +56,8 @@ class CrmTasksRelationManager extends TasksRelationManager
                     ->seconds(false)
                     ->minutesStep(15),
                 Forms\Components\DateTimePicker::make('due_at')
-                    ->label(__('laravel-crm-filament::labels.fields.whens_it_due')),
+                    ->label(__('laravel-crm-filament::labels.fields.whens_it_due'))
+                    ->seconds(false),
                 Grid::make(2)->schema([
                     Forms\Components\Select::make('user_owner_id')
                         ->label(__('laravel-crm-filament::labels.fields.who_requested_the_task'))
@@ -92,7 +93,7 @@ class CrmTasksRelationManager extends TasksRelationManager
             'name' => null,
             'description' => null,
             'start_at' => null,
-            'due_at' => now(),
+            'due_at' => now()->startOfMinute(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
         ]);
@@ -131,7 +132,7 @@ class CrmTasksRelationManager extends TasksRelationManager
             'name' => null,
             'description' => null,
             'start_at' => null,
-            'due_at' => now(),
+            'due_at' => now()->startOfMinute(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
         ]);
@@ -171,7 +172,7 @@ class CrmTasksRelationManager extends TasksRelationManager
             'name' => null,
             'description' => null,
             'start_at' => null,
-            'due_at' => now(),
+            'due_at' => now()->startOfMinute(),
             'user_owner_id' => auth()->id(),
             'user_assigned_id' => null,
         ]);
@@ -218,7 +219,7 @@ class CrmTasksRelationManager extends TasksRelationManager
             $this->form->fill([
                 'name' => null,
                 'description' => null,
-                'due_at' => now(),
+                'due_at' => now()->startOfMinute(),
                 'user_owner_id' => auth()->id(),
                 'user_assigned_id' => null,
             ]);

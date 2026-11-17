@@ -45,9 +45,11 @@ class CrmCallsRelationManager extends CallsRelationManager
                     // start, as core 2.7.0 checks (`after_or_equal:start_at`).
                     Forms\Components\DateTimePicker::make('start_at')
                         ->label(__('laravel-crm-filament::labels.money.start_at'))
+                        ->seconds(false)
                         ->required(),
                     Forms\Components\DateTimePicker::make('finish_at')
                         ->label(__('laravel-crm-filament::labels.money.finish_at'))
+                        ->seconds(false)
                         ->required()
                         ->afterOrEqual('start_at'),
                 ]),
@@ -195,7 +197,7 @@ class CrmCallsRelationManager extends CallsRelationManager
         return [
             'name' => null,
             'description' => null,
-            'start_at' => now(),
+            'start_at' => now()->startOfMinute(),
             'finish_at' => null,
             'guests' => [],
             'location' => null,
