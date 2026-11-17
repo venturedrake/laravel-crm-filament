@@ -41,16 +41,19 @@ beforeEach(function () {
     ]);
 });
 
-it('product Select afterStateUpdated has signature ($state, $get, $set)', function () {
+it('product Select afterStateUpdated has signature ($state, $get, $set, ?$component)', function () {
     $closure = productSelectClosure('quote_product_id', 'unit_price');
 
     $ref = new ReflectionFunction($closure);
     $params = $ref->getParameters();
 
-    expect($params)->toHaveCount(3);
+    expect($params)->toHaveCount(4);
     expect($params[0]->getName())->toBe('state');
     expect($params[1]->getName())->toBe('get');
     expect($params[2]->getName())->toBe('set');
+    // Optional, so the three-argument calls below still work.
+    expect($params[3]->getName())->toBe('component');
+    expect($params[3]->isOptional())->toBeTrue();
 });
 
 it('autofills unit_price from the products getDefaultPrice unit_price column divided by 100', function () {
