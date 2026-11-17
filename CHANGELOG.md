@@ -165,6 +165,13 @@ guard.
 
 ### Fixed
 
+- **A note could not be saved without editing its timestamp first
+  ([#5](https://github.com/venturedrake/laravel-crm-filament/issues/5)).** The inline notes
+  form set "Noted at" to the current time with seconds, such as `2026-11-17T03:59:16`. On
+  Filament versions that render no `step` on the input, the browser applied its 60-second
+  default step and refused to submit the untouched value. Note, call, meeting, lunch and task
+  date-time pickers now work in whole minutes, and their defaults are rounded down to the
+  minute. This also fixes editing records that were saved with seconds.
 - **Line items lost their order when a document was reopened.** The line items repeater can be
   reordered, and core saves each line's position. But the quote, order, invoice and
   purchase-order edit pages loaded lines in creation order, so the next save put them back. Edit

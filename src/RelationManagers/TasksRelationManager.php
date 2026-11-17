@@ -36,8 +36,8 @@ class TasksRelationManager extends RelationManager
                     ->label(__('laravel-crm-filament::labels.money.start_at'))
                     ->seconds(false)
                     ->minutesStep(15),
-                Forms\Components\DateTimePicker::make('due_at')->label(__('laravel-crm-filament::labels.money.due')),
-                Forms\Components\DateTimePicker::make('completed_at')->label(__('laravel-crm-filament::labels.money.completed')),
+                Forms\Components\DateTimePicker::make('due_at')->label(__('laravel-crm-filament::labels.money.due'))->seconds(false),
+                Forms\Components\DateTimePicker::make('completed_at')->label(__('laravel-crm-filament::labels.money.completed'))->seconds(false),
             ]),
             Grid::make(2)->schema([
                 Forms\Components\Select::make('user_owner_id')
