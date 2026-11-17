@@ -5,6 +5,7 @@ namespace VentureDrake\LaravelCrmFilament\RelationManagers;
 use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Task;
 use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
@@ -64,7 +65,10 @@ class CrmTasksRelationManager extends TasksRelationManager
                     ->minutesStep(15),
                 Forms\Components\DateTimePicker::make('due_at')
                     ->label(__('laravel-crm-filament::labels.fields.whens_it_due'))
-                    ->seconds(false),
+                    ->seconds(false)
+                    // Same rule as core 2.7.0: only compare when a start was
+                    // entered, so a due-only task still saves.
+                    ->afterOrEqual(fn (Get $get): ?string => filled($get('start_at')) ? 'start_at' : null),
                 Grid::make(2)->schema([
                     Forms\Components\Select::make('user_owner_id')
                         ->label(__('laravel-crm-filament::labels.fields.who_requested_the_task'))

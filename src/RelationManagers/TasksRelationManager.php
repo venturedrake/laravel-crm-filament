@@ -6,6 +6,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -36,7 +37,12 @@ class TasksRelationManager extends RelationManager
                     ->label(__('laravel-crm-filament::labels.money.start_at'))
                     ->seconds(false)
                     ->minutesStep(15),
-                Forms\Components\DateTimePicker::make('due_at')->label(__('laravel-crm-filament::labels.money.due'))->seconds(false),
+                Forms\Components\DateTimePicker::make('due_at')
+                    ->label(__('laravel-crm-filament::labels.money.due'))
+                    ->seconds(false)
+                    // Same rule as core 2.7.0: only compare when a start was
+                    // entered, so a due-only task still saves.
+                    ->afterOrEqual(fn (Get $get): ?string => filled($get('start_at')) ? 'start_at' : null),
                 Forms\Components\DateTimePicker::make('completed_at')->label(__('laravel-crm-filament::labels.money.completed'))->seconds(false),
             ]),
             Grid::make(2)->schema([

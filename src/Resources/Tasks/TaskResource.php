@@ -9,6 +9,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -79,7 +80,12 @@ class TaskResource extends Resource
                 ->minutesStep(15),
 
             Forms\Components\DateTimePicker::make('due_at')
-                ->label(__('laravel-crm-filament::labels.money.due_at')),
+                ->label(__('laravel-crm-filament::labels.money.due_at'))
+                // Only compare against a start the user actually entered, as
+                // core 2.7.0 does (`after_or_equal:start_at` when start_at is
+                // filled): a due-only task is valid, and an empty start would
+                // otherwise fail the comparison.
+                ->afterOrEqual(fn (Get $get): ?string => filled($get('start_at')) ? 'start_at' : null),
 
             Forms\Components\Select::make('user_owner_id')
                 ->label(__('laravel-crm-filament::labels.fields.created_by'))
