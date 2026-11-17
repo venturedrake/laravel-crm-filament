@@ -209,6 +209,11 @@ guard.
   now required.
 - **A tax rate that products still use could be deleted.** All four delete paths refuse it, and
   bulk delete refuses the whole selection.
+- **The Tasks tab crashed on person and other record pages (#7).** It failed with "Call to a
+  member function hasAttribute() on null" on people, leads, organizations, deals, quotes, orders,
+  invoices, deliveries, purchase orders and features. The inline task form had no model for its
+  owner and assignee selects. The tab now renders, and tasks can be added, edited, completed and
+  deleted inline.
 
 ## [1.4.0] - 2026-10-23
 
