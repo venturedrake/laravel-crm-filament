@@ -80,7 +80,7 @@ class PersonResource extends Resource
     {
         $components = [
             Grid::make(2)->schema([
-                Forms\Components\TextInput::make('first_name')->maxLength(255),
+                Forms\Components\TextInput::make('first_name')->required()->maxLength(255),
                 Forms\Components\TextInput::make('last_name')->maxLength(255),
             ]),
 
