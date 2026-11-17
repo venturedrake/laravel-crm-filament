@@ -6,6 +6,8 @@ use Filament\Forms;
 use Filament\Forms\Components\Field;
 use Filament\Schemas\Components\Grid;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Js;
+use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
 use VentureDrake\LaravelCrm\Services\ProductService;
@@ -70,6 +72,7 @@ class LineItemsRepeater
                 ->label(__('laravel-crm-filament::labels.money.unit_price'))
                 ->numeric()
                 ->live()
+                ->extraInputAttributes(fn (Forms\Components\TextInput $component): array => self::keepTypedPrice($component->getStatePath()))
                 ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
                     self::recalcRow($get, $set, $priceField);
                     self::recalcFormTotals($get, $set);
@@ -136,15 +139,16 @@ class LineItemsRepeater
                     ->createOptionModalHeading(__('laravel-crm-filament::labels.actions.create_product'))
                     ->createOptionUsing(fn (array $data) => self::createProduct($data))
                     ->live()
-                    ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
+                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField) {
                         // A variation belongs to one product, so a new product
                         // clears it. With no variation the price is the
                         // product's default price (getDefaultPrice()), exactly
-                        // as before variations existed.
+                        // as before variations existed - unless the user typed
+                        // a price that arrived in this same request.
                         $set('product_variation_id', null);
 
                         $price = LineItemVariation::unitPrice($state, null, self::documentCurrency($get));
-                        if ($price !== null) {
+                        if ($price !== null && ! self::priceSubmittedWithThisUpdate($component, $get, $priceField)) {
                             $set($priceField, $price);
                         }
                         self::recalcRow($get, $set, $priceField);
@@ -160,14 +164,15 @@ class LineItemsRepeater
                     ->options(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')))
                     ->visible(fn ($get) => LineItemVariation::options($get('id'), $get('product_variation_id')) !== [])
                     ->live()
-                    ->afterStateUpdated(function ($state, $get, $set) use ($priceField) {
+                    ->afterStateUpdated(function ($state, $get, $set, ?Field $component = null) use ($priceField) {
                         $productId = $get('id');
                         $variation = LineItemVariation::resolve($productId, $state);
 
                         // Falls back to the product price when the variation
-                        // has none in the document currency.
+                        // has none in the document currency. A price the user
+                        // typed in the same request wins.
                         $price = LineItemVariation::unitPrice($productId, $variation?->getKey(), self::documentCurrency($get));
-                        if ($price !== null) {
+                        if ($price !== null && ! self::priceSubmittedWithThisUpdate($component, $get, $priceField)) {
                             $set($priceField, $price);
                         }
                         self::recalcRow($get, $set, $priceField);
@@ -364,6 +369,99 @@ class LineItemsRepeater
         if ($priceField === 'unit_price') {
             $set('tax_amount', (float) MoneyForm::centsToForm($cents['tax']));
         }
+    }
+
+    /**
+     * Did the row's price arrive in the same request as the product or
+     * variation change being handled? Then the user typed it, and it wins.
+     *
+     * Livewire 4 applies every update in a payload before it runs any
+     * `updated` hook. A price typed while the variation's request is in flight
+     * goes out in the next request together with the variation, so by the time
+     * the variation hook runs the typed price is already in the state. Filament
+     * snapshots the form data before the request's updates are applied
+     * (InteractsWithSchemas::updatingInteractsWithSchemas()), so a price that
+     * differs from that snapshot came in with this request.
+     *
+     * No snapshot means no client update started this - e.g. the create-option
+     * modal's action selected the product - and the row is repriced as before.
+     * So does no component (the hook called directly, outside a form).
+     */
+    private static function priceSubmittedWithThisUpdate(?Field $component, $get, string $priceField): bool
+    {
+        if ($component === null) {
+            return false;
+        }
+
+        $livewire = $component->getLivewire();
+        $rowPath = $component->getContainer()->getStatePath();
+
+        if (! method_exists($livewire, 'getOldSchemaState') || blank($rowPath)) {
+            return false;
+        }
+
+        if ($livewire->getOldSchemaState(Str::before($rowPath, '.')) === null) {
+            return false;
+        }
+
+        $old = $livewire->getOldSchemaState($rowPath . '.' . $priceField);
+
+        return Money::toInteger($old) !== Money::toInteger($get($priceField));
+    }
+
+    /**
+     * Alpine for the unit-price input: puts back a price the user typed while
+     * a request was in flight, if that request's response overwrote it.
+     *
+     * Livewire merges each response into the client state by patching every
+     * property the server changed relative to what the request sent. Pick a
+     * variation, and type a price before its response is back: the response
+     * reprices the row and patches the input back to the variation's price.
+     * A Create/Save clicked meanwhile waits for that response, then submits
+     * the variation's price. And if the typed price already went out in a
+     * request of its own, that request's response does not patch it back: the
+     * server holds what it was sent, so there is nothing to patch.
+     *
+     * So, for each request: if the input was typed in after the request was
+     * sent, and the merged state no longer holds what was typed, restore it -
+     * client-side only. The next request (the price's own wire:model.live, or
+     * the deferred Create/Save) submits it, and the price field's
+     * afterStateUpdated recalculates the row before create()/save() runs.
+     *
+     * Attribute values are not escaped when rendered: no double quotes here.
+     *
+     * @return array<string, string>
+     */
+    public static function keepTypedPrice(string $statePath): array
+    {
+        $path = Js::from($statePath)->toHtml();
+
+        return [
+            'x-data' => <<<JS
+                {
+                    edits: 0,
+                    typed: null,
+                    stopKeeping: null,
+                    init() {
+                        this.stopKeeping = this.\$wire.\$interceptMessage(({ onSend, onSuccess }) => {
+                            let editsAtSend = null;
+                            onSend(() => { editsAtSend = this.edits });
+                            onSuccess(({ onSync }) => onSync(() => {
+                                if (editsAtSend === null || this.edits <= editsAtSend) return;
+                                const merged = this.\$wire.\$get({$path});
+                                if (String(merged ?? '') === this.typed) return;
+                                if (this.typed !== '' && Number(merged) === Number(this.typed)) return;
+                                this.\$wire.\$set({$path}, this.typed, false);
+                            }));
+                        });
+                    },
+                    destroy() {
+                        this.stopKeeping?.();
+                    },
+                }
+                JS,
+            'x-on:input' => 'edits++; typed = $el.value',
+        ];
     }
 
     /**
