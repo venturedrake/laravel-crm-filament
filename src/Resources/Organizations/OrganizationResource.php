@@ -25,6 +25,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
+use VentureDrake\LaravelCrmFilament\Concerns\WarnsOfLinkedRecords;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmActivitiesRelationManager;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmCallsRelationManager;
@@ -47,6 +48,7 @@ class OrganizationResource extends Resource
     use HasEncryptedGlobalSearch;
     use HasLabels;
     use UsesExternalIdRouting;
+    use WarnsOfLinkedRecords;
 
     protected static ?string $model = Organization::class;
 
@@ -203,6 +205,9 @@ class OrganizationResource extends Resource
 
                 NextActivity::eagerLoad($query);
 
+                // Backs deleteWarning() in each row's delete dialog.
+                static::withLinkedRecordCounts($query);
+
                 if (LaravelCrmPlugin::get()->isModuleEnabled('xero')) {
                     $query->with('xeroContact');
                 }
@@ -221,7 +226,7 @@ class OrganizationResource extends Resource
                 Actions\EditAction::make()
                     ->button()
                     ->hiddenLabel(),
-                Actions\DeleteAction::make()
+                static::warnOfLinkedRecords(Actions\DeleteAction::make())
                     ->button()
                     ->hiddenLabel(),
             ])
@@ -237,7 +242,7 @@ class OrganizationResource extends Resource
                         ],
                         filename: 'organizations',
                     ),
-                    Actions\DeleteBulkAction::make(),
+                    static::warnOfLinkedRecordsInBulk(Actions\DeleteBulkAction::make()),
                 ]),
             ]);
     }

@@ -13,11 +13,14 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrm\Support\LineAmount;
+use VentureDrake\LaravelCrm\Support\Money;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 /**
  * Convert-to-PurchaseOrder action on the Order view page.
@@ -219,7 +222,7 @@ trait HasOrderConvertToPurchaseOrderAction
             'issue_date' => now(),
             'delivery_date' => now()->addDays(14),
             'currency' => $record->currency,
-            'delivery_type' => 'collect',
+            'delivery_type' => 'pickup',
             'delivery_instructions' => null,
             'terms' => null,
             'user_owner_id' => $record->user_owner_id,
@@ -234,7 +237,6 @@ trait HasOrderConvertToPurchaseOrderAction
     protected function purchaseOrderLineFromOrderProduct(OrderProduct $orderProduct, ?string $currency = null): array
     {
         $unitPrice = $this->resolveSupplierUnitPrice($orderProduct, $currency);
-        $quantity = Quantity::toFloat($orderProduct->quantity);
 
         return [
             'id' => $orderProduct->product_id,
@@ -242,7 +244,8 @@ trait HasOrderConvertToPurchaseOrderAction
             'order_product_id' => $orderProduct->id,
             'quantity' => $orderProduct->quantity,
             'unit_price' => $unitPrice,
-            'amount' => $unitPrice * $quantity,
+            // Integer cents, as PurchaseOrderService prices the saved line.
+            'amount' => (float) MoneyForm::centsToForm(LineAmount::amountCents(Money::toInteger($unitPrice) ?? 0, $orderProduct->quantity)),
             'comments' => $orderProduct->comments,
         ];
     }

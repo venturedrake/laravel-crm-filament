@@ -10,6 +10,7 @@ use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
@@ -19,8 +20,15 @@ class EditInvoice extends EditRecord
     use Concerns\HasInvoiceMarkPaidAction;
     use Concerns\HasInvoicePortalAction;
     use Concerns\HasInvoiceSendAction;
+    use SurfacesServiceValidation;
 
     protected static string $resource = InvoiceResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function getHeaderActions(): array
     {
@@ -77,6 +85,10 @@ class EditInvoice extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Invoice $record */
+        // Lock the row first, as core's own edit does, so a payment or an
+        // accept landing while this waits is seen by the service's checks.
+        app(InvoiceService::class)->lockForEdit($record);
+
         // A cleared select arrives as null and must unlink; only a field the
         // form did not submit at all keeps the current link.
         $person = array_key_exists('person_id', $data)
@@ -90,29 +102,14 @@ class EditInvoice extends EditRecord
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
-        app(InvoiceService::class)->update(
-            FormPayload::wrap($data),
-            $record,
-            $person,
-            $organization,
+        $this->surfacingServiceValidation(
+            fn () => app(InvoiceService::class)->update(
+                FormPayload::wrap($data),
+                $record,
+                $person,
+                $organization,
+            ),
         );
-
-        // InvoiceService doesn't update discount/adjustments — write them
-        // directly so the 5-rollup money row reaches the DB.
-        $extras = [];
-        if (array_key_exists('discount', $data)) {
-            $extras['discount'] = $data['discount'] !== null
-                ? (int) round(((float) $data['discount']) * 100)
-                : null;
-        }
-        if (array_key_exists('adjustment', $data)) {
-            $extras['adjustments'] = $data['adjustment'] !== null
-                ? (int) round(((float) $data['adjustment']) * 100)
-                : null;
-        }
-        if ($extras !== []) {
-            $record->forceFill($extras)->save();
-        }
 
         InvoiceResource::saveCrmCustomFields($data, $record);
 

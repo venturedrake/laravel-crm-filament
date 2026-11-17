@@ -16,12 +16,18 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Fluent;
+use Illuminate\Validation\ValidationException;
+use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Lead;
 use VentureDrake\LaravelCrm\Models\LeadSource;
 use VentureDrake\LaravelCrm\Models\LeadStatus;
+use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Services\DealService;
+use VentureDrake\LaravelCrm\Services\LeadService;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFieldEntries;
@@ -29,6 +35,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\HasPrimaryBulkActions;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmActivitiesRelationManager;
@@ -43,8 +50,6 @@ use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\EditLead;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\LeadKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\ListLeads;
 use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\ViewLead;
-use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
-use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
@@ -55,6 +60,7 @@ class LeadResource extends Resource
     use HasEncryptedGlobalSearch;
     use HasLabels;
     use HasPrimaryBulkActions;
+    use SurfacesServiceValidation;
     use UsesExternalIdRouting;
 
     protected static ?string $model = Lead::class;
@@ -165,9 +171,13 @@ class LeadResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
+                // Matched as core 2.7.0's index search matches it: the stored
+                // number, or its prefix and digits, so LD-12 and 12 both find it.
                 Tables\Columns\TextColumn::make('lead_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(
+                        fn (Builder $query) => RecordSearch::orNumber($query, $search),
+                    ))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('title')
@@ -363,18 +373,9 @@ class LeadResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
-                    TextEntry::make('person.name')
-                        ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
-                            : null),
+                    LeadDealContactSection::personEntry(),
 
-                    TextEntry::make('organization.name')
-                        ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
-                            : null),
+                    LeadDealContactSection::organizationEntry(),
 
                     TextEntry::make('person_email')
                         ->label(__('laravel-crm-filament::labels.fields.email'))
@@ -403,27 +404,63 @@ class LeadResource extends Resource
         ])->columns(1);
     }
 
+    /**
+     * Convert the lead into a deal, as core 2.7.0's DealCreate does from a
+     * lead: the deal keeps the lead's id in `lead_id` and starts on the deal
+     * pipeline's first stage, and LeadService::markConverted() stamps
+     * `converted_at` and moves the lead to its pipeline's won stage.
+     *
+     * The lead is re-read inside the transaction, so a page or board opened
+     * before someone else converted it makes no second deal. DealService
+     * refuses a converted lead itself too; its ValidationException
+     * (`lead_id`) is left to the caller.
+     */
     public static function doConvertToDeal(Lead $lead): void
     {
-        if ($lead->converted_at) {
-            return;
-        }
+        DB::transaction(function () use ($lead): void {
+            $fresh = $lead->fresh();
 
-        $payload = new Fluent([
-            'title' => $lead->title,
-            'description' => $lead->description,
-            'amount' => ($lead->amount ?? 0) / 100,
-            'currency' => $lead->currency,
-            'user_owner_id' => $lead->user_owner_id,
-        ]);
+            if ($fresh === null || $fresh->isConverted()) {
+                return;
+            }
 
-        app(DealService::class)->create(
-            $payload,
-            $lead->person,
-            $lead->organization,
-        );
+            $payload = new Fluent([
+                'lead_id' => $fresh->getKey(),
+                'title' => $fresh->title,
+                'description' => $fresh->description,
+                'amount' => ($fresh->amount ?? 0) / 100,
+                'currency' => $fresh->currency,
+                'user_owner_id' => $fresh->user_owner_id,
+                'pipeline_stage_id' => static::firstDealStageId(),
+            ]);
 
-        $lead->forceFill(['converted_at' => now()])->save();
+            app(DealService::class)->create(
+                $payload,
+                $fresh->person,
+                $fresh->organization,
+            );
+
+            app(LeadService::class)->markConverted($fresh);
+        });
+
+        $lead->refresh();
+    }
+
+    /**
+     * The first stage of the first deal pipeline, where core 2.7.0 starts a
+     * deal made from a lead.
+     */
+    protected static function firstDealStageId(): ?int
+    {
+        $stageId = Pipeline::query()
+            ->where('model', Deal::class)
+            ->first()
+            ?->pipelineStages()
+            ->orderBy('order')
+            ->orderBy('id')
+            ->value('id');
+
+        return $stageId === null ? null : (int) $stageId;
     }
 
     public static function convertAction(): Action
@@ -433,15 +470,38 @@ class LeadResource extends Resource
             ->icon('heroicon-o-arrow-right-circle')
             ->color('success')
             ->requiresConfirmation()
-            ->visible(fn (?Lead $record): bool => $record !== null && $record->converted_at === null)
+            ->visible(fn (?Lead $record): bool => $record !== null && ! $record->isConverted())
             ->action(function (Lead $record): void {
-                static::doConvertToDeal($record);
+                // The page may have been open since the lead was converted
+                // elsewhere; core 2.7.0 turns such a lead away with this message.
+                if ($record->fresh()?->isConverted()) {
+                    static::refuseConversion(ucfirst(__('laravel-crm::lang.lead_already_converted')));
+
+                    return;
+                }
+
+                try {
+                    static::doConvertToDeal($record);
+                } catch (ValidationException $exception) {
+                    // DealService's own `lead_already_converted` check.
+                    static::refuseConversion(static::firstServiceValidationMessage($exception));
+
+                    return;
+                }
 
                 Notification::make()
                     ->title(__('laravel-crm-filament::labels.actions.convert_to_deal'))
                     ->success()
                     ->send();
             });
+    }
+
+    protected static function refuseConversion(string $message): void
+    {
+        Notification::make()
+            ->title($message)
+            ->danger()
+            ->send();
     }
 
     /**

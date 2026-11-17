@@ -17,10 +17,13 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Mail\SendPurchaseOrder;
+use VentureDrake\LaravelCrm\Models\Order;
+use VentureDrake\LaravelCrm\Models\Organization;
+use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -52,6 +55,7 @@ use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ListPurchaseO
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\Pages\ViewPurchaseOrder;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\DocumentMail;
 use VentureDrake\LaravelCrmFilament\Support\PurchaseOrderPortalLink;
 
 class PurchaseOrderResource extends Resource
@@ -127,7 +131,7 @@ class PurchaseOrderResource extends Resource
                             fkColumn: 'purchase_order_line_id',
                             priceField: 'unit_price',
                         )->defaultItems(1),
-                        MoneyTotalsRow::make(),
+                        MoneyTotalsRow::make(withAdjustments: false),
                     ]),
             ]),
         ]);
@@ -148,20 +152,24 @@ class PurchaseOrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('purchase_order_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    // Core 2.7.0's RecordSearch: the stored number and its
+                    // prefix/number parts, so "PO-1001" and "1001" both find it.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orNumber($query, $search)))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('reference')
                     ->label(__('laravel-crm-filament::labels.fields.reference'))
-                    ->searchable()
+                    // Matched literally and case-insensitively, as core does.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orLike($query, $query->qualifyColumn('reference'), $search)))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('order.order_id')
                     ->label(__('laravel-crm-filament::labels.fields.order'))
-                    ->url(fn ($record) => $record->order
-                        ? OrderResource::getUrl('view', ['record' => $record->order])
-                        : null)
-                    ->color('primary')
+                    ->formatStateUsing(fn ($state, PurchaseOrder $record): string => static::trashedLabel((string) $state, static::parentOrder($record)?->trashed() ?? false))
+                    ->url(fn (PurchaseOrder $record): ?string => static::orderUrl($record))
+                    ->color(fn (PurchaseOrder $record): ?string => static::orderUrl($record) !== null ? 'primary' : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('person.name')
@@ -186,6 +194,7 @@ class PurchaseOrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('delivery_type')
                     ->label(__('laravel-crm-filament::labels.sales.delivery_type'))
+                    ->formatStateUsing(fn (?string $state): ?string => PurchaseOrderDeliverySection::typeLabel($state))
                     ->toggleable(),
 
                 CrmMoney::column('total')
@@ -297,9 +306,8 @@ class PurchaseOrderResource extends Resource
 
                     TextEntry::make('order.order_id')
                         ->label(__('laravel-crm-filament::labels.fields.order'))
-                        ->url(fn ($record) => $record?->order
-                            ? OrderResource::getUrl('view', ['record' => $record->order])
-                            : null),
+                        ->formatStateUsing(fn ($state, PurchaseOrder $record): string => static::trashedLabel((string) $state, static::parentOrder($record)?->trashed() ?? false))
+                        ->url(fn (PurchaseOrder $record): ?string => static::orderUrl($record)),
 
                     TextEntry::make('issue_date')
                         ->label(__('laravel-crm-filament::labels.money.issue_date'))
@@ -310,7 +318,8 @@ class PurchaseOrderResource extends Resource
                         ->date(),
 
                     TextEntry::make('delivery_type')
-                        ->label(__('laravel-crm-filament::labels.sales.delivery_type')),
+                        ->label(__('laravel-crm-filament::labels.sales.delivery_type'))
+                        ->formatStateUsing(fn (?string $state): ?string => PurchaseOrderDeliverySection::typeLabel($state)),
 
                     CrmMoney::entry('total')
                         ->label(__('laravel-crm-filament::labels.money.amount')),
@@ -330,17 +339,24 @@ class PurchaseOrderResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
-                    TextEntry::make('person.name')
+                    // Core 2.7.0 shows a deleted contact as "Name (deleted)"
+                    // with no link, rather than a blank.
+                    TextEntry::make('personWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
+                        ->state(fn (PurchaseOrder $record): ?string => ($person = static::contactPerson($record))
+                            ? static::trashedLabel(LeadDealContactSection::personLabel($person), $person->trashed())
+                            : null)
+                        ->url(fn (PurchaseOrder $record): ?string => ($person = static::contactPerson($record)) && ! $person->trashed()
+                            ? PersonResource::getUrl('view', ['record' => $person])
                             : null),
 
-                    TextEntry::make('organization.name')
+                    TextEntry::make('organizationWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
+                        ->state(fn (PurchaseOrder $record): ?string => ($organization = static::contactOrganization($record))
+                            ? static::trashedLabel((string) $organization->getAttribute('name'), $organization->trashed())
+                            : null)
+                        ->url(fn (PurchaseOrder $record): ?string => ($organization = static::contactOrganization($record)) && ! $organization->trashed()
+                            ? OrganizationResource::getUrl('view', ['record' => $organization])
                             : null),
                 ]),
 
@@ -370,19 +386,23 @@ class PurchaseOrderResource extends Resource
         ];
     }
 
+    /**
+     * The one Send action, used by the table row and by the View and Edit
+     * pages (through HasPurchaseOrderSendAction), as core 2.7.0's
+     * PurchaseOrderSend does it: the To field takes a list of addresses, a
+     * mail failure keeps the modal open with a danger notification, and only
+     * a send that went marks the PO as sent.
+     */
     public static function sendPurchaseOrderActionFactory(): Action
     {
         return Action::make('send')
             ->label(__('laravel-crm-filament::labels.actions.send'))
             ->icon('heroicon-o-paper-airplane')
             ->color('success')
-            ->modalHeading('Send purchase order')
-            ->modalSubmitActionLabel('Send')
+            ->modalHeading(__('laravel-crm-filament::labels.actions.send_purchase_order'))
+            ->modalSubmitActionLabel(__('laravel-crm-filament::labels.actions.send'))
             ->schema(fn (PurchaseOrder $record): array => [
-                TextInput::make('to')
-                    ->label(__('laravel-crm-filament::labels.campaign.to'))
-                    ->email()
-                    ->required(),
+                DocumentMail::toField(fn (): ?string => static::defaultRecipient($record)),
                 TextInput::make('subject')
                     ->required()
                     ->default(fn () => 'Purchase Order ' . $record->purchase_order_id),
@@ -392,11 +412,14 @@ class PurchaseOrderResource extends Resource
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
-            ->action(function (array $data, PurchaseOrder $record): void {
-                static::dispatchPurchaseOrderSend($record, $data);
+            ->action(function (array $data, PurchaseOrder $record, Action $action): void {
+                static::dispatchPurchaseOrderSend($record, $data, $action);
+
+                // The Sent column reads this flag, and nothing else sets it.
+                $record->update(['sent' => 1]);
 
                 Notification::make()
-                    ->title('Purchase order sent')
+                    ->title(ucfirst(__('laravel-crm::lang.purchase_order_sent')))
                     ->success()
                     ->send();
             });
@@ -433,11 +456,14 @@ class PurchaseOrderResource extends Resource
             });
     }
 
-    protected static function dispatchPurchaseOrderSend(PurchaseOrder $record, array $data): void
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected static function dispatchPurchaseOrderSend(PurchaseOrder $record, array $data, ?Action $action = null): void
     {
         $signedUrl = PurchaseOrderPortalLink::signedFor($record);
 
-        $message = (string) $data['message'];
+        $message = (string) ($data['message'] ?? '');
 
         if ($signedUrl === null) {
             $message = PurchaseOrderPortalLink::stripPlaceholder($message);
@@ -445,14 +471,83 @@ class PurchaseOrderResource extends Resource
 
         $pdfPath = static::renderPurchaseOrderPdfToDisk($record);
 
-        Mail::send(new SendPurchaseOrder([
-            'to' => $data['to'],
+        DocumentMail::sendOrHalt(new SendPurchaseOrder([
+            'to' => DocumentMail::recipients($data['to'] ?? null),
             'subject' => $data['subject'],
             'message' => $message,
             'cc' => ! empty($data['cc']) ? 1 : 0,
             'onlinePurchaseOrderLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
-        ]));
+        ]), $action, 'purchase_order', $record);
+    }
+
+    /**
+     * The parent order's View URL, or null when there is none or it has been
+     * deleted: core 2.7.0 shows a soft-deleted parent as "No. (deleted)"
+     * without a link, as there is no page left to open.
+     */
+    public static function orderUrl(PurchaseOrder $record): ?string
+    {
+        $order = static::parentOrder($record);
+
+        return $order && ! $order->trashed()
+            ? OrderResource::getUrl('view', ['record' => $order])
+            : null;
+    }
+
+    /**
+     * The order the PO was made from, a soft-deleted one included.
+     */
+    protected static function parentOrder(PurchaseOrder $record): ?Order
+    {
+        /** @var Order|null $order */
+        $order = $record->getRelationValue('order');
+
+        return $order;
+    }
+
+    /**
+     * The PO's contact person, a soft-deleted one included (core 2.7.0's
+     * display-only HasTrashedContacts relation).
+     */
+    protected static function contactPerson(PurchaseOrder $record): ?Person
+    {
+        /** @var Person|null $person */
+        $person = $record->getRelationValue('personWithTrashed');
+
+        return $person;
+    }
+
+    protected static function contactOrganization(PurchaseOrder $record): ?Organization
+    {
+        /** @var Organization|null $organization */
+        $organization = $record->getRelationValue('organizationWithTrashed');
+
+        return $organization;
+    }
+
+    /**
+     * The To field's default: the contact's primary email, as core's
+     * PurchaseOrderSend starts it.
+     */
+    protected static function defaultRecipient(PurchaseOrder $record): ?string
+    {
+        /** @var Person|null $person */
+        $person = $record->getRelationValue('person');
+        $email = $person?->getPrimaryEmail();
+
+        return $email ? (string) $email->getAttribute('address') : null;
+    }
+
+    /**
+     * "$label (deleted)" for a soft-deleted record, as core's record links
+     * badge it.
+     */
+    public static function trashedLabel(string $label, bool $trashed): string
+    {
+        return $trashed
+            ? trim($label . ' (' . __('laravel-crm::lang.deleted') . ')')
+            : $label;
     }
 
     protected static function renderPurchaseOrderPdfToDisk(PurchaseOrder $record): string

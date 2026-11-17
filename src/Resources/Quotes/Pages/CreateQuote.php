@@ -8,12 +8,21 @@ use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\QuoteService;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class CreateQuote extends CreateRecord
 {
+    use SurfacesServiceValidation;
+
     protected static string $resource = QuoteResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function handleRecordCreation(array $data): Model
     {
@@ -24,7 +33,9 @@ class CreateQuote extends CreateRecord
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
-        $record = app(QuoteService::class)->create(FormPayload::wrap($data), $person, $organization);
+        $record = $this->surfacingServiceValidation(
+            fn () => app(QuoteService::class)->create(FormPayload::wrap($data), $person, $organization),
+        );
         QuoteResource::saveCrmCustomFields($data, $record);
 
         return $record;

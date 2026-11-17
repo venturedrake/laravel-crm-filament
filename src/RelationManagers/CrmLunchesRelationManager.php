@@ -9,6 +9,7 @@ use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrmFilament\Concerns\LogsCrmActivity;
 use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 class CrmLunchesRelationManager extends LunchesRelationManager
 {
@@ -47,18 +48,23 @@ class CrmLunchesRelationManager extends LunchesRelationManager
                     ->maxLength(255)
                     ->columnSpanFull(),
                 Grid::make(2)->schema([
+                    // Both times required and the finish not before the
+                    // start, as core 2.7.0 checks (`after_or_equal:start_at`).
                     Forms\Components\DateTimePicker::make('start_at')
-                        ->label(__('laravel-crm-filament::labels.money.start_at')),
+                        ->label(__('laravel-crm-filament::labels.money.start_at'))
+                        ->required(),
                     Forms\Components\DateTimePicker::make('finish_at')
-                        ->label(__('laravel-crm-filament::labels.money.finish_at')),
+                        ->label(__('laravel-crm-filament::labels.money.finish_at'))
+                        ->required()
+                        ->afterOrEqual('start_at'),
                 ]),
+                // Searched on the server as the user types rather than
+                // preloading every person, as core 2.7.0's guest picker does.
                 Forms\Components\Select::make('guests')
                     ->label(__('laravel-crm-filament::labels.fields.guests'))
                     ->multiple()
-                    ->searchable()
-                    ->preload()
+                    ->tap(fn (Forms\Components\Select $select) => EncryptedContactSearch::personSearchSelect($select))
                     ->placeholder('Search ...')
-                    ->options(fn () => Person::query()->get()->pluck('name', 'id')->sort(SORT_NATURAL | SORT_FLAG_CASE)->all())
                     ->columnSpanFull(),
                 Forms\Components\TextInput::make('location')
                     ->label(__('laravel-crm-filament::labels.fields.location'))

@@ -2,6 +2,7 @@
 
 namespace VentureDrake\LaravelCrmFilament\Concerns;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,6 +25,20 @@ trait FiltersBoardByOwner
     public string $ownerSearch = '';
 
     public static int $ownerOptionsLimit = 20;
+
+    /**
+     * Narrow a board query to the selected owner. The paged boards run it on
+     * the card pages and on the header counts and totals alike, so the
+     * headers always describe the cards the filter leaves.
+     */
+    protected function applyOwnerFilter(Builder $query, string $column = 'user_owner_id'): Builder
+    {
+        if ($this->ownerFilter) {
+            $query->where($column, $this->ownerFilter);
+        }
+
+        return $query;
+    }
 
     /**
      * @return Collection<int|string, string>

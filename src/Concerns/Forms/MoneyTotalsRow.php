@@ -20,38 +20,43 @@ use Filament\Schemas\Components\Grid;
  *   tax        -> service writes `tax` column ×100 (read-only on form)
  *   adjustment -> service writes `adjustments` column ×100
  *   total      -> service writes `total` column ×100 (read-only on form)
+ *
+ * Invoices and purchase orders pass `$withAdjustments: false`. Core's
+ * InvoiceService and PurchaseOrderService store neither discount nor
+ * adjustments, and as of 2.7.0 their total is always subtotal + tax, so
+ * the inputs only promised a change the saved total never showed.
  */
 class MoneyTotalsRow
 {
-    public static function make(): Grid
+    public static function make(bool $withAdjustments = true): Grid
     {
         return Grid::make(['default' => 1, 'md' => 2])->schema([
             Grid::make(1)->schema([]),
-            Grid::make(1)->schema([
+            Grid::make(1)->schema(array_values(array_filter([
                 Forms\Components\TextInput::make('sub_total')
                     ->label(__('laravel-crm-filament::labels.money.subtotal'))
                     ->numeric()
                     ->inlineLabel()
                     ->readOnly(),
-                Forms\Components\TextInput::make('discount')
+                $withAdjustments ? Forms\Components\TextInput::make('discount')
                     ->label(__('laravel-crm-filament::labels.money.discount'))
                     ->numeric()
-                    ->inlineLabel(),
+                    ->inlineLabel() : null,
                 Forms\Components\TextInput::make('tax')
                     ->label(__('laravel-crm-filament::labels.money.tax'))
                     ->numeric()
                     ->inlineLabel()
                     ->readOnly(),
-                Forms\Components\TextInput::make('adjustment')
+                $withAdjustments ? Forms\Components\TextInput::make('adjustment')
                     ->label(__('laravel-crm-filament::labels.money.adjustment'))
                     ->numeric()
-                    ->inlineLabel(),
+                    ->inlineLabel() : null,
                 Forms\Components\TextInput::make('total')
                     ->label(__('laravel-crm-filament::labels.money.total'))
                     ->numeric()
                     ->inlineLabel()
                     ->readOnly(),
-            ]),
+            ]))),
         ]);
     }
 }

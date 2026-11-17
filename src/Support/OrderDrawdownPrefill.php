@@ -7,6 +7,7 @@ use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\InvoiceLine;
 use VentureDrake\LaravelCrm\Models\Order;
+use VentureDrake\LaravelCrm\Support\Money;
 use VentureDrake\LaravelCrm\Support\Quantity;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
 
@@ -41,23 +42,29 @@ class OrderDrawdownPrefill
     public static function invoiceProducts(Order $order): array
     {
         return self::products($order, InvoiceLine::class, 'invoice', function ($orderProduct, float $remaining): array {
-            $unitPrice = MoneyForm::centsToForm($orderProduct->price) ?? 0.0;
-            $amount = round($unitPrice * $remaining, 2);
+            $priceCents = (int) $orderProduct->getRawOriginal('price');
             $rate = LineItemsRepeater::resolveTaxRate(
                 $orderProduct->product_id !== null ? (int) $orderProduct->product_id : null
             );
+
+            // Core's own pricing for an invoice line drawn from this order
+            // line: integer cents, and the invoice that takes the last of
+            // the quantity bills exactly what is left, so 1.25 + 1.25 of
+            // 833.33 comes to 833.33. InvoiceService prices the saved line
+            // the same way.
+            $cents = $orderProduct->invoiceLineCents($remaining, $priceCents, $rate);
 
             return [
                 'id' => $orderProduct->product_id,
                 'product_variation_id' => $orderProduct->product_variation_id,
                 'order_product_id' => $orderProduct->id,
                 'quantity' => $remaining,
-                'unit_price' => $unitPrice,
-                'amount' => $amount,
+                'unit_price' => (float) MoneyForm::centsToForm($priceCents),
+                'amount' => (float) MoneyForm::centsToForm($cents['amount']),
                 // Same rate chain InvoiceService will apply to this line when it
                 // writes it, so the header totalsFor() derives cannot contradict
                 // the lines that get stored.
-                'tax_amount' => round($amount * $rate / 100, 2),
+                'tax_amount' => (float) MoneyForm::centsToForm($cents['tax']),
                 'comments' => $orderProduct->comments,
             ];
         });
@@ -95,20 +102,19 @@ class OrderDrawdownPrefill
      */
     public static function totalsFor(array $products): array
     {
-        $subTotal = round(array_sum(array_map(
-            fn (array $row): float => (float) ($row['amount'] ?? 0),
-            $products,
-        )), 2);
+        $subTotal = 0;
+        $tax = 0;
 
-        $tax = round(array_sum(array_map(
-            fn (array $row): float => (float) ($row['tax_amount'] ?? 0),
-            $products,
-        )), 2);
+        // In integer cents, as core's DocumentTotals sums the saved lines.
+        foreach ($products as $row) {
+            $subTotal += Money::toInteger($row['amount'] ?? 0) ?? 0;
+            $tax += Money::toInteger($row['tax_amount'] ?? 0) ?? 0;
+        }
 
         return [
-            'sub_total' => $subTotal,
-            'tax' => $tax,
-            'total' => round($subTotal + $tax, 2),
+            'sub_total' => (float) MoneyForm::centsToForm($subTotal),
+            'tax' => (float) MoneyForm::centsToForm($tax),
+            'total' => (float) MoneyForm::centsToForm($subTotal + $tax),
         ];
     }
 

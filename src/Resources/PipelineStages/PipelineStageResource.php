@@ -10,6 +10,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Pipeline;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\PipelineStageProbability;
@@ -41,7 +42,10 @@ class PipelineStageResource extends Resource
             Grid::make(2)->schema([
                 Forms\Components\Select::make('pipeline_id')
                     ->label(__('laravel-crm-filament::labels.sales.pipeline'))
-                    ->options(fn () => Pipeline::query()->orderBy('name')->pluck('name', 'id'))
+                    ->options(fn () => static::pipelineOptions())
+                    // Core 2.7.0 (#138): preselect the option the select shows
+                    // first, so an untouched form saves.
+                    ->default(fn () => static::pipelineOptions()->keys()->first())
                     ->required()
                     ->searchable(),
                 Forms\Components\TextInput::make('name')
@@ -49,10 +53,12 @@ class PipelineStageResource extends Resource
                     ->maxLength(255),
             ]),
             Grid::make(2)->schema([
+                // A new stage is appended by core's PipelineStageService.
                 Forms\Components\TextInput::make('order')
                     ->numeric()
                     ->minValue(0)
-                    ->default(0),
+                    ->default(0)
+                    ->hiddenOn('create'),
                 Forms\Components\ColorPicker::make('color'),
             ]),
             Forms\Components\Select::make('pipeline_stage_probability_id')
@@ -64,6 +70,14 @@ class PipelineStageResource extends Resource
                 ->rows(2)
                 ->columnSpanFull(),
         ]);
+    }
+
+    /**
+     * @return Collection<int|string, string>
+     */
+    public static function pipelineOptions(): Collection
+    {
+        return Pipeline::query()->orderBy('name')->orderBy('id')->pluck('name', 'id');
     }
 
     public static function table(Table $table): Table

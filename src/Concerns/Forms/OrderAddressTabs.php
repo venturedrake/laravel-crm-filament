@@ -9,6 +9,7 @@ use Filament\Schemas\Components\Tabs;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\AddressType;
+use VentureDrake\LaravelCrm\Support\AddressContent;
 use VentureDrake\LaravelCrm\Support\FormOptions;
 
 /**
@@ -83,6 +84,10 @@ class OrderAddressTabs
      * Only the listed types are sent. A type the form hides is left out
      * rather than sent empty, and OrderService::update() keeps the
      * addresses of every type FormOptions::hiddenAddressTypeIds() names.
+     *
+     * A blank address (core 2.7.0's AddressContent::isBlank(): nothing typed
+     * but perhaps a country) is left out too, so it is not saved, and on
+     * edit OrderService::update() deletes a saved one cleared on the form.
      *
      * @param  list<string>|null  $types  FormOptions::ADDRESS_TYPES keys; null sends both.
      */
@@ -168,15 +173,14 @@ class OrderAddressTabs
         ];
     }
 
+    /**
+     * Whether someone typed anything into the address. A country on its own
+     * does not count: core 2.7.0 stopped saving country-only addresses
+     * (#115), as the country is often all that is left of a cleared one.
+     */
     protected static function hasAnyField(array $address): bool
     {
-        foreach (['contact', 'phone', 'line1', 'line2', 'line3', 'city', 'state', 'code', 'country'] as $key) {
-            if (! empty($address[$key])) {
-                return true;
-            }
-        }
-
-        return false;
+        return ! AddressContent::isBlank($address);
     }
 
     protected static function billingTypeId(): ?int

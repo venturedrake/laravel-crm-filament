@@ -5,6 +5,7 @@ namespace VentureDrake\LaravelCrmFilament\Resources\TaxRates;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
@@ -37,9 +38,13 @@ class TaxRateResource extends Resource
                 Forms\Components\TextInput::make('name')
                     ->required()
                     ->maxLength(255),
+                // Core 2.7.0 bounds the rate to 0–100 (StoreTaxRateRequest,
+                // HasTaxRateCommon).
                 Forms\Components\TextInput::make('rate')
                     ->numeric()
                     ->required()
+                    ->minValue(0)
+                    ->maxValue(100)
                     ->suffix('%'),
                 Forms\Components\TextInput::make('tax_type')
                     ->label(__('laravel-crm-filament::labels.fields.type'))
@@ -81,13 +86,56 @@ class TaxRateResource extends Resource
             ->recordActions([
                 Actions\ViewAction::make()->button()->hiddenLabel(),
                 Actions\EditAction::make()->button()->hiddenLabel(),
-                Actions\DeleteAction::make()->button()->hiddenLabel()->requiresConfirmation(),
+                static::refuseDeleteWhenInUse(Actions\DeleteAction::make()->button()->hiddenLabel()->requiresConfirmation()),
             ])
             ->toolbarActions([
                 Actions\BulkActionGroup::make([
-                    Actions\DeleteBulkAction::make(),
+                    static::refuseBulkDeleteWhenInUse(Actions\DeleteBulkAction::make()),
                 ]),
             ]);
+    }
+
+    /**
+     * Core 2.7.0 refuses to delete a tax rate that products still use
+     * (TaxRateIndex/TaxRateShow::delete): a product keeps its `tax_rate_id`,
+     * so deleting the rate would leave it pointing at a trashed row. Applied
+     * to every delete path: table row, view page and edit page.
+     */
+    public static function refuseDeleteWhenInUse(Actions\DeleteAction $action): Actions\DeleteAction
+    {
+        return $action->before(function (Actions\DeleteAction $action, TaxRate $record): void {
+            if (($count = $record->productsCount()) > 0) {
+                static::notifyInUse($count);
+
+                $action->cancel();
+            }
+        });
+    }
+
+    /**
+     * The bulk delete refuses the whole selection if any rate in it is in use,
+     * rather than deleting some and leaving the user to work out which.
+     */
+    public static function refuseBulkDeleteWhenInUse(Actions\DeleteBulkAction $action): Actions\DeleteBulkAction
+    {
+        return $action->before(function (Actions\DeleteBulkAction $action, iterable $records): void {
+            /** @var TaxRate $record */
+            foreach ($records as $record) {
+                if (($count = $record->productsCount()) > 0) {
+                    static::notifyInUse($count);
+
+                    $action->cancel();
+                }
+            }
+        });
+    }
+
+    protected static function notifyInUse(int $count): void
+    {
+        Notification::make()
+            ->danger()
+            ->title(ucfirst(__('laravel-crm::lang.cannot_delete_tax_rate_in_use', ['count' => $count])))
+            ->send();
     }
 
     public static function backToIndexAction(): Actions\Action

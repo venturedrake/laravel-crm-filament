@@ -10,6 +10,8 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PurchaseOrder;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
+use VentureDrake\LaravelCrmFilament\Concerns\Forms\PurchaseOrderDeliverySection;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\PurchaseOrders\PurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
@@ -17,8 +19,15 @@ use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 class EditPurchaseOrder extends EditRecord
 {
     use Concerns\HasPurchaseOrderSendAction;
+    use SurfacesServiceValidation;
 
     protected static string $resource = PurchaseOrderResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function getHeaderActions(): array
     {
@@ -48,6 +57,12 @@ class EditPurchaseOrder extends EditRecord
         }
 
         $data['adjustment'] = MoneyForm::centsToForm($data['adjustments'] ?? null);
+
+        // Core 2.7.0 calls pickup `pickup` (the panel used to save `collect`),
+        // and its edit form starts on the PO's own copy of its address, which
+        // PurchaseOrderService leaves alone when the same id comes back.
+        $data['delivery_type'] = PurchaseOrderDeliverySection::normalizeType($data['delivery_type'] ?? null);
+        $data['delivery_address'] = PurchaseOrderDeliverySection::currentAddressId($po);
 
         $data['products'] = $po->purchaseOrderLines()
             ->orderBy('order')
@@ -85,28 +100,14 @@ class EditPurchaseOrder extends EditRecord
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
-        app(PurchaseOrderService::class)->update(
-            FormPayload::wrap($data),
-            $record,
-            $person,
-            $organization,
+        $this->surfacingServiceValidation(
+            fn () => app(PurchaseOrderService::class)->update(
+                FormPayload::wrap($data),
+                $record,
+                $person,
+                $organization,
+            ),
         );
-
-        // Persist discount + adjustments (the service doesn't write them).
-        $extras = [];
-        if (array_key_exists('discount', $data)) {
-            $extras['discount'] = $data['discount'] !== null
-                ? (int) round(((float) $data['discount']) * 100)
-                : null;
-        }
-        if (array_key_exists('adjustment', $data)) {
-            $extras['adjustments'] = $data['adjustment'] !== null
-                ? (int) round(((float) $data['adjustment']) * 100)
-                : null;
-        }
-        if ($extras !== []) {
-            $record->forceFill($extras)->save();
-        }
 
         PurchaseOrderResource::saveCrmCustomFields($data, $record);
 

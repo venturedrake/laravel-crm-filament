@@ -3,13 +3,18 @@
 namespace VentureDrake\LaravelCrmFilament\Concerns\Forms;
 
 use Filament\Forms;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Fluent;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\OrganizationService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Concerns\ContactFieldsSchema;
+use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
+use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 /**
@@ -39,6 +44,68 @@ class LeadDealContactSection
         return trim(($person->first_name ?? '') . ' ' . ($person->last_name ?? ''));
     }
 
+    /**
+     * The contact on a lead or deal show page. Read through
+     * personWithTrashed(), as core 2.7.0's show pages do, so a deleted
+     * person reads "Name (deleted)" with no link instead of going blank.
+     */
+    public static function personEntry(string $name = 'person.name'): TextEntry
+    {
+        return TextEntry::make($name)
+            ->label(__('laravel-crm-filament::labels.fields.contact'))
+            ->state(function (?Model $record): ?string {
+                $person = static::trashedContact($record, 'personWithTrashed');
+
+                return $person instanceof Person
+                    ? static::trashedAwareName($person, static::personLabel($person))
+                    : null;
+            })
+            ->url(function (?Model $record): ?string {
+                $person = static::trashedContact($record, 'personWithTrashed');
+
+                return $person !== null && ! $person->trashed()
+                    ? PersonResource::getUrl('view', ['record' => $person])
+                    : null;
+            });
+    }
+
+    public static function organizationEntry(string $name = 'organization.name'): TextEntry
+    {
+        return TextEntry::make($name)
+            ->label(__('laravel-crm-filament::labels.fields.organization'))
+            ->state(function (?Model $record): ?string {
+                $organization = static::trashedContact($record, 'organizationWithTrashed');
+
+                return $organization instanceof Organization
+                    ? static::trashedAwareName($organization, (string) $organization->getAttribute('name'))
+                    : null;
+            })
+            ->url(function (?Model $record): ?string {
+                $organization = static::trashedContact($record, 'organizationWithTrashed');
+
+                return $organization !== null && ! $organization->trashed()
+                    ? OrganizationResource::getUrl('view', ['record' => $organization])
+                    : null;
+            });
+    }
+
+    /**
+     * The contact off core's HasTrashedContacts relation, deleted or not.
+     */
+    protected static function trashedContact(?Model $record, string $relation): Person | Organization | null
+    {
+        $contact = $record?->getRelationValue($relation);
+
+        return $contact instanceof Person || $contact instanceof Organization ? $contact : null;
+    }
+
+    protected static function trashedAwareName(Person | Organization $contact, string $label): string
+    {
+        return $contact->trashed()
+            ? trim($label . ' (' . __('laravel-crm::lang.deleted') . ')')
+            : $label;
+    }
+
     public static function contactColumn(): Section
     {
         return Section::make(__('laravel-crm-filament::labels.fields.contact'))
@@ -60,30 +127,14 @@ class LeadDealContactSection
                                 ->maxLength(255),
                         ]),
                         Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('phone')
-                                ->tel()
-                                ->maxLength(50),
-                            Forms\Components\Select::make('phone_type')
-                                ->options([
-                                    'work' => 'Work',
-                                    'home' => 'Home',
-                                    'mobile' => 'Mobile',
-                                    'fax' => 'Fax',
-                                    'other' => 'Other',
-                                ])
-                                ->default('mobile'),
+                            ContactFieldsSchema::phoneInput('phone', forRecord: false),
+                            ContactFieldsSchema::phoneTypeSelect('phone_type')
+                                ->requiredWith('phone'),
                         ]),
                         Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('email')
-                                ->email()
-                                ->maxLength(255),
-                            Forms\Components\Select::make('email_type')
-                                ->options([
-                                    'work' => 'Work',
-                                    'home' => 'Home',
-                                    'other' => 'Other',
-                                ])
-                                ->default('work'),
+                            ContactFieldsSchema::emailInput('email', forRecord: false),
+                            ContactFieldsSchema::emailTypeSelect('email_type')
+                                ->requiredWith('email'),
                         ]),
                     ])
                     ->createOptionUsing(function (array $data): int {

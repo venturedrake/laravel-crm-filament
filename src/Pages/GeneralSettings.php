@@ -385,7 +385,8 @@ class GeneralSettings extends Page implements HasForms
                 ->schema([
                     Grid::make(2)->schema([
                         TextInput::make('tax_name')->label(static::KEYS['tax_name'])->maxLength(255),
-                        TextInput::make('tax_rate')->label(static::KEYS['tax_rate'])->numeric()->suffix('%'),
+                        // 0–100, as core 2.7.0's UpdateSettingRequest.
+                        TextInput::make('tax_rate')->label(static::KEYS['tax_rate'])->numeric()->minValue(0)->maxValue(100)->suffix('%'),
                     ]),
                 ]),
 

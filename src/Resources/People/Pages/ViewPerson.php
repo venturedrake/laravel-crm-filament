@@ -27,7 +27,7 @@ class ViewPerson extends ViewRecord
         return [
             PersonResource::backToIndexAction(),
             Actions\EditAction::make()->icon('heroicon-m-pencil-square')->hiddenLabel()->tooltip('Edit'),
-            Actions\DeleteAction::make()->icon('heroicon-m-trash')->hiddenLabel()->tooltip('Delete'),
+            PersonResource::warnOfLinkedRecords(Actions\DeleteAction::make())->icon('heroicon-m-trash')->hiddenLabel()->tooltip('Delete'),
         ];
     }
 

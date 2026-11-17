@@ -42,7 +42,9 @@ class ViewOrder extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-pencil-square'),
-            Actions\DeleteAction::make()
+            // Disabled with core 2.7.0's reason while invoices, purchase
+            // orders or deliveries still point at the order.
+            OrderResource::deleteAction(Actions\DeleteAction::make())
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-trash'),

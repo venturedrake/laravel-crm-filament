@@ -187,6 +187,7 @@ return [
         'post_code' => 'Post code',
         'postal_code' => 'Postal code',
         'country' => 'Country',
+        'bulk_delete_linked_warning' => ':count of the selected contacts are linked to other records. They will still appear on those records, marked as deleted.',
     ],
 
     // Sales / pipeline
@@ -204,7 +205,7 @@ return [
         'expected_close' => 'Expected close',
         'delivery_type' => 'Delivery type',
         'deliver' => 'Deliver',
-        'collect' => 'Collect',
+        'pickup' => 'Pickup',
         'delivery_address' => 'Delivery address',
         'delivery_instructions' => 'Delivery instructions',
         'billing_address' => 'Billing address',
@@ -254,6 +255,7 @@ return [
         'amount' => 'Amount',
         'amount_paid' => 'Amount paid',
         'amount_due' => 'Amount due',
+        'payment_date' => 'Payment date',
         'overdue_by' => 'Overdue by',
         'value' => 'Value',
         'subtotal' => 'Subtotal',
@@ -377,6 +379,7 @@ return [
     // Integrations page — per-integration descriptions surfaced on the Settings page
     'integrations' => [
         'xero_description' => 'Connect to xero accounting to sync contacts, products, quotes & generate invoices.',
+        'xero_connected_to' => 'Connected to :name',
         'xero_not_installed' => 'The Xero integration needs the dcblogdev/laravel-xero package, which laravel-crm no longer installs for you. Install it with Composer, then reload this page. Existing Xero tokens and synced records are kept.',
         'clicksend_description' => 'Connect ClickSend to send SMS marketing campaigns from the CRM.',
         'clicksend_signup_prefix' => 'Don\'t have a ClickSend account? Sign up at',
@@ -694,6 +697,8 @@ return [
         'no_line_items_selected' => 'No line items selected',
         'nothing_left_to_deliver' => 'Nothing left to deliver',
         'nothing_left_to_deliver_body' => 'Every line on this order has already been delivered in full, so there is nothing to put on a new delivery.',
+        'nothing_left_to_invoice' => 'Nothing left to invoice',
+        'nothing_left_to_invoice_body' => 'Every line on this order has already been invoiced in full, so there is nothing to put on a new invoice.',
     ],
 
     // Dashboard widgets — stat labels, chart titles, task list, doughnut slices, and heading period suffix
@@ -729,6 +734,11 @@ return [
         'upcoming_tasks' => 'Upcoming tasks',
         'overdue_n' => ':count overdue',
         'no_upcoming_tasks' => 'No upcoming tasks',
+    ],
+
+    // Send modals (quote, invoice, purchase order)
+    'send' => [
+        'to_hint' => 'Separate more than one address with commas or semicolons.',
     ],
 
 ];

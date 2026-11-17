@@ -73,12 +73,6 @@ parameters:
 			path: src/Concerns/Forms/OrderAddressTabs.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Address\:\:\$addressable_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Concerns/Forms/PurchaseOrderDeliverySection.php
-
-		-
 			message: '#^If condition is always true\.$#'
 			identifier: if.alwaysTrue
 			count: 1
@@ -1023,7 +1017,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\EmailCampaign\:\:\$scheduled_at\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/EmailCampaigns/EmailCampaignResource.php
 
 		-
@@ -1297,12 +1291,6 @@ parameters:
 			path: src/Resources/Invoices/InvoiceResource.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$amount_paid\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/InvoiceResource.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$due_date\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1356,7 +1344,6 @@ parameters:
 			count: 1
 			path: src/Resources/Invoices/InvoiceResource.php
 
-
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$organization\.$#'
 			identifier: property.notFound
@@ -1366,7 +1353,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Invoices/Pages/EditInvoice.php
 
 		-
@@ -1377,12 +1364,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$fully_paid_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Invoices/Pages/ViewInvoice.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Invoice\:\:\$person\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Invoices/Pages/ViewInvoice.php
@@ -1496,12 +1477,6 @@ parameters:
 			path: src/Resources/Leads/LeadResource.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Lead\:\:\$converted_at\.$#'
-			identifier: property.notFound
-			count: 2
-			path: src/Resources/Leads/LeadResource.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Lead\:\:\$currency\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1578,12 +1553,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Leads/Pages/LeadKanban.php
-
-		-
-			message: '#^Cannot access property \$pipelineStage on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
-			identifier: property.nonObject
-			count: 1
-			path: src/Resources/Leads/Pages/ViewLead.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$host\.$#'
@@ -1669,7 +1638,6 @@ parameters:
 			count: 1
 			path: src/Resources/Orders/OrderResource.php
 
-
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
 			identifier: property.notFound
@@ -1754,7 +1722,6 @@ parameters:
 			count: 1
 			path: src/Resources/Orders/Pages/EditOrder.php
 
-
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
 			identifier: property.notFound
@@ -1772,7 +1739,6 @@ parameters:
 			identifier: property.notFound
 			count: 3
 			path: src/Resources/Orders/Pages/ViewOrder.php
-
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Order\:\:\$organization\.$#'
@@ -2200,7 +2166,6 @@ parameters:
 			count: 1
 			path: src/Resources/PurchaseOrders/Pages/EditPurchaseOrder.php
 
-
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PurchaseOrder\:\:\$external_id\.$#'
 			identifier: property.notFound
@@ -2312,18 +2277,11 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 1
 			path: src/Resources/Quotes/Pages/EditQuote.php
-
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/QuoteKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$accepted_at\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/QuoteKanban.php
@@ -2341,15 +2299,9 @@ parameters:
 			path: src/Resources/Quotes/Pages/QuoteKanban.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$rejected_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/QuoteKanban.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$accepted_at\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
@@ -2389,6 +2341,12 @@ parameters:
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$orders\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Quotes/Pages/ViewQuote.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$organization\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2397,15 +2355,14 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$person\.$#'
 			identifier: property.notFound
-			count: 2
-			path: src/Resources/Quotes/Pages/ViewQuote.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$pipeline_stage_id\.$#'
-			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$pipelineStage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$reference\.$#'
@@ -2438,8 +2395,8 @@ parameters:
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
 		-
-			message: '#^Cannot access property \$pipelineStage on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
-			identifier: property.nonObject
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\QuoteProduct\:\:\$quantity\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/ViewQuote.php
 
@@ -2500,7 +2457,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$accepted_at\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 4
 			path: src/Resources/Quotes/QuoteResource.php
 
 		-
@@ -2518,7 +2475,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$rejected_at\.$#'
 			identifier: property.notFound
-			count: 2
+			count: 3
 			path: src/Resources/Quotes/QuoteResource.php
 
 		-

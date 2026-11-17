@@ -4,6 +4,7 @@ namespace VentureDrake\LaravelCrmFilament\Resources\Orders\Pages\Concerns;
 
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use VentureDrake\LaravelCrm\Models\InvoiceLine;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
@@ -11,8 +12,10 @@ use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 /**
- * Convert-to-Invoice action on Order view page. Hidden when an invoice already
- * exists. Copies all order line items into the new invoice and links
+ * Convert-to-Invoice action on Order view page. Offered while any order line
+ * still has quantity left to invoice, so an order can be billed across
+ * several invoices (core 2.7.0 shows its button until `invoiceComplete()`).
+ * Each new invoice carries the remainder of every line and links
  * invoice.order_id.
  */
 trait HasOrderConvertToInvoiceAction
@@ -26,8 +29,20 @@ trait HasOrderConvertToInvoiceAction
             ->requiresConfirmation()
             ->modalHeading('Convert order to invoice')
             ->modalDescription('Creates a new invoice for the quantities still outstanding on this order.')
-            ->visible(fn (Order $record): bool => $record->invoices()->count() === 0)
+            ->visible(fn (Order $record): bool => OrderDrawdownPrefill::hasRemaining($record, InvoiceLine::class, 'invoice'))
             ->action(function (Order $record, InvoiceService $invoiceService): void {
+                // Checked again here: another invoice may have taken the rest
+                // since the page loaded, and an empty invoice is no use.
+                if (! OrderDrawdownPrefill::hasRemaining($record->fresh() ?? $record, InvoiceLine::class, 'invoice')) {
+                    Notification::make()
+                        ->title(__('laravel-crm-filament::labels.notifications.nothing_left_to_invoice'))
+                        ->body(__('laravel-crm-filament::labels.notifications.nothing_left_to_invoice_body'))
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
                 $payload = $this->buildInvoicePayloadFromOrder($record);
 
                 $invoice = $invoiceService->create(

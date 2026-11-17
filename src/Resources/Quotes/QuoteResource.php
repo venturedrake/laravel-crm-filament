@@ -18,11 +18,14 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Mail\SendQuote;
+use VentureDrake\LaravelCrm\Models\Organization;
+use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrm\Services\QuoteStateService;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -53,9 +56,13 @@ use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\QuoteKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\Pages\ViewQuote;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\DocumentMail;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
+
+use function VentureDrake\LaravelCrm\Http\Helpers\CheckAmount\subTotal;
+use function VentureDrake\LaravelCrm\Http\Helpers\CheckAmount\total;
 
 class QuoteResource extends Resource
 {
@@ -144,11 +151,15 @@ class QuoteResource extends Resource
 
                 Tables\Columns\TextColumn::make('quote_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    // Core 2.7.0's RecordSearch: "QU-3002", "3002" and "qu-3002"
+                    // all find the quote, including one stored with no quote_id
+                    // or under an older prefix; `%` and `_` are literal.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q) => RecordSearch::orNumber($q, $search)))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('reference')
                     ->label(__('laravel-crm-filament::labels.fields.reference'))
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(fn (Builder $q) => RecordSearch::orLike($q, $q->getModel()->qualifyColumn('reference'), $search)))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('title')
@@ -222,6 +233,11 @@ class QuoteResource extends Resource
                     ->button(),
                 static::rejectAction()
                     ->button(),
+                // Core 2.7.0's index offers the reversals on the row too.
+                static::unacceptAction()
+                    ->button(),
+                static::unrejectAction()
+                    ->button(),
                 static::portalActionFactory()
                     ->button()
                     ->hiddenLabel()
@@ -242,10 +258,10 @@ class QuoteResource extends Resource
                 Actions\ViewAction::make()
                     ->button()
                     ->hiddenLabel(),
-                Actions\EditAction::make()
+                static::lockAwareEditAction(Actions\EditAction::make())
                     ->button()
                     ->hiddenLabel(),
-                Actions\DeleteAction::make()
+                static::deleteBlockedTooltip(Actions\DeleteAction::make())
                     ->button()
                     ->requiresConfirmation()
                     ->hiddenLabel(),
@@ -332,6 +348,13 @@ class QuoteResource extends Resource
         ];
     }
 
+    /**
+     * The one Send action for quotes: the table row, View and Edit all use it.
+     *
+     * As core 2.7.0's QuoteSend: the To field takes a list of addresses, a mail
+     * failure is shown and leaves the modal open, and only a quote that was
+     * actually sent moves from Draft to Sent (QuoteStateService::markSent).
+     */
     public static function sendActionFactory(): Action
     {
         return Action::make('send')
@@ -341,25 +364,25 @@ class QuoteResource extends Resource
             ->modalHeading('Send quote')
             ->modalSubmitActionLabel('Send')
             ->schema(fn (Quote $record): array => [
-                TextInput::make('to')
-                    ->label(__('laravel-crm-filament::labels.campaign.to'))
-                    ->email()
-                    ->required()
-                    ->default(fn () => optional($record->person)->getPrimaryEmail()?->address),
+                DocumentMail::toField(fn (): ?string => $record->person?->getPrimaryEmail()?->address),
                 TextInput::make('subject')
                     ->required()
-                    ->default(fn () => 'Quote ' . $record->quote_id),
+                    // The quote number, never the reference: core 2.7.0 fixed a
+                    // subject that read "Quote  from …" for a quote with none.
+                    ->default(fn (): string => 'Quote ' . $record->quote_id),
                 Textarea::make('message')
                     ->rows(8)
                     ->default(fn (): string => PortalMessage::defaultMessage(PortalMessage::QUOTE)),
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
-            ->action(function (array $data, Quote $record): void {
-                static::dispatchQuoteSend($record, $data);
+            ->action(function (array $data, Quote $record, Action $action): void {
+                static::dispatchQuoteSend($record, $data, $action);
+
+                app(QuoteStateService::class)->markSent($record);
 
                 Notification::make()
-                    ->title('Quote sent')
+                    ->title(ucfirst(__('laravel-crm::lang.quote_sent_successfully')))
                     ->success()
                     ->send();
             });
@@ -393,22 +416,28 @@ class QuoteResource extends Resource
             });
     }
 
-    protected static function dispatchQuoteSend(Quote $record, array $data): void
+    /**
+     * Returns only once the mail was handed to the transport; a refused
+     * connection or a rejected address halts $action with a notification.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected static function dispatchQuoteSend(Quote $record, array $data, ?Action $action = null): void
     {
         $signedUrl = PortalUrl::signedFor('laravel-crm.portal.quotes.show', $record);
 
         $pdfPath = static::renderQuotePdfToDisk($record);
 
-        Mail::send(new SendQuote([
-            'to' => $data['to'],
+        DocumentMail::sendOrHalt(new SendQuote([
+            'to' => DocumentMail::recipients($data['to'] ?? null),
             'subject' => $data['subject'],
             // Null link, no placeholder: base's mailable expands it either way,
             // and an unexpanded null mails an empty anchor.
-            'message' => PortalMessage::resolve(PortalMessage::QUOTE, (string) $data['message'], $signedUrl),
+            'message' => PortalMessage::resolve(PortalMessage::QUOTE, (string) ($data['message'] ?? ''), $signedUrl),
             'cc' => ! empty($data['cc']) ? 1 : 0,
             'onlineQuoteLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
-        ]));
+        ]), $action, 'quote', $record);
     }
 
     protected static function renderQuotePdfToDisk(Quote $record): string
@@ -416,22 +445,45 @@ class QuoteResource extends Resource
         return CrmPdf::renderToDisk($record, 'quote');
     }
 
+    /**
+     * Core 2.7.0's QuoteShow/QuoteIndex offer no response while a quote's
+     * amounts don't add up (they link to the edit form instead), unless the
+     * quote is already locked and so can't be fixed.
+     */
+    protected static function responseBlockedByAmounts(Quote $quote): bool
+    {
+        return ! $quote->isLocked() && (! subTotal($quote) || ! total($quote));
+    }
+
+    /**
+     * Accept, reject, unaccept and unreject all go through core's
+     * QuoteStateService, which moves the pipeline stage with the timestamp,
+     * and are shown by the same rules as core 2.7.0's QuoteShow.
+     */
+    protected static function stateAction(string $name, string $icon, string $color): Action
+    {
+        return Action::make($name)
+            ->label(__("laravel-crm-filament::labels.actions.{$name}"))
+            ->icon($icon)
+            ->color($color)
+            ->requiresConfirmation()
+            // Core authorizes every response on update(), not edit(): an
+            // accepted quote is locked, yet can still be unaccepted.
+            ->authorize('update');
+    }
+
     public static function acceptAction(): Action
     {
-        return Action::make('accept')
-            ->label(__('laravel-crm-filament::labels.actions.accept'))
-            ->icon('heroicon-o-check-circle')
-            ->color('success')
-            ->requiresConfirmation()
-            ->visible(fn (?Quote $record): bool => $record !== null && $record->accepted_at === null)
+        return static::stateAction('accept', 'heroicon-o-check-circle', 'success')
+            ->visible(fn (?Quote $record): bool => $record !== null
+                && $record->accepted_at === null
+                && $record->rejected_at === null
+                && ! static::responseBlockedByAmounts($record))
             ->action(function (Quote $record): void {
-                $record->forceFill([
-                    'accepted_at' => now(),
-                    'rejected_at' => null,
-                ])->save();
+                app(QuoteStateService::class)->accept($record);
 
                 Notification::make()
-                    ->title(__('laravel-crm-filament::labels.actions.accept'))
+                    ->title(ucfirst(__('laravel-crm::lang.quote_accepted')))
                     ->success()
                     ->send();
             });
@@ -439,20 +491,16 @@ class QuoteResource extends Resource
 
     public static function rejectAction(): Action
     {
-        return Action::make('reject')
-            ->label(__('laravel-crm-filament::labels.actions.reject'))
-            ->icon('heroicon-o-x-circle')
-            ->color('danger')
-            ->requiresConfirmation()
-            ->visible(fn (?Quote $record): bool => $record !== null && $record->rejected_at === null)
+        return static::stateAction('reject', 'heroicon-o-x-circle', 'danger')
+            ->visible(fn (?Quote $record): bool => $record !== null
+                && $record->accepted_at === null
+                && $record->rejected_at === null
+                && ! static::responseBlockedByAmounts($record))
             ->action(function (Quote $record): void {
-                $record->forceFill([
-                    'rejected_at' => now(),
-                    'accepted_at' => null,
-                ])->save();
+                app(QuoteStateService::class)->reject($record);
 
                 Notification::make()
-                    ->title(__('laravel-crm-filament::labels.actions.reject'))
+                    ->title(ucfirst(__('laravel-crm::lang.quote_rejected')))
                     ->success()
                     ->send();
             });
@@ -460,19 +508,26 @@ class QuoteResource extends Resource
 
     public static function unacceptAction(): Action
     {
-        return Action::make('unaccept')
-            ->label(__('laravel-crm-filament::labels.actions.unaccept'))
-            ->icon('heroicon-o-arrow-uturn-left')
-            ->color('gray')
-            ->requiresConfirmation()
-            ->visible(fn (?Quote $record): bool => $record !== null && $record->accepted_at !== null)
-            ->action(function (Quote $record): void {
-                $record->forceFill([
-                    'accepted_at' => null,
-                ])->save();
+        return static::stateAction('unaccept', 'heroicon-o-arrow-uturn-left', 'gray')
+            ->visible(fn (?Quote $record): bool => $record !== null
+                && $record->accepted_at !== null
+                && ! $record->hasOrders())
+            ->action(function (Quote $record, Action $action): void {
+                // An order was made from what was accepted since the page
+                // was drawn; the service refuses and changes nothing.
+                if (! app(QuoteStateService::class)->unaccept($record)) {
+                    Notification::make()
+                        ->title(ucfirst(__('laravel-crm::lang.quote_locked_ordered')))
+                        ->danger()
+                        ->send();
+
+                    $action->halt();
+
+                    return;
+                }
 
                 Notification::make()
-                    ->title(__('laravel-crm-filament::labels.actions.unaccept'))
+                    ->title(ucfirst(__('laravel-crm::lang.quote_unaccepted')))
                     ->success()
                     ->send();
             });
@@ -480,22 +535,60 @@ class QuoteResource extends Resource
 
     public static function unrejectAction(): Action
     {
-        return Action::make('unreject')
-            ->label(__('laravel-crm-filament::labels.actions.unreject'))
-            ->icon('heroicon-o-arrow-uturn-left')
-            ->color('gray')
-            ->requiresConfirmation()
-            ->visible(fn (?Quote $record): bool => $record !== null && $record->rejected_at !== null)
+        return static::stateAction('unreject', 'heroicon-o-arrow-uturn-left', 'gray')
+            // A quote that is both accepted and rejected is unaccepted first.
+            ->visible(fn (?Quote $record): bool => $record !== null
+                && $record->rejected_at !== null
+                && $record->accepted_at === null
+                && ! static::responseBlockedByAmounts($record))
             ->action(function (Quote $record): void {
-                $record->forceFill([
-                    'rejected_at' => null,
-                ])->save();
+                app(QuoteStateService::class)->unreject($record);
 
                 Notification::make()
-                    ->title(__('laravel-crm-filament::labels.actions.unreject'))
+                    ->title(ucfirst(__('laravel-crm::lang.quote_unrejected')))
                     ->success()
                     ->send();
             });
+    }
+
+    /**
+     * An accepted or ordered quote is locked (core 2.7.0). Its Edit button
+     * stays, disabled, with the reason as the tooltip, as core's does.
+     */
+    public static function lockAwareEditAction(Actions\EditAction $action): Actions\EditAction
+    {
+        return $action
+            ->disabled(fn (Quote $record): bool => $record->isLocked())
+            ->tooltip(fn (Quote $record): ?string => $record->lockReason());
+    }
+
+    /**
+     * Core's QuotePolicy::delete() denies a quote with an order with
+     * deleteBlockedReason(); the tooltip shows that on a disabled Delete.
+     */
+    public static function deleteBlockedTooltip(Actions\DeleteAction $action): Actions\DeleteAction
+    {
+        return $action->authorizationTooltip();
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        /** @var Quote $record */
+        return parent::canEdit($record) && ! $record->isLocked();
+    }
+
+    /**
+     * "Name (deleted)" for a soft-deleted contact, as core 2.7.0's record link.
+     */
+    public static function contactLabel(Person | Organization | null $contact, string $name): ?string
+    {
+        if ($contact === null) {
+            return null;
+        }
+
+        return $contact->trashed()
+            ? $name . ' (' . __('laravel-crm::lang.deleted') . ')'
+            : $name;
     }
 
     public static function infolist(Schema $schema): Schema
@@ -546,18 +639,41 @@ class QuoteResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
+                    // Through the *WithTrashed relations (core 2.7.0), so a
+                    // deleted contact still shows, marked and without a link.
                     TextEntry::make('person.name')
                         ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
-                            : null),
+                        ->state(function (?Quote $record): ?string {
+                            $person = $record?->personWithTrashed;
+
+                            return $person instanceof Person
+                                ? static::contactLabel($person, LeadDealContactSection::personLabel($person))
+                                : null;
+                        })
+                        ->url(function (?Quote $record): ?string {
+                            $person = $record?->personWithTrashed;
+
+                            return $person instanceof Person && ! $person->trashed()
+                                ? PersonResource::getUrl('view', ['record' => $person])
+                                : null;
+                        }),
 
                     TextEntry::make('organization.name')
                         ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
-                            : null),
+                        ->state(function (?Quote $record): ?string {
+                            $organization = $record?->organizationWithTrashed;
+
+                            return $organization instanceof Organization
+                                ? static::contactLabel($organization, (string) $organization->getAttribute('name'))
+                                : null;
+                        })
+                        ->url(function (?Quote $record): ?string {
+                            $organization = $record?->organizationWithTrashed;
+
+                            return $organization instanceof Organization && ! $organization->trashed()
+                                ? OrganizationResource::getUrl('view', ['record' => $organization])
+                                : null;
+                        }),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.sections.custom_fields'))

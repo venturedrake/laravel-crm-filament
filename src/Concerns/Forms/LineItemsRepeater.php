@@ -9,10 +9,13 @@ use Illuminate\Support\Facades\Auth;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\TaxRate;
 use VentureDrake\LaravelCrm\Services\ProductService;
+use VentureDrake\LaravelCrm\Support\LineAmount;
 use VentureDrake\LaravelCrm\Support\Money;
 use VentureDrake\LaravelCrm\Support\Quantity;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
 
@@ -121,8 +124,14 @@ class LineItemsRepeater
                 $withOrderProductId ? Forms\Components\Hidden::make('order_product_id') : null,
                 Forms\Components\Select::make('id')
                     ->label(__('laravel-crm-filament::labels.money.product'))
-                    ->options(fn () => Product::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
+                    // Searched on the server and capped at 20, as core 2.7.0's
+                    // picker is: every row used to load the whole catalogue on
+                    // each round trip.
                     ->searchable()
+                    ->getSearchResultsUsing(fn (?string $search): array => self::productSearchResults($search))
+                    // A product picked earlier, deactivated or deleted since,
+                    // still labels the row it is on.
+                    ->getOptionLabelUsing(fn ($value): ?string => self::productLabel($value))
                     ->createOptionForm(self::productCreateForm())
                     ->createOptionModalHeading(__('laravel-crm-filament::labels.actions.create_product'))
                     ->createOptionUsing(fn (array $data) => self::createProduct($data))
@@ -174,6 +183,38 @@ class LineItemsRepeater
             ->defaultItems(0)
             ->reorderable()
             ->columnSpanFull();
+    }
+
+    /**
+     * Up to 20 active products whose name or code contains $search, by name.
+     * With no search the first 20 are offered, so the picker is not empty
+     * when opened.
+     *
+     * @return array<int|string, string>
+     */
+    public static function productSearchResults(?string $search): array
+    {
+        $term = trim((string) $search);
+
+        return Product::query()
+            ->where('active', true)
+            ->when($term !== '', fn ($query) => $query->where(function ($query) use ($term) {
+                RecordSearch::orLike($query, 'name', $term);
+                RecordSearch::orLike($query, 'code', $term);
+            }))
+            ->orderBy('name')
+            ->limit(20)
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    public static function productLabel($value): ?string
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return Product::withTrashed()->whereKey($value)->value('name');
     }
 
     /**
@@ -304,23 +345,24 @@ class LineItemsRepeater
      */
     private static function recalcRow($get, $set, string $priceField): void
     {
-        // Money::toFloat / Quantity::toFloat rather than a (float) cast: money
-        // inputs arrive masked ("$1,234.56"), a decimal column hands PHP the
-        // string "3.500", and (float) '' is silently 0.
-        $unitPrice = Money::toFloat($get($priceField));
-        $quantity = Quantity::toFloat($get('quantity'));
-
-        // Rounded per line, exactly as core's ModelProducts does. Without it
-        // two lines of 0.5 x $9.99 store 500 + 500 = 1000 while the header
-        // computes 999, and CheckAmount flags a perfectly consistent document
-        // as broken.
-        $amount = round($unitPrice * $quantity, 2);
-        $set('amount', $amount);
+        // Priced in integer cents by core's LineAmount, exactly as the
+        // services store the line: the quantity is scaled to thousandths
+        // first, so 333.33 x 2.5 is 833.33 here and in the saved document
+        // (a float product rounded to 2dp came out a cent short). Masked
+        // input ("$1,234.56") and a decimal column's "3.500" are handled.
+        $rate = 0.0;
 
         if ($priceField === 'unit_price') {
             $productId = $get('id');
             $rate = self::resolveTaxRate($productId !== null ? (int) $productId : null);
-            $set('tax_amount', round($unitPrice * $quantity * $rate / 100, 2));
+        }
+
+        $cents = LineAmount::forForm($get($priceField), $get('quantity'), $rate);
+
+        $set('amount', (float) MoneyForm::centsToForm($cents['amount']));
+
+        if ($priceField === 'unit_price') {
+            $set('tax_amount', (float) MoneyForm::centsToForm($cents['tax']));
         }
     }
 
@@ -366,21 +408,19 @@ class LineItemsRepeater
     {
         $rows = $get('../../') ?? [];
 
-        $subTotal = 0.0;
-        $tax = 0.0;
+        // Summed in integer cents, as core's DocumentTotals sums the saved
+        // lines, so the header the form shows is the one the service stores.
+        $subTotal = 0;
+        $tax = 0;
 
         foreach ($rows as $row) {
-            $subTotal += Money::toFloat($row['amount'] ?? 0);
-            $tax += Money::toFloat($row['tax_amount'] ?? 0);
+            $subTotal += Money::toInteger($row['amount'] ?? 0) ?? 0;
+            $tax += Money::toInteger($row['tax_amount'] ?? 0) ?? 0;
         }
 
-        // Totals rounded once, as core's ModelProducts does.
-        $subTotal = round($subTotal, 2);
-        $tax = round($tax, 2);
-
-        $set('../../../sub_total', $subTotal);
-        $set('../../../tax', $tax);
-        $set('../../../total', round($subTotal + $tax, 2));
+        $set('../../../sub_total', (float) MoneyForm::centsToForm($subTotal));
+        $set('../../../tax', (float) MoneyForm::centsToForm($tax));
+        $set('../../../total', (float) MoneyForm::centsToForm($subTotal + $tax));
     }
 
     /**

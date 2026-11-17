@@ -12,6 +12,6 @@ class EditTaxRate extends EditRecord
 
     protected function getHeaderActions(): array
     {
-        return [Actions\DeleteAction::make()];
+        return [TaxRateResource::refuseDeleteWhenInUse(Actions\DeleteAction::make())];
     }
 }

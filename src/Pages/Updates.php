@@ -411,7 +411,14 @@ class Updates extends Page
                 $userCount = max(1, (int) $model::query()->where('crm_access', 1)->count());
             }
 
-            $response = (new Client)->request('POST', self::VERSION_API_URL, [
+            // Core 2.7.0's package-scoped binding, as its UpdateController
+            // uses: a host app's own bound Guzzle client (default auth
+            // headers, proxy, middleware) must not ride along on this call,
+            // and tests can bind an offline one.
+            /** @var Client $client */
+            $client = app('laravel-crm.version-client');
+
+            $response = $client->request('POST', self::VERSION_API_URL, [
                 // Bounded explicitly: Guzzle defaults both to 0 (wait forever),
                 // and this call is made from a live admin request.
                 'connect_timeout' => self::VERSION_API_CONNECT_TIMEOUT,

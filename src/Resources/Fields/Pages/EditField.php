@@ -50,7 +50,10 @@ class EditField extends EditRecord
         // Sync FieldModels: remove unwanted, add new
         $existingModels = $record->fieldModels()->pluck('model')->all();
         foreach (array_diff($existingModels, $models) as $stale) {
-            $record->fieldModels()->where('model', $stale)->delete();
+            // One model at a time, not a query-builder delete, so core's
+            // FieldModelObserver runs and removes the field's values from that
+            // model too (core 2.7.0 detaches links the same way).
+            $record->fieldModels()->where('model', $stale)->get()->each->delete();
         }
         foreach (array_diff($models, $existingModels) as $fresh) {
             FieldModel::create(['field_id' => $record->id, 'model' => $fresh]);

@@ -13,15 +13,21 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Response;
 use VentureDrake\LaravelCrm\Models\DeliveryProduct;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
+use VentureDrake\LaravelCrm\Models\Organization;
+use VentureDrake\LaravelCrm\Models\Person;
+use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Services\PurchaseOrderService;
 use VentureDrake\LaravelCrm\Support\FormOptions;
-use VentureDrake\LaravelCrm\Support\Quantity;
+use VentureDrake\LaravelCrm\Support\LineAmount;
+use VentureDrake\LaravelCrm\Support\Money;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -57,6 +63,7 @@ use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\LineItemVariation;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 use VentureDrake\LaravelCrmFilament\Support\OrderDrawdownPrefill;
 
 class OrderResource extends Resource
@@ -155,6 +162,9 @@ class OrderResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // Core 2.7.0's Order::deleteBlockedReason() reads these rather
+            // than querying three relations per row for the Delete tooltip.
+            ->modifyQueryUsing(fn (Builder $query) => $query->withExists(['invoices', 'purchaseOrders', 'deliveries']))
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('laravel-crm-filament::labels.fields.created'))
@@ -164,20 +174,26 @@ class OrderResource extends Resource
 
                 Tables\Columns\TextColumn::make('order_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    // Core 2.7.0's RecordSearch: "ORD-1001", "1001" and an
+                    // order stored before the prefix changed all match.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orNumber($query, $search)))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('reference')
                     ->label(__('laravel-crm-filament::labels.fields.reference'))
-                    ->searchable()
+                    // Matched literally, so `%` or `_` finds itself.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orLike($query, $query->qualifyColumn('reference'), $search)))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('quote.quote_id')
                     ->label(__('laravel-crm-filament::labels.money.quote'))
-                    ->url(fn ($record) => $record->quote
-                        ? QuoteResource::getUrl('view', ['record' => $record->quote])
-                        : null)
-                    ->color('primary')
+                    // Core 2.7.0's quote relation includes a soft-deleted
+                    // quote: shown as "QU-1001 (deleted)", with no link.
+                    ->formatStateUsing(fn ($state, Order $record) => static::parentLabel($state, static::quoteOf($record)))
+                    ->url(fn (Order $record) => static::quoteUrl($record))
+                    ->color(fn (Order $record) => static::quoteUrl($record) ? 'primary' : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('labels.name')
@@ -248,7 +264,9 @@ class OrderResource extends Resource
                 Actions\EditAction::make()
                     ->button()
                     ->hiddenLabel(),
-                Actions\DeleteAction::make()
+                // OrderPolicy::delete refuses an order with invoices, purchase
+                // orders or deliveries, with core 2.7.0's reason as the message.
+                static::deleteAction(Actions\DeleteAction::make())
                     ->button()
                     ->requiresConfirmation()
                     ->hiddenLabel(),
@@ -329,9 +347,8 @@ class OrderResource extends Resource
 
                     TextEntry::make('quote.quote_id')
                         ->label(__('laravel-crm-filament::labels.money.quote'))
-                        ->url(fn ($record) => $record?->quote
-                            ? QuoteResource::getUrl('view', ['record' => $record->quote])
-                            : null),
+                        ->formatStateUsing(fn ($state, ?Order $record) => static::parentLabel($state, static::quoteOf($record)))
+                        ->url(fn (?Order $record) => $record ? static::quoteUrl($record) : null),
 
                     CrmMoney::entry('subtotal')
                         ->label(__('laravel-crm-filament::labels.money.subtotal')),
@@ -353,18 +370,18 @@ class OrderResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
-                    TextEntry::make('person.name')
+                    // Through core 2.7.0's *WithTrashed relations, so a
+                    // deleted contact still shows who the order was for,
+                    // marked deleted and with no link to a page that 404s.
+                    TextEntry::make('personWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
-                            : null),
+                        ->state(fn (?Order $record): ?string => static::personEntryState(static::personOf($record)))
+                        ->url(fn (?Order $record): ?string => static::personEntryUrl(static::personOf($record))),
 
-                    TextEntry::make('organization.name')
+                    TextEntry::make('organizationWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
-                            : null),
+                        ->state(fn (?Order $record): ?string => static::organizationEntryState(static::organizationOf($record)))
+                        ->url(fn (?Order $record): ?string => static::organizationEntryUrl(static::organizationOf($record))),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.sections.custom_fields'))
@@ -385,6 +402,119 @@ class OrderResource extends Resource
                 return $invoice?->xeroInvoice;
             }),
         ])->columns(1);
+    }
+
+    /**
+     * The Delete action on the table row and the view and edit pages.
+     *
+     * Core 2.7.0's OrderPolicy::delete denies an order that has invoices,
+     * purchase orders or deliveries with Order::deleteBlockedReason() as the
+     * message, so the button stays visible but disabled, with that reason as
+     * its tooltip. A user without the delete permission gets a denial with no
+     * message, and the button stays hidden as before.
+     */
+    public static function deleteAction(Actions\DeleteAction $action): Actions\DeleteAction
+    {
+        return $action->authorizationTooltip();
+    }
+
+    /**
+     * The quote the order was made from, or null when it has none or the
+     * quote is soft deleted (core's `quote` relation includes trashed ones).
+     */
+    protected static function quoteUrl(Order $record): ?string
+    {
+        $quote = static::quoteOf($record);
+
+        if ($quote === null || $quote->trashed()) {
+            return null;
+        }
+
+        return QuoteResource::getUrl('view', ['record' => $quote]);
+    }
+
+    protected static function quoteOf(?Order $record): ?Quote
+    {
+        $quote = $record?->getRelationValue('quote');
+
+        return $quote instanceof Quote ? $quote : null;
+    }
+
+    /**
+     * The order's person, soft-deleted included (core 2.7.0's display-only
+     * personWithTrashed relation). Deliveries read their contact through it.
+     */
+    public static function personOf(?Order $record): ?Person
+    {
+        $person = $record?->getRelationValue('personWithTrashed');
+
+        return $person instanceof Person ? $person : null;
+    }
+
+    public static function organizationOf(?Order $record): ?Organization
+    {
+        $organization = $record?->getRelationValue('organizationWithTrashed');
+
+        return $organization instanceof Organization ? $organization : null;
+    }
+
+    /**
+     * "Name", or "Name (deleted)" for a soft-deleted person.
+     */
+    public static function personEntryState(?Person $person): ?string
+    {
+        return static::trashedAwareLabel(LeadDealContactSection::personLabel($person), $person);
+    }
+
+    /**
+     * No link to a soft-deleted person: their page would 404.
+     */
+    protected static function personEntryUrl(?Person $person): ?string
+    {
+        return $person && ! $person->trashed()
+            ? PersonResource::getUrl('view', ['record' => $person])
+            : null;
+    }
+
+    public static function organizationEntryState(?Organization $organization): ?string
+    {
+        return static::trashedAwareLabel((string) ($organization->name ?? ''), $organization);
+    }
+
+    protected static function organizationEntryUrl(?Organization $organization): ?string
+    {
+        return $organization && ! $organization->trashed()
+            ? OrganizationResource::getUrl('view', ['record' => $organization])
+            : null;
+    }
+
+    /**
+     * A parent document's number, with core's "(deleted)" marker when the
+     * parent is soft deleted.
+     */
+    public static function parentLabel(mixed $state, ?Model $parent): mixed
+    {
+        if ($state === null || $state === '' || $parent === null) {
+            return $state;
+        }
+
+        return static::trashedAwareLabel((string) $state, $parent);
+    }
+
+    /**
+     * $label, followed by "(deleted)" when $model is soft deleted.
+     */
+    public static function trashedAwareLabel(string $label, ?Model $model): ?string
+    {
+        if ($label === '') {
+            return null;
+        }
+
+        if ($model !== null && method_exists($model, 'trashed') && $model->trashed()) {
+            return $label . ' (' . __('laravel-crm::lang.deleted') . ')';
+        }
+
+        return $label;
     }
 
     public static function getPages(): array
@@ -514,8 +644,8 @@ class OrderResource extends Resource
 
         foreach ($record->orderProducts()->orderBy('order')->orderBy('id')->get() as $orderProduct) {
             $unitPrice = static::resolveSupplierUnitPriceStatic($orderProduct, $record->currency);
-            $quantity = Quantity::toFloat($orderProduct->quantity);
-            $amount = $unitPrice * $quantity;
+            // Integer cents, as PurchaseOrderService prices the saved line.
+            $amount = (float) MoneyForm::centsToForm(LineAmount::amountCents(Money::toInteger($unitPrice) ?? 0, $orderProduct->quantity));
 
             $products[] = [
                 'id' => $orderProduct->product_id,
@@ -534,7 +664,7 @@ class OrderResource extends Resource
             'issue_date' => now(),
             'delivery_date' => now()->addDays(14),
             'currency' => $record->currency,
-            'delivery_type' => 'collect',
+            'delivery_type' => 'pickup',
             'delivery_instructions' => null,
             'terms' => null,
             'user_owner_id' => $record->user_owner_id,

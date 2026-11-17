@@ -11,6 +11,8 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -62,27 +64,107 @@ class MonitorResource extends Resource
         return LaravelCrmPlugin::get()->isModuleEnabled('monitoring');
     }
 
+    /**
+     * Core 2.7.0 dropped `tcp`: the check only ever makes HTTP(S) requests.
+     */
+    public const TYPE_OPTIONS = [
+        'https' => 'https',
+        'http' => 'http',
+    ];
+
+    public static function schemeFor(mixed $type): string
+    {
+        return is_string($type) && array_key_exists($type, static::TYPE_OPTIONS) ? $type : 'https';
+    }
+
+    /**
+     * Split an http(s):// scheme off $url into the type, as core 2.7.0's
+     * HasMonitorCommon::splitSchemeFromUrl(). Any other scheme stays in the
+     * URL, so the check refuses it rather than this guessing.
+     *
+     * @return array{0: string, 1: ?string}
+     */
+    public static function splitSchemeUrl(mixed $type, ?string $url): array
+    {
+        $type = static::schemeFor($type);
+
+        if ($url === null) {
+            return [$type, null];
+        }
+
+        $url = trim($url);
+
+        if (preg_match('#^(https?)://#i', $url, $matches)) {
+            return [strtolower($matches[1]), substr($url, strlen($matches[0]))];
+        }
+
+        return [$type, $url];
+    }
+
+    /**
+     * The form data with `url` rebuilt as scheme://host/path from the type
+     * selector, ready for MonitorService (which then keeps `type` in step
+     * with the URL's scheme).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function withSchemeUrl(array $data): array
+    {
+        [$type, $url] = static::splitSchemeUrl($data['type'] ?? null, isset($data['url']) ? (string) $data['url'] : null);
+
+        $data['type'] = $type;
+
+        if ($url !== null && $url !== '') {
+            $data['url'] = preg_match('#^[a-zA-Z][a-zA-Z0-9+.\-]*://#', $url)
+                ? $url
+                : $type . '://' . ltrim($url, '/');
+        }
+
+        return $data;
+    }
+
     public static function form(Schema $schema): Schema
     {
         // Mirrors the 2-col create/edit monitor form: each row pairs a left
         // and right field. Order: URL / Friendly name, Description / Method,
         // Expected status code / Run check every, Minutes downtime /
-        // Performance threshold, Owner / Active. The `type` column is
-        // captured as a Hidden default of 'https' since the URL field shows
-        // the protocol via a prefix instead of a visible Select.
+        // Performance threshold, Owner / Active. As in core 2.7.0 the scheme
+        // is picked in the `type` selector and the URL input holds only the
+        // hostname and path; the pages join them back up on save
+        // (withSchemeUrl()) and split a stored URL on edit (splitSchemeUrl()).
         return $schema->components([
             Section::make(__('laravel-crm-filament::labels.sections.monitor_settings'))
                 ->columnSpanFull()
                 ->columns(2)
                 ->schema([
-                    Forms\Components\Hidden::make('type')->default('https'),
+                    Forms\Components\Select::make('type')
+                        ->label(__('laravel-crm-filament::labels.fields.type'))
+                        ->options(static::TYPE_OPTIONS)
+                        ->default('https')
+                        ->selectablePlaceholder(false)
+                        ->required()
+                        ->in(array_keys(static::TYPE_OPTIONS))
+                        ->live(),
 
                     Forms\Components\TextInput::make('url')
                         ->label(__('laravel-crm-filament::labels.fields.website_url'))
-                        ->prefix('https://')
-                        ->placeholder('example.com')
                         ->required()
-                        ->maxLength(1024),
+                        ->maxLength(1024)
+                        ->prefix(fn (Get $get): string => static::schemeFor($get('type')) . '://')
+                        ->placeholder('example.com')
+                        ->helperText(__('laravel-crm::lang.monitor_url_hint'))
+                        ->live(onBlur: true)
+                        // A pasted http(s):// URL moves its scheme into the
+                        // selector, so the two never disagree.
+                        ->afterStateUpdated(function (?string $state, Get $get, Set $set): void {
+                            [$type, $url] = static::splitSchemeUrl($get('type'), $state);
+
+                            if ($url !== $state) {
+                                $set('type', $type);
+                                $set('url', $url);
+                            }
+                        }),
 
                     Forms\Components\TextInput::make('name')
                         ->label(__('laravel-crm-filament::labels.fields.friendly_name'))

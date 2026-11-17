@@ -11,9 +11,12 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `~2.6.0` — any 2.6 release from 2.6.0 on. The floor is 2.6.0 because
-  the order form and delivery options are read through support classes core added in 2.6.0; the cap
-  is 2.7, so a new core minor version is not picked up before the panel has been checked against it.
+- `venturedrake/laravel-crm` `~2.7.0` — any 2.7 release from 2.7.0 on. The floor is 2.7.0 because
+  the panel uses services, support classes and validation rules core added in 2.7.0 (quote state,
+  pipeline stages, line amounts, record search, campaign audiences), and core 2.7.0 renamed the
+  purchase-order delivery type `collect` to `pickup`. The cap is 2.8, so a new core minor version
+  is not picked up before the panel has been checked against it. Take a database backup before
+  upgrading: five of core 2.7.0's six migrations change existing rows and cannot be rolled back.
 - `dcblogdev/laravel-xero` `^1.1.3`, only if you use the Xero integration (`->withXero()`). See
   [Xero](#xero).
 
@@ -295,6 +298,35 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **Chat:** a conversation whose lead was deleted can be converted again.
 - **`laravelcrm:filament-install` and `laravelcrm:filament-update` refuse to run on a v1 CRM
   database**, as core's `migrate` and `laravelcrm:update` now do. Run `laravelcrm:v2` first.
+
+### Unreleased — core 2.7.0 parity
+
+- **Invoices can be paid in parts.** Pay takes any amount up to the balance and stays on the
+  invoice until it is paid in full. A part-paid invoice has a "Part paid" badge, and once a
+  payment is recorded its total can no longer be repriced.
+- **Follow-up invoices and orders.** An order can be invoiced again while any line has quantity
+  left, and a quote can be ordered again until it is fully ordered.
+- **Quotes lock once accepted or ordered**, and Accept, Reject, Unaccept, Unreject and Send move
+  the quote's stage through core's `QuoteStateService`, on the pages and on the board.
+- **Boards are paged.** Each column shows `laravel-crm.board.per_column` cards (default 20) with
+  a Load more button, and its header counts the whole column, with one total per currency.
+- **Email campaigns have an audience** (all subscribed contacts, labels, organizations, pipeline
+  stages or picked people) with a live recipient count, and a Draft / Send now / Schedule step.
+- **Lists find records by number and reference**, such as "QU-3002", "3002" or "qu-3002".
+- **Document saves are atomic and totals come from the saved lines**, priced in integer cents as
+  core prices them. A save core refuses shows the reason. Invoices and purchase orders no longer
+  show Discount and Adjustment, which core does not store.
+- **Send modals take several recipients**, check each address, mark the document as sent, and
+  report a mail failure instead of erroring.
+- **Purchase-order delivery is Deliver or Pickup**, to one of the team's own addresses. A new PO
+  starts on Pickup when the team has none.
+- **Converted leads link to their deal**, which starts on the deal pipeline's first stage.
+  Contacts are checked with core's email and phone rules, deleting a contact warns about linked
+  records, and deleted contacts and parent documents show as "(deleted)".
+- **Pipeline stages are created and reordered through core's `PipelineStageService`.**
+- **Smaller fixes:** activity finish times can't be before the start, tax rates are 0–100 and
+  can't be deleted while products use them, custom fields start from their default, and the
+  monitor form has an https/http scheme select.
 
 ## Xero
 

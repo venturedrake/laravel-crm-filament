@@ -6,6 +6,7 @@ use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Support\HtmlString;
+use VentureDrake\LaravelCrm\Models\Quote;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmSideBySideRelationManagers;
 use VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource;
 
@@ -48,11 +49,11 @@ class ViewQuote extends ViewRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-link'),
-            Actions\EditAction::make()
+            QuoteResource::lockAwareEditAction(Actions\EditAction::make())
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-pencil-square'),
-            Actions\DeleteAction::make()
+            QuoteResource::deleteBlockedTooltip(Actions\DeleteAction::make())
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-trash'),
@@ -61,16 +62,30 @@ class ViewQuote extends ViewRecord
 
     public function getSubheading(): string | Htmlable | null
     {
-        $stage = $this->record?->pipelineStage?->name;
+        /** @var Quote|null $quote */
+        $quote = $this->record;
+        $badges = [];
 
-        if (! $stage) {
+        if ($stage = $quote?->pipelineStage?->name) {
+            $badges[] = '<span class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900">'
+                . e($stage)
+                . '</span>';
+        }
+
+        // Core 2.7.0's "Ordered" badge, with the lock reason on hover: a
+        // quote with an order can no longer be edited, unaccepted or deleted.
+        if ($quote?->hasOrders()) {
+            $badges[] = '<span class="inline-flex items-center rounded-md bg-amber-500 px-3 py-1 text-sm font-medium text-white" title="'
+                . e((string) $quote->lockReason())
+                . '">'
+                . e(ucfirst(__('laravel-crm::lang.ordered')))
+                . '</span>';
+        }
+
+        if ($badges === []) {
             return null;
         }
 
-        return new HtmlString(
-            '<span class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1 text-sm font-medium text-white dark:bg-gray-100 dark:text-gray-900">'
-            . e($stage)
-            . '</span>'
-        );
+        return new HtmlString('<span class="inline-flex flex-wrap gap-2">' . implode('', $badges) . '</span>');
     }
 }

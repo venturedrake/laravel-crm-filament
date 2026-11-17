@@ -79,11 +79,22 @@ it('Contact section links person/organization through their resources and reads 
         (new ReflectionClass(LeadResource::class))->getFileName(),
     );
 
-    expect($src)->toContain("PersonResource::getUrl('view', ['record' => \$record->person])");
-    expect($src)->toContain("OrganizationResource::getUrl('view', ['record' => \$record->organization])");
-    expect($src)->toContain('LeadDealContactSection::personLabel');
+    expect($src)->toContain('LeadDealContactSection::personEntry()');
+    expect($src)->toContain('LeadDealContactSection::organizationEntry()');
     expect($src)->toContain('$record?->person?->emails()->first()');
     expect($src)->toContain('$record?->person?->phones()->first()');
+});
+
+it('LeadDealContactSection entries link through the resources off the trashed-aware relations', function () {
+    $src = file_get_contents(
+        (new ReflectionClass(LeadDealContactSection::class))->getFileName(),
+    );
+
+    expect($src)->toContain("static::trashedContact(\$record, 'personWithTrashed')");
+    expect($src)->toContain("static::trashedContact(\$record, 'organizationWithTrashed')");
+    expect($src)->toContain("PersonResource::getUrl('view', ['record' => \$person])");
+    expect($src)->toContain("OrganizationResource::getUrl('view', ['record' => \$organization])");
+    expect($src)->toContain('static::personLabel($person)');
 });
 
 it('LeadDealContactSection::personLabel composes first+last and handles null', function () {

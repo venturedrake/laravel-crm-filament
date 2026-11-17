@@ -14,7 +14,7 @@ class CreateMonitor extends CreateRecord
 
     protected function handleRecordCreation(array $data): Model
     {
-        return app(MonitorService::class)->create($data);
+        return app(MonitorService::class)->create(MonitorResource::withSchemeUrl($data));
     }
 
     public function getMaxContentWidth(): Width | string | null

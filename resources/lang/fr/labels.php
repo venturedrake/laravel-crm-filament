@@ -185,6 +185,7 @@ return [
         'post_code' => 'Code postal',
         'postal_code' => 'Code postal',
         'country' => 'Pays',
+        'bulk_delete_linked_warning' => ':count des contacts sélectionnés sont liés à d\'autres enregistrements. Ils apparaîtront toujours sur ces enregistrements, marqués comme supprimés.',
     ],
 
     'sales' => [
@@ -201,7 +202,7 @@ return [
         'expected_close' => 'Clôture prévue',
         'delivery_type' => 'Type de livraison',
         'deliver' => 'Livrer',
-        'collect' => 'Retrait',
+        'pickup' => 'Retrait',
         'delivery_address' => 'Adresse de livraison',
         'delivery_instructions' => 'Instructions de livraison',
         'billing_address' => 'Adresse de facturation',
@@ -250,6 +251,7 @@ return [
         'amount' => 'Montant',
         'amount_paid' => 'Montant payé',
         'amount_due' => 'Montant dû',
+        'payment_date' => 'Date de paiement',
         'overdue_by' => 'En retard de',
         'value' => 'Valeur',
         'subtotal' => 'Sous-total',
@@ -568,6 +570,7 @@ return [
     // Integrations page — per-integration descriptions surfaced on the Settings page
     'integrations' => [
         'xero_description' => 'Connectez-vous à la comptabilité Xero pour synchroniser les contacts, produits, devis et générer des factures.',
+        'xero_connected_to' => 'Connecté à :name',
         'xero_not_installed' => 'L\'intégration Xero nécessite le paquet dcblogdev/laravel-xero, que laravel-crm n\'installe plus automatiquement. Installez-le avec Composer, puis rechargez cette page. Les jetons Xero et les enregistrements synchronisés sont conservés.',
         'clicksend_description' => 'Connectez ClickSend pour envoyer des campagnes SMS depuis le CRM.',
         'clicksend_signup_prefix' => 'Vous n\'avez pas de compte ClickSend ? Inscrivez-vous sur',
@@ -683,6 +686,8 @@ return [
         'no_line_items_selected' => 'Aucune ligne sélectionnée',
         'nothing_left_to_deliver' => 'Plus rien à livrer',
         'nothing_left_to_deliver_body' => 'Toutes les lignes de cette commande ont déjà été livrées intégralement : il n\'y a donc rien à mettre sur une nouvelle livraison.',
+        'nothing_left_to_invoice' => 'Plus rien à facturer',
+        'nothing_left_to_invoice_body' => 'Toutes les lignes de cette commande ont déjà été facturées intégralement : il n\'y a donc rien à mettre sur une nouvelle facture.',
     ],
 
     // Dashboard widgets — stat labels, chart titles, task list, doughnut slices, and heading period suffix
@@ -718,6 +723,11 @@ return [
         'upcoming_tasks' => 'Tâches à venir',
         'overdue_n' => ':count en retard',
         'no_upcoming_tasks' => 'Aucune tâche à venir',
+    ],
+
+    // Send modals (quote, invoice, purchase order)
+    'send' => [
+        'to_hint' => 'Séparez plusieurs adresses par des virgules ou des points-virgules.',
     ],
 
 ];

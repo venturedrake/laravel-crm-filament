@@ -7,23 +7,39 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
-Catches up to `venturedrake/laravel-crm` 2.6.0: the order form and delivery options, line
-ordering, and the v1 → v2 upgrade guard.
+Catches up to `venturedrake/laravel-crm` 2.7.0, and with it 2.6.0. From 2.7.0: part payments on
+invoices, quote locking and state changes through core's `QuoteStateService`, paged boards, email
+campaign audiences, pipeline stage ordering, record-number search and the purchase-order delivery
+rules. From 2.6.0: the order form and delivery options, line ordering, and the v1 → v2 upgrade
+guard.
 
 ### Upgrading
 
-- **Requires `venturedrake/laravel-crm` `~2.6.0`** (was `~2.5.0`). The panel reads the new order
-  form and delivery options through core 2.6.0's `Support\FormOptions` and
-  `Support\DeliveryOptions`, and passes them to the `OrderService` and `DeliveryService` arguments
-  that 2.6.0 added. Update both packages together:
+- **Requires `venturedrake/laravel-crm` `~2.7.0`** (was `~2.5.0` at 1.4.0). The panel calls APIs
+  core added in 2.6.0 (`Support\FormOptions`, `Support\DeliveryOptions`) and in 2.7.0
+  (`QuoteStateService`, `PipelineStageService`, `Support\LineAmount`, `Support\RecordSearch`,
+  `Support\EmailCampaignAudience`, `Support\AddressContent`, the `EmailAddressList`,
+  `NotBeforeDate`, `ContactEmail` and `PhoneNumber` rules). Core 2.7.0 also changes the purchase
+  order's delivery type from `collect` to `pickup`, so an older panel cannot save a purchase order
+  against it.
+- **Back up the database first.** Core 2.7.0 adds six migrations, and five of them change
+  existing rows and cannot be rolled back. Two are lossy: settling invoices marked paid with
+  nothing recorded against them, and reopening leads whose only deals were deleted. See core's
+  [2.7.0 upgrade notes](https://github.com/venturedrake/laravel-crm/blob/master/docs/upgrading.md#270).
+  Then update both packages together and run the panel's update command, which runs the
+  migrations:
 
   ```bash
   composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament
   php artisan laravelcrm:filament-update
   ```
 
-  Core 2.6.0 has no new migrations. A host still on a v1 CRM database must run
-  `php artisan laravelcrm:v2` first. See Changed.
+  A host still on a v1 CRM database must run `php artisan laravelcrm:v2` first. See Changed.
+- **Deals converted from leads by older panel versions have no link to their lead.** The panel
+  did not set the deal's `lead_id` before. Those leads show the Converted badge without a deal
+  link, and deleting such a deal does not reopen its lead.
+- **Purchase orders saved as `collect` open and display as Pickup.** They are written back as
+  `pickup` the next time they are saved.
 
 ### Added
 
@@ -46,6 +62,42 @@ ordering, and the v1 → v2 upgrade guard.
   at the default, or set to a key that does not exist, the panel keeps its own "Expected" label.
   The delivery PDFs are rendered by core and pick up the label themselves.
 
+- **Part payments on invoices.** Pay takes any amount above zero up to the balance, works in
+  cents, and stays on the invoice until it is paid in full: on the list row and the view and edit
+  pages. Each payment locks the invoice row and is checked again against the locked balance, so
+  two people paying at once cannot overpay. The notification says what is still due, the "Balance
+  due" column uses core's formula (zero once paid), and a part-paid invoice has a "Part paid"
+  badge.
+- **Follow-up invoices.** Convert to invoice stays available while any order line has quantity
+  left to invoice, and is prefilled with what is left. The invoice that takes the last of a line
+  bills exactly the remainder, so 1.25 + 1.25 of 833.33 comes to 833.33.
+- **Follow-up orders.** Convert to order stays available until the quote is fully ordered. A
+  follow-up order takes only the remaining quantities.
+- **Paged boards.** The lead, deal and quote boards show `laravel-crm.board.per_column` cards per
+  column (default 20) with a Load more button. Column headers count the whole column and show one
+  total per currency, from one grouped query. The Owner filter applies to cards, counts and
+  totals. A card moved to another column goes to the top of it, and that column shows one card
+  more, so the move pushes no card off screen.
+- **Email campaign audiences.** A campaign goes to all subscribed contacts, or to the people
+  behind chosen labels, organizations or pipeline stages, or to people picked by name. People and
+  organizations are searched on the server, and the form shows a live recipient count. The view
+  page describes the audience, and the preview shows the subject with its placeholders filled in.
+- **Send step on the campaign form.** Save as draft (the default), Send now, or Schedule. Send now
+  asks for confirmation with the recipient count. Both go through core's
+  `EmailCampaignService::schedule()`.
+- **Search by record number and reference.** The quote, order, invoice, purchase-order, delivery,
+  lead and deal lists find "QU-3002", "3002" or "qu-3002", including records numbered under an
+  earlier prefix. References are searched too, and `%` and `_` match literally. The delivery list
+  searches its order's reference.
+- **Converted leads show their deal.** The lead page has a "Converted {date}" badge (in the
+  `date_format` setting) and links the deal for users who can view it.
+- **Contact delete warnings.** Deleting a person or organization from the row, bulk action, view
+  or edit page lists the records still linked to it. Those records then show "Name (deleted)".
+- **Quotes:** an "Ordered" badge on the view page, and Unaccept and Unreject on the table rows.
+- **Several recipients in the Send modals.** The quote, invoice and purchase-order To field takes
+  addresses separated by commas or semicolons, and checks each one.
+- **Xero:** the Integrations page names the connected Xero organisation.
+
 ### Changed
 
 - **`laravelcrm:filament-update` and `laravelcrm:filament-install` refuse to run on a v1 CRM
@@ -55,6 +107,61 @@ ordering, and the v1 → v2 upgrade guard.
   Core's check only runs for the command typed at the prompt, not for one run from inside another
   command, and the panel's commands run both that way. They now run core's check first, print its
   message, and exit `1` before changing anything.
+
+- **Document totals come from the saved lines.** Core 2.7.0's services sum the lines they saved,
+  in integer cents. The line-items repeater now prices each line the same way
+  (`Support\LineAmount`), so the form shows the totals that are stored, and 333.33 × 2.5 is
+  833.33 rather than 833.32. Order → invoice and order → purchase-order prefills are priced in
+  cents too.
+- **Quote, order, invoice, purchase-order and delivery saves are atomic.** The pages run in a
+  database transaction, so contact links and custom field values are rolled back with a refused
+  save. When a core service refuses a save (a locked quote, repricing a paid invoice, a delivery
+  quantity over what is left), the reason is shown as a notification. Before, the save appeared to
+  do nothing.
+- **Accepted and ordered quotes are locked**, as in core 2.7.0. Edit is disabled with the reason,
+  and the edit page redirects to the view page. A quote accepted while its edit form was open is
+  refused on save.
+- **Quote state changes go through core's `QuoteStateService`.** Accept, Reject, Unaccept and
+  Unreject move the pipeline stage with the timestamp and follow core's visibility rules.
+  Unaccept is refused once the quote has an order. Sending a quote moves a Draft quote to Sent.
+  Convert to order no longer resets the accepted date.
+- **The quote board follows `QuoteStateService`.** Dragging a quote into Accepted or Rejected
+  records the response, and a move the service blocks is refused with the reason. The board checks
+  the `update` permission, so an ordered quote can still change column.
+- **Boards show only the first pipeline for their model**, with stages ordered by `order` then id.
+- **Lead conversion follows core 2.7.0.** The deal keeps the lead in `lead_id` and starts on the
+  first stage of the deal pipeline. The lead is marked converted through
+  `LeadService::markConverted()`, which moves it to a Converted or Won stage. It all runs in one
+  transaction.
+- **Pipeline stages are created and reordered through core's `PipelineStageService`.** A new stage
+  goes after the last one, with its color and probability kept, and is refused past position 127.
+  The Pipeline select defaults to the first pipeline, and Order is hidden on create. A drag made
+  after someone else changed the order is refused with a warning.
+- **Purchase-order delivery follows core 2.7.0.** The type is Deliver or Pickup (was Collect). A
+  delivered PO goes to one of the team's own addresses that has a street or city, and the PO's
+  own copy is offered and kept on edit. A new PO starts on Pickup when the team has no such
+  address.
+- **Invoices and purchase orders no longer show Discount and Adjustment.** Core's services store
+  neither, and their total is subtotal + tax.
+- **Delivery edit only changes quantities.** Lines cannot be added or removed and their order line
+  cannot be changed, as core ignores those. A line left at or below its saved quantity is not
+  checked again.
+- **The line-item product picker is searched on the server**, up to 20 products by name or code,
+  instead of loading the whole catalogue into every row. A deleted or inactive product still
+  labels the line it is on.
+- **Contact details are checked with core's `ContactEmail` and `PhoneNumber` rules** on people,
+  organizations, users' phones and the person-create modals. Saved values are not re-checked on edit. Phone and
+  email types default to mobile and work and are required.
+- **Activity guest pickers search as you type** (20 results) instead of loading every person.
+- **Monitors:** the scheme is an https/http select, and TCP is no longer offered. A pasted
+  `http(s)://` URL moves its scheme into the select, and the URL helper text is core's.
+- **Tax rates** must be 0–100, and so must the default tax rate setting.
+- **Custom fields** start from their configured default on create forms.
+- **The Updates page** checks for new versions through core's `laravel-crm.version-client`
+  binding.
+- **The person birthday** is shown in the `date_format` setting.
+- **The Send action, and the invoice Pay action, are shared** by each table row and its view and
+  edit pages.
 
 ### Fixed
 
@@ -72,6 +179,36 @@ ordering, and the v1 → v2 upgrade guard.
 - **Deleting a user who owns CRM records failed with an integrity violation.** Core 2.6.0's
   `UserObserver` now releases the user's CRM references before the delete, so the panel's user
   delete actions work. A user who owns a team still cannot be deleted.
+- **Converting a lead created a deal with no link to it**, on the first stage of whatever pipeline
+  came first. A lead could also be converted twice from a page opened before someone else
+  converted it. Convert is now hidden on converted leads, and a late attempt shows core's
+  message.
+- **The email campaign Send radio did nothing.** Every campaign was saved as a draft. Campaigns
+  can no longer be sent or scheduled with nobody in the audience, from the form or from the view
+  page's actions, and a scheduled time must be in the future.
+- **Unlinking a model from a custom field left its stored values behind.** The edit page now
+  deletes through Eloquent, so core's observers run.
+- **Discount and Adjustment on invoices and purchase orders were saved but never counted** in the
+  total.
+- **The Pay modal's date field was labelled "Due date", and Pay disappeared after the first part
+  payment.**
+- **Sending a quote, invoice or purchase order never marked it as sent**, an invalid recipient was
+  a server error, and a mail transport failure was an error page. An invalid address is now a
+  field error, and a failure shows a notification and keeps the modal open.
+- **An invoice due date, quote expiry or purchase-order delivery date before the issue date was
+  accepted.**
+- **Orders with invoices, purchase orders or deliveries showed an active Delete button (#102).**
+  Delete is disabled with core's reason as the tooltip, on orders and on ordered quotes.
+- **Orders saved a country-only address (#115).**
+- **Links to a deleted quote, order or contact led to a missing page.** Documents show the parent
+  as "No. (deleted)" and contacts as "Name (deleted)", with no link.
+- **A card could be dropped on a stage that is not on its board**, moving the record off the
+  board. That is now a 404.
+- **Board card links assumed the panel id `crm`.**
+- **Calls, meetings and lunches accepted a finish time before the start time.** Both times are
+  now required.
+- **A tax rate that products still use could be deleted.** All four delete paths refuse it, and
+  bulk delete refuses the whole selection.
 
 ## [1.4.0] - 2026-10-23
 

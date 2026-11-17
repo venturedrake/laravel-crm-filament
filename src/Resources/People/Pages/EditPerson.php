@@ -19,7 +19,7 @@ class EditPerson extends EditRecord
         return [Actions\ViewAction::make()
             ->button()
             ->hiddenLabel()
-            ->icon('heroicon-m-eye'), Actions\DeleteAction::make()];
+            ->icon('heroicon-m-eye'), PersonResource::warnOfLinkedRecords(Actions\DeleteAction::make())];
     }
 
     protected function mutateFormDataBeforeFill(array $data): array
@@ -27,17 +27,19 @@ class EditPerson extends EditRecord
         /** @var Person $record */
         $record = $this->getRecord();
 
+        // A number or address saved without a type opens as mobile / work,
+        // as core 2.7.0's edit forms do, now that the type is required.
         $data['phones'] = $record->phones->map(fn ($p) => [
             'id' => $p->id,
             'number' => $p->number,
-            'type' => $p->type,
+            'type' => $p->type ?: 'mobile',
             'primary' => (bool) $p->primary,
         ])->values()->toArray();
 
         $data['emails'] = $record->emails->map(fn ($e) => [
             'id' => $e->id,
             'address' => $e->address,
-            'type' => $e->type,
+            'type' => $e->type ?: 'work',
             'primary' => (bool) $e->primary,
         ])->values()->toArray();
 

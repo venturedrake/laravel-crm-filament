@@ -50,7 +50,7 @@ it('PurchaseOrderResource source uses the shared form concerns + delivery sectio
     expect($source)->toContain('SalesDetailsSection::make([');
     expect($source)->toContain('PurchaseOrderDeliverySection::make()');
     expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'purchase_order_line_id',");
-    expect($source)->toContain('MoneyTotalsRow::make()');
+    expect($source)->toContain('MoneyTotalsRow::make(withAdjustments: false)');
     expect($source)->toContain("'orderLink' => true");
     expect($source)->toContain("'expiryDateKey' => 'delivery_date'");
 });
@@ -97,7 +97,7 @@ it('LineItemsRepeater for PurchaseOrder uses purchase_order_line_id + unit_price
     ]);
 });
 
-it('CreatePurchaseOrder persists PurchaseOrder + discount + adjustment columns', function () {
+it('CreatePurchaseOrder stores the totals its lines add up to, with no discount or adjustment', function () {
     $person = Person::create([
         'external_id' => (string) Str::uuid(),
         'first_name' => 'Hank',
@@ -119,29 +119,29 @@ it('CreatePurchaseOrder persists PurchaseOrder + discount + adjustment columns',
             'order_id' => $order->getKey(),
             'person_id' => $person->getKey(),
             'organization_id' => $organization->getKey(),
-            'delivery_type' => 'collect',
+            'delivery_type' => 'pickup',
+            // Core 2.7.0 sums the saved lines, not the posted totals.
             'sub_total' => 200,
-            'discount' => 10,
             'tax' => 19,
-            'adjustment' => 1,
-            'total' => 210,
+            'total' => 219,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $po = PurchaseOrder::query()->where('reference', 'PO-PARITY')->first();
     expect($po)->not->toBeNull();
-    expect($po->getAttributes()['subtotal'])->toBe(200 * 100);
-    expect($po->getAttributes()['discount'])->toBe(10 * 100);
-    expect($po->getAttributes()['tax'])->toBe(19 * 100);
-    expect($po->getAttributes()['adjustments'])->toBe(1 * 100);
-    expect($po->delivery_type)->toBe('collect');
+    expect((int) $po->getAttributes()['subtotal'])->toBe(0);
+    expect((int) $po->getAttributes()['tax'])->toBe(0);
+    expect((int) $po->getAttributes()['total'])->toBe(0);
+    expect($po->getAttributes()['discount'])->toBeNull();
+    expect($po->getAttributes()['adjustments'])->toBeNull();
+    expect($po->delivery_type)->toBe('pickup');
 });
 
-it('delivery_details + deliver/collect/delivery_address/instructions translation keys exist in en/fr/es', function () {
+it('delivery_details + deliver/pickup/delivery_address/instructions translation keys exist in en/fr/es', function () {
     foreach (['en', 'fr', 'es'] as $locale) {
         app('translator')->setLocale($locale);
-        foreach (['sections.delivery_details', 'sales.deliver', 'sales.collect', 'sales.delivery_address', 'sales.delivery_instructions'] as $key) {
+        foreach (['sections.delivery_details', 'sales.deliver', 'sales.pickup', 'sales.delivery_address', 'sales.delivery_instructions'] as $key) {
             expect(trans('laravel-crm-filament::labels.' . $key))->not->toBe('laravel-crm-filament::labels.' . $key);
         }
     }

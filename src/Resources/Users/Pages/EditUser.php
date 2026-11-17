@@ -43,7 +43,9 @@ class EditUser extends EditRecord
             ? $record->phones()->get()->map(fn ($phone) => [
                 'id' => $phone->id,
                 'number' => $phone->number,
-                'type' => $phone->type,
+                // The type select is required and has no blank option, so
+                // an untyped phone would show "Work" but submit nothing.
+                'type' => $phone->type ?: 'mobile',
                 'primary' => (bool) $phone->primary,
             ])->all()
             : [];

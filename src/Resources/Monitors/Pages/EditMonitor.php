@@ -31,7 +31,7 @@ class EditMonitor extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Monitor $record */
-        app(MonitorService::class)->update($record, $data);
+        app(MonitorService::class)->update($record, MonitorResource::withSchemeUrl($data));
 
         return $record->refresh();
     }
@@ -46,6 +46,12 @@ class EditMonitor extends EditRecord
         $data['expected_status_code'] ??= 200;
         $data['interval'] ??= 5;
         $data['user_owner_id'] ??= auth()->id();
+
+        // The form shows the scheme in the selector and only the host/path in
+        // the input. As in core 2.7.0's MonitorEdit, the stored URL's scheme
+        // wins over a disagreeing stored type (it is what the check requests),
+        // and a type core no longer offers (tcp) falls back to https.
+        [$data['type'], $data['url']] = MonitorResource::splitSchemeUrl($data['type'] ?? null, $data['url'] ?? null);
 
         return $data;
     }

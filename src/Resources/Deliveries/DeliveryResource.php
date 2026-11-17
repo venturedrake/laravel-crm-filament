@@ -23,8 +23,8 @@ use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Support\DeliveryOptions;
 use VentureDrake\LaravelCrm\Support\Quantity;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
-use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\PdfTemplateSelect;
 use VentureDrake\LaravelCrmFilament\Concerns\HasCrmCustomFields;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
@@ -98,6 +98,9 @@ class DeliveryResource extends Resource
                     ->options(fn () => Order::query()->orderByDesc('id')->limit(50)->get()->mapWithKeys(fn ($o) => [$o->id => $o->order_id])->all())
                     ->searchable()
                     ->preload()
+                    // DeliveryService::update() never moves a delivery to
+                    // another order, so the edit form does not offer to.
+                    ->disabled(fn (string $operation): bool => $operation === 'edit')
                     ->required(),
                 Forms\Components\DatePicker::make('delivery_expected')
                     ->label(static::expectedLabel()),
@@ -109,6 +112,10 @@ class DeliveryResource extends Resource
             PdfTemplateSelect::make('delivery'),
 
             // Delivery line items: only order_product_id + quantity per service contract.
+            // On edit, core 2.7.0's DeliveryService::update() only changes the
+            // quantity of lines the delivery already has (0 removes one): an
+            // added row, a removed row or a changed order line is ignored, so
+            // the edit form offers none of them.
             Forms\Components\Repeater::make('products')
                 ->label(__('laravel-crm-filament::labels.money.items_delivered'))
                 ->schema([
@@ -138,6 +145,7 @@ class DeliveryResource extends Resource
                                 ->all();
                         })
                         ->searchable()
+                        ->disabled(fn (string $operation): bool => $operation === 'edit')
                         ->required(),
                     // This repeater had no quantity validation at all.
                     Forms\Components\TextInput::make('quantity')
@@ -147,10 +155,15 @@ class DeliveryResource extends Resource
                         ->minValue(0)
                         ->required()
                         ->rules(['decimal:0,3'])
-                        ->rule(RemainingQuantity::rule(DeliveryProduct::class, 'delivery', 'delivery_product_id')),
+                        // On edit, a saved line left at or below its quantity
+                        // is not re-capped, as core 2.7.0 does, so a delivery
+                        // whose order line was later reduced can still be saved.
+                        ->rule(RemainingQuantity::rule(DeliveryProduct::class, 'delivery', 'delivery_product_id', 'delivery_id')),
                     Forms\Components\Hidden::make('delivery_product_id'),
                 ])
                 ->columns(2)
+                ->addable(fn (string $operation): bool => $operation !== 'edit')
+                ->deletable(fn (string $operation): bool => $operation !== 'edit')
                 ->addActionLabel('Add line')
                 ->defaultItems(0)
                 ->columnSpanFull(),
@@ -204,7 +217,7 @@ class DeliveryResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('addresses'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['addresses', 'order.person', 'order.organization']))
             ->columns([
                 Tables\Columns\TextColumn::make('created_at')
                     ->label(__('laravel-crm-filament::labels.fields.created'))
@@ -214,19 +227,29 @@ class DeliveryResource extends Resource
 
                 Tables\Columns\TextColumn::make('delivery_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    // Core 2.7.0's RecordSearch: "DEL-1001", "1001" and a
+                    // delivery stored before the prefix changed all match.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orNumber($query, $search)))
                     ->sortable(),
 
+                // Deliveries have no reference of their own: it is the
+                // order's, searched as core 2.7.0's DeliveryIndex does.
                 Tables\Columns\TextColumn::make('order.reference')
                     ->label(__('laravel-crm-filament::labels.fields.reference'))
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->whereHas('order', fn (Builder $order) => $order->where(
+                            fn (Builder $order) => RecordSearch::orLike($order, $order->qualifyColumn('reference'), $search)
+                        )))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('order.order_id')
                     ->label(__('laravel-crm-filament::labels.fields.order'))
-                    ->url(fn ($record) => $record->order
-                        ? OrderResource::getUrl('view', ['record' => $record->order])
-                        : null)
-                    ->color('primary')
+                    // Core 2.7.0's order relation includes a soft-deleted
+                    // order: shown as "ORD-1001 (deleted)", with no link.
+                    ->formatStateUsing(fn ($state, Delivery $record) => OrderResource::parentLabel($state, static::orderOf($record)))
+                    ->url(fn (Delivery $record) => static::orderUrl($record))
+                    ->color(fn (Delivery $record) => static::orderUrl($record) ? 'primary' : null)
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('order.person.name')
@@ -398,9 +421,8 @@ class DeliveryResource extends Resource
 
                     TextEntry::make('order.order_id')
                         ->label(__('laravel-crm-filament::labels.fields.order'))
-                        ->url(fn ($record) => $record?->order
-                            ? OrderResource::getUrl('view', ['record' => $record->order])
-                            : null),
+                        ->formatStateUsing(fn ($state, ?Delivery $record) => OrderResource::parentLabel($state, static::orderOf($record)))
+                        ->url(fn (?Delivery $record) => $record ? static::orderUrl($record) : null),
 
                     TextEntry::make('order.reference')
                         ->label(__('laravel-crm-filament::labels.fields.reference')),
@@ -430,24 +452,62 @@ class DeliveryResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
+                    // A delivery has no contact of its own: it is the order's
+                    // (core 2.7.0 reads both reference and contact from the
+                    // order). Through the *WithTrashed relations, so a deleted
+                    // contact shows as "Name (deleted)", with no link.
                     TextEntry::make('order.person.name')
                         ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->order?->person))
-                        ->url(fn ($record) => $record?->order?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->order->person])
-                            : null),
+                        ->state(fn (?Delivery $record): ?string => OrderResource::personEntryState(OrderResource::personOf(static::orderOf($record))))
+                        ->url(function (?Delivery $record): ?string {
+                            $person = OrderResource::personOf(static::orderOf($record));
+
+                            return $person && ! $person->trashed()
+                                ? PersonResource::getUrl('view', ['record' => $person])
+                                : null;
+                        }),
 
                     TextEntry::make('order.organization.name')
                         ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->order?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->order->organization])
-                            : null),
+                        ->state(fn (?Delivery $record): ?string => OrderResource::organizationEntryState(OrderResource::organizationOf(static::orderOf($record))))
+                        ->url(function (?Delivery $record): ?string {
+                            $organization = OrderResource::organizationOf(static::orderOf($record));
+
+                            return $organization && ! $organization->trashed()
+                                ? OrganizationResource::getUrl('view', ['record' => $organization])
+                                : null;
+                        }),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.sections.custom_fields'))
                 ->schema(fn (?Delivery $record) => [])
                 ->hidden(fn (): bool => true),
         ])->columns(1);
+    }
+
+    /**
+     * The order a delivery was made from, or null when it has none or the
+     * order is soft deleted (core's `order` relation includes trashed ones).
+     */
+    protected static function orderUrl(Delivery $record): ?string
+    {
+        $order = static::orderOf($record);
+
+        if ($order === null || $order->trashed()) {
+            return null;
+        }
+
+        return OrderResource::getUrl('view', ['record' => $order]);
+    }
+
+    /**
+     * The delivery's order, soft-deleted included (core 2.7.0's relation).
+     */
+    protected static function orderOf(?Delivery $record): ?Order
+    {
+        $order = $record?->getRelationValue('order');
+
+        return $order instanceof Order ? $order : null;
     }
 
     public static function getPages(): array

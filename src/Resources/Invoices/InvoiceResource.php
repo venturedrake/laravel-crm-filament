@@ -20,13 +20,17 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\Schema as DbSchema;
+use Illuminate\Validation\ValidationException;
 use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Mail\SendInvoice;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrm\Models\InvoiceLine;
+use VentureDrake\LaravelCrm\Services\InvoiceService;
+use VentureDrake\LaravelCrm\Support\Money;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -59,6 +63,8 @@ use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource
 use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\CrmPdf;
+use VentureDrake\LaravelCrmFilament\Support\DocumentMail;
+use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 use VentureDrake\LaravelCrmFilament\Support\PortalMessage;
 use VentureDrake\LaravelCrmFilament\Support\PortalUrl;
 
@@ -137,7 +143,7 @@ class InvoiceResource extends Resource
                             drawdownKey: 'invoice_line_id',
                             withOrderProductId: true,
                         )->defaultItems(1),
-                        MoneyTotalsRow::make(),
+                        MoneyTotalsRow::make(withAdjustments: false),
                     ]),
             ]),
         ]);
@@ -155,19 +161,23 @@ class InvoiceResource extends Resource
 
                 Tables\Columns\TextColumn::make('invoice_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    // Core 2.7.0's RecordSearch: "INV-1001", "1001" and an
+                    // invoice stored before the prefix changed all match.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orNumber($query, $search)))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('reference')
                     ->label(__('laravel-crm-filament::labels.fields.reference'))
-                    ->searchable()
+                    // Matched literally, so `%` or `_` finds itself.
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query
+                        ->where(fn (Builder $query) => RecordSearch::orLike($query, $query->qualifyColumn('reference'), $search)))
                     ->toggleable(),
 
                 Tables\Columns\TextColumn::make('order.order_id')
                     ->label(__('laravel-crm-filament::labels.money.order'))
-                    ->url(fn ($record) => $record->order
-                        ? OrderResource::getUrl('view', ['record' => $record->order])
-                        : null)
+                    ->formatStateUsing(fn ($state, Invoice $record) => static::parentLabel($state, $record->getRelationValue('order')))
+                    ->url(fn (Invoice $record) => static::orderUrl($record))
                     ->color('primary')
                     ->toggleable(),
 
@@ -207,7 +217,10 @@ class InvoiceResource extends Resource
                     ->toggleable(),
 
                 CrmMoney::column('amount_due')
-                    ->label(__('laravel-crm-filament::labels.money.amount_due'))
+                    ->label(ucfirst(__('laravel-crm::lang.balance_due')))
+                    // Worked out as core 2.7.0's show page does: an older
+                    // invoice's stored amount_due can be stale or unset.
+                    ->state(fn (Invoice $record): int => static::balanceDueCents($record))
                     ->sortable()
                     ->toggleable(),
 
@@ -279,8 +292,7 @@ class InvoiceResource extends Resource
                 static::markPaidAction()
                     ->button()
                     ->label(__('laravel-crm-filament::labels.actions.pay'))
-                    ->color('gray')
-                    ->hidden(fn (Invoice $record): bool => (int) ($record->getAttributes()['amount_paid'] ?? 0) > 0),
+                    ->color('gray'),
                 static::invoicePortalActionFactory()
                     ->button()
                     ->hiddenLabel()
@@ -330,6 +342,13 @@ class InvoiceResource extends Resource
             ]);
     }
 
+    /**
+     * Record a payment against the invoice, as core 2.7.0's InvoicePay::pay()
+     * does: any amount above zero up to what is still outstanding, so an
+     * invoice can be paid in parts.
+     *
+     * The table row and the View/Edit headers all use this one action.
+     */
     public static function markPaidAction(): Action
     {
         return Action::make('markPaid')
@@ -337,59 +356,147 @@ class InvoiceResource extends Resource
             ->icon('heroicon-o-banknotes')
             ->color('success')
             ->modalHeading(__('laravel-crm-filament::labels.actions.record_payment'))
+            // Offered until the invoice is settled, not only before the first
+            // payment: the rest of a part-paid invoice has to be payable too.
+            ->visible(fn (?Invoice $record): bool => $record instanceof Invoice && static::canRecordPayment($record))
             ->schema([
                 TextInput::make('amount')
                     ->label(__('laravel-crm-filament::labels.money.amount'))
                     ->numeric()
                     ->required()
-                    ->minValue(0.01)
-                    ->default(fn (?Invoice $record): float => $record
-                        ? round(((int) ($record->getAttributes()['amount_due'] ?? $record->getAttributes()['total'] ?? 0)) / 100, 2)
-                        : 0.0),
+                    ->rule('gt:0')
+                    ->maxValue(fn (?Invoice $record): ?float => $record instanceof Invoice
+                        ? static::outstandingCents($record) / 100
+                        : null)
+                    ->default(fn (?Invoice $record): ?float => $record instanceof Invoice
+                        ? static::outstandingCents($record) / 100
+                        : null),
                 Forms\Components\DatePicker::make('paid_at')
-                    ->label(__('laravel-crm-filament::labels.money.due_date'))
+                    ->label(__('laravel-crm-filament::labels.money.payment_date'))
                     ->required()
                     ->default(now()->toDateString()),
             ])
-            ->action(function (Invoice $record, array $data): void {
-                $amountDollars = (float) ($data['amount'] ?? 0);
-                $paidAt = $data['paid_at'] ?? now()->toDateString();
+            ->action(function (Invoice $record, array $data, Action $action): void {
+                static::recordPayment($record, $data, $action);
+            });
+    }
 
-                $paymentCents = (int) round($amountDollars * 100);
-                $currentPaidCents = (int) ($record->getAttributes()['amount_paid'] ?? 0);
-                $totalCents = (int) ($record->getAttributes()['total'] ?? 0);
-                $newPaidCents = $currentPaidCents + $paymentCents;
-                $newDueCents = max(0, $totalCents - $newPaidCents);
-                $fullyPaid = $totalCents > 0 && $newPaidCents >= $totalCents;
+    /**
+     * What is left to pay on $invoice, in cents: its total less what has been
+     * paid, never below zero.
+     *
+     * Worked out from the total, not read from the stored `amount_due`, which
+     * older invoices may never have had set (core 2.7.0 does the same).
+     */
+    public static function outstandingCents(Invoice $invoice): int
+    {
+        return max(0, (int) $invoice->getRawOriginal('total') - (int) $invoice->getRawOriginal('amount_paid'));
+    }
 
-                // Updating the invoice totals is the base-parity behaviour —
-                // core's PayInvoice has no payments table at all — so it must
-                // happen whether or not the plugin's optional
-                // `crm_invoice_payments` table has been migrated.
-                // The model setters multiply by 100, so divide first.
-                $record->amount_paid = $newPaidCents / 100;
-                $record->amount_due = $newDueCents / 100;
-                $record->fully_paid_at = $fullyPaid ? $paidAt : null;
-                $record->save();
+    /**
+     * The balance shown on the list and the invoice page: nothing once the
+     * invoice is marked paid, otherwise what is outstanding. Core 2.7.0's
+     * show page and portal use the same formula.
+     */
+    public static function balanceDueCents(Invoice $invoice): int
+    {
+        return $invoice->fully_paid_at !== null ? 0 : static::outstandingCents($invoice);
+    }
 
-                // The payment-history row is a plugin extra; skip it (rather
-                // than throwing a missing-table QueryException) when the host
-                // has not published/migrated the plugin migration.
+    /**
+     * Whether a payment can still be recorded against $invoice.
+     */
+    public static function canRecordPayment(Invoice $invoice): bool
+    {
+        return $invoice->getAttribute('fully_paid_at') === null && static::outstandingCents($invoice) > 0;
+    }
+
+    /**
+     * Whether something has been paid against $invoice but not all of it.
+     */
+    public static function isPartPaid(Invoice $invoice): bool
+    {
+        return (int) $invoice->getRawOriginal('amount_paid') > 0 && $invoice->getAttribute('fully_paid_at') === null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    protected static function recordPayment(Invoice $record, array $data, ?Action $action = null): void
+    {
+        $amount = Money::toInteger($data['amount'] ?? null) ?? 0;
+        $paidAt = $data['paid_at'] ?? now()->toDateString();
+
+        // The row is held while the payment is added, and the amount checked
+        // again against the balance the lock read: the form's maxValue saw
+        // the balance from when the modal opened, so two tabs paying the last
+        // 100.00 would both have passed it (core 2.7.0's InvoicePay::pay()).
+        try {
+            $due = DB::transaction(function () use ($record, $amount, $paidAt): int {
+                $invoice = app(InvoiceService::class)->lockForEdit($record);
+                $outstanding = static::outstandingCents($invoice);
+
+                if ($amount <= 0 || $amount > $outstanding || $invoice->getAttribute('fully_paid_at') !== null) {
+                    throw ValidationException::withMessages([
+                        'amount' => ucfirst(__('laravel-crm::lang.payment_exceeds_amount_due', [
+                            'due' => MoneyForm::display($invoice->getAttribute('fully_paid_at') !== null ? 0 : $outstanding, $invoice->getAttribute('currency')),
+                        ])),
+                    ]);
+                }
+
+                // In cents throughout, so a run of part payments adds up exactly.
+                $paid = (int) $invoice->getRawOriginal('amount_paid') + $amount;
+                $due = (int) $invoice->getRawOriginal('total') - $paid;
+
+                // The model setters multiply by 100, so hand them units.
+                $invoice->update([
+                    'amount_paid' => $paid / 100,
+                    'amount_due' => $due / 100,
+                    // The date of the payment that cleared the balance.
+                    'fully_paid_at' => $due <= 0 ? $paidAt : null,
+                ]);
+
+                // The payment-history row is a plugin extra, written in the
+                // same transaction so it cannot disagree with amount_paid.
+                // Skipped (rather than throwing a missing-table
+                // QueryException) when the host has not migrated it.
                 if (DbSchema::hasTable((new InvoicePayment)->getTable())) {
                     InvoicePayment::create([
                         'external_id' => Uuid::uuid4()->toString(),
-                        'invoice_id' => $record->getKey(),
-                        'amount' => $paymentCents,
+                        'invoice_id' => $invoice->getKey(),
+                        'amount' => $amount,
                         'paid_at' => $paidAt,
                         'user_created_id' => auth()->id(),
                     ]);
                 }
 
-                Notification::make()
-                    ->title(__('laravel-crm-filament::labels.actions.mark_paid'))
-                    ->success()
-                    ->send();
+                return $due;
             });
+        } catch (ValidationException $exception) {
+            Notification::make()
+                ->danger()
+                ->title((string) collect($exception->errors())->flatten()->first())
+                ->persistent()
+                ->send();
+
+            if ($action !== null) {
+                $action->halt();
+            }
+
+            throw $exception;
+        }
+
+        // A part payment leaves the invoice open, so say what is still due
+        // rather than that it is paid.
+        Notification::make()
+            ->title($due > 0
+                ? ucfirst(__('laravel-crm::lang.invoice_payment_recorded', [
+                    'amount' => MoneyForm::display($amount, $record->getAttribute('currency')),
+                    'due' => MoneyForm::display($due, $record->getAttribute('currency')),
+                ]))
+                : ucfirst(__('laravel-crm::lang.invoice_paid')))
+            ->success()
+            ->send();
     }
 
     public static function getGloballySearchableAttributes(): array
@@ -442,9 +549,8 @@ class InvoiceResource extends Resource
 
                     TextEntry::make('order.order_id')
                         ->label(__('laravel-crm-filament::labels.money.order'))
-                        ->url(fn ($record) => $record?->order
-                            ? OrderResource::getUrl('view', ['record' => $record->order])
-                            : null),
+                        ->formatStateUsing(fn ($state, ?Invoice $record) => static::parentLabel($state, $record?->getRelationValue('order')))
+                        ->url(fn (?Invoice $record) => $record instanceof Invoice ? static::orderUrl($record) : null),
 
                     TextEntry::make('issue_date')
                         ->label(__('laravel-crm-filament::labels.money.issue_date'))
@@ -461,7 +567,8 @@ class InvoiceResource extends Resource
                         ->label(__('laravel-crm-filament::labels.money.amount_paid')),
 
                     CrmMoney::entry('amount_due')
-                        ->label(__('laravel-crm-filament::labels.money.amount_due')),
+                        ->label(ucfirst(__('laravel-crm::lang.balance_due')))
+                        ->state(fn (?Invoice $record): ?int => $record instanceof Invoice ? static::balanceDueCents($record) : null),
 
                     TextEntry::make('fully_paid_at')
                         ->label(__('laravel-crm-filament::labels.xero.fully_paid_at'))
@@ -482,17 +589,27 @@ class InvoiceResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
-                    TextEntry::make('person.name')
+                    // Through core 2.7.0's *WithTrashed relations, so a
+                    // deleted contact still shows who the invoice was for,
+                    // marked deleted and with no link to a page that 404s.
+                    TextEntry::make('personWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
+                        ->state(fn (?Invoice $record): ?string => static::trashedAwareLabel(
+                            LeadDealContactSection::personLabel($record?->personWithTrashed),
+                            $record?->personWithTrashed,
+                        ))
+                        ->url(fn (?Invoice $record): ?string => static::isLive($person = $record?->personWithTrashed)
+                            ? PersonResource::getUrl('view', ['record' => $person])
                             : null),
 
-                    TextEntry::make('organization.name')
+                    TextEntry::make('organizationWithTrashed.name')
                         ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
+                        ->state(fn (?Invoice $record): ?string => static::trashedAwareLabel(
+                            (string) $record?->organizationWithTrashed?->getAttribute('name'),
+                            $record?->organizationWithTrashed,
+                        ))
+                        ->url(fn (?Invoice $record): ?string => static::isLive($organization = $record?->organizationWithTrashed)
+                            ? OrganizationResource::getUrl('view', ['record' => $organization])
                             : null),
                 ]),
 
@@ -512,6 +629,61 @@ class InvoiceResource extends Resource
         ])->columns(1);
     }
 
+    /**
+     * The order an invoice was made from, or null when it has none or the
+     * order is soft deleted (core's `order` relation includes trashed ones).
+     */
+    protected static function orderUrl(Invoice $record): ?string
+    {
+        $order = $record->getRelationValue('order');
+
+        return static::isLive($order) ? OrderResource::getUrl('view', ['record' => $order]) : null;
+    }
+
+    /**
+     * Whether $model is there to link to: set and not soft deleted.
+     *
+     * @phpstan-assert-if-true !null $model
+     */
+    protected static function isLive(?Model $model): bool
+    {
+        return $model !== null && ! static::isTrashed($model);
+    }
+
+    protected static function isTrashed(Model $model): bool
+    {
+        return method_exists($model, 'trashed') && (bool) $model->trashed();
+    }
+
+    /**
+     * A parent document's number, with core's "(deleted)" marker when the
+     * parent is soft deleted.
+     */
+    protected static function parentLabel(mixed $state, ?Model $parent): mixed
+    {
+        if ($state === null || $state === '' || $parent === null) {
+            return $state;
+        }
+
+        return static::trashedAwareLabel((string) $state, $parent);
+    }
+
+    /**
+     * $label, followed by "(deleted)" when $model is soft deleted.
+     */
+    public static function trashedAwareLabel(string $label, ?Model $model): ?string
+    {
+        if ($label === '') {
+            return null;
+        }
+
+        if ($model !== null && static::isTrashed($model)) {
+            return $label . ' (' . __('laravel-crm::lang.deleted') . ')';
+        }
+
+        return $label;
+    }
+
     public static function getPages(): array
     {
         return [
@@ -522,6 +694,12 @@ class InvoiceResource extends Resource
         ];
     }
 
+    /**
+     * The Send modal, shared by the table row and the View/Edit headers
+     * (Pages\Concerns\HasInvoiceSendAction), as core 2.7.0's InvoiceSend:
+     * one or more recipients, a transport failure shown rather than a 500,
+     * and the invoice marked sent once the mail has gone.
+     */
     public static function sendInvoiceActionFactory(): Action
     {
         return Action::make('send')
@@ -531,11 +709,7 @@ class InvoiceResource extends Resource
             ->modalHeading('Send invoice')
             ->modalSubmitActionLabel('Send')
             ->schema(fn (Invoice $record): array => [
-                TextInput::make('to')
-                    ->label(__('laravel-crm-filament::labels.campaign.to'))
-                    ->email()
-                    ->required()
-                    ->default(fn () => optional($record->person)->getPrimaryEmail()?->address),
+                DocumentMail::toField(fn (): ?string => $record->person?->getPrimaryEmail()?->address),
                 TextInput::make('subject')
                     ->required()
                     ->default(fn () => 'Invoice ' . $record->invoice_id),
@@ -545,11 +719,15 @@ class InvoiceResource extends Resource
                 Checkbox::make('cc')
                     ->label(__('laravel-crm-filament::labels.campaign.send_me_a_copy')),
             ])
-            ->action(function (array $data, Invoice $record): void {
-                static::dispatchInvoiceSend($record, $data);
+            ->action(function (array $data, Invoice $record, Action $action): void {
+                static::dispatchInvoiceSend($record, $data, $action);
+
+                // The Sent badge and column read this flag, and nothing else
+                // sets it on a send.
+                $record->update(['sent' => 1]);
 
                 Notification::make()
-                    ->title('Invoice sent')
+                    ->title(ucfirst(__('laravel-crm::lang.invoice_sent')))
                     ->success()
                     ->send();
             });
@@ -583,14 +761,20 @@ class InvoiceResource extends Resource
             });
     }
 
-    protected static function dispatchInvoiceSend(Invoice $record, array $data): void
+    /**
+     * Render the PDF and mail it. Returns only once the mail has gone: a
+     * transport or MIME failure is shown and $action halted (DocumentMail).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected static function dispatchInvoiceSend(Invoice $record, array $data, ?Action $action = null): void
     {
         $signedUrl = PortalUrl::signedFor('laravel-crm.portal.invoices.show', $record);
 
         $pdfPath = static::renderInvoicePdfToDisk($record);
 
-        Mail::send(new SendInvoice([
-            'to' => $data['to'],
+        DocumentMail::sendOrHalt(new SendInvoice([
+            'to' => DocumentMail::recipients($data['to'] ?? null),
             'subject' => $data['subject'],
             // Null link, no placeholder: base's mailable expands it either way,
             // and an unexpanded null mails an empty anchor.
@@ -598,7 +782,7 @@ class InvoiceResource extends Resource
             'cc' => ! empty($data['cc']) ? 1 : 0,
             'onlineInvoiceLink' => $signedUrl ?? '',
             'pdf' => $pdfPath,
-        ]));
+        ]), $action, 'invoice', $record);
     }
 
     protected static function renderInvoicePdfToDisk(Invoice $record): string

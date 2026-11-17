@@ -1,12 +1,16 @@
 <?php
 
+use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Invoice;
 use VentureDrake\LaravelCrmFilament\Models\InvoicePayment;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
+use VentureDrake\LaravelCrmFilament\Resources\Invoices\Pages\ListInvoices;
 use VentureDrake\LaravelCrmFilament\Tests\RoleSeeder;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
+
+use function Pest\Livewire\livewire;
 
 beforeEach(function () {
     RoleSeeder::seed();
@@ -98,4 +102,19 @@ it('accumulates repeated payments against the same invoice', function () {
     expect((int) $invoice->getAttributes()['amount_due'])->toBe(0);
     expect($invoice->fully_paid_at)->not->toBeNull();
     expect(InvoicePayment::where('invoice_id', $invoice->getKey())->count())->toBe(2);
+});
+
+it('opens with the balance and labels the date as the payment date', function () {
+    $invoice = markPaidInvoice('MARK-PAID-LABEL');
+    $invoice->amount_paid = 40;
+    $invoice->save();
+
+    livewire(ListInvoices::class)
+        ->mountAction(TestAction::make('markPaid')->table($invoice->fresh()))
+        ->assertActionDataSet(['amount' => 60.0]);
+
+    // It read "Due date" before.
+    $source = (string) file_get_contents(__DIR__ . '/../../src/Resources/Invoices/InvoiceResource.php');
+    expect($source)->toMatch("/DatePicker::make\\('paid_at'\\)\\s*->label\\(__\\('laravel-crm-filament::labels\\.money\\.payment_date'\\)\\)/");
+    expect(trans('laravel-crm-filament::labels.money.payment_date'))->toBe('Payment date');
 });

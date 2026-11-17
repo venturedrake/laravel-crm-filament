@@ -19,7 +19,7 @@ it('LeadResource::doConvertToDeal exists with the correct signature', function (
     expect($reflection->getReturnType()?->getName())->toBe('void');
 });
 
-it('doConvertToDeal creates a Deal with the lead title/amount and stamps converted_at', function () {
+it('doConvertToDeal creates a Deal linked to the lead with its title/amount and stamps converted_at', function () {
     $lead = Lead::create([
         'external_id' => (string) Str::uuid(),
         'title' => 'Acme Q3 expansion',
@@ -40,6 +40,9 @@ it('doConvertToDeal creates a Deal with the lead title/amount and stamps convert
     // Lead amount divided by 100 → Deal setter multiplies by 100 → same stored value.
     expect((int) $deal->amount)->toBe($storedAmount);
     expect($deal->currency)->toBe('USD');
+    // Core 2.7.0: the deal keeps the lead it came from.
+    expect($deal->lead_id)->toBe($lead->id);
+    expect($lead->deal?->is($deal))->toBeTrue();
 });
 
 it('doConvertToDeal is a no-op when the lead is already converted', function () {

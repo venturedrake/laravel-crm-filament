@@ -211,11 +211,12 @@ it('accept/reject/unaccept/unreject factories are visible only in their state', 
     expect($unreject->isVisible())->toBeFalse();
 });
 
-it('acceptAction stamps accepted_at and clears rejected_at', function () {
+// Core 2.7.0's QuoteStateService stamps one response and leaves the other
+// alone; Accept and Reject are only offered on a quote with neither.
+it('acceptAction stamps accepted_at on an open quote', function () {
     $quote = Quote::create([
         'external_id' => (string) Str::uuid(),
         'title' => 'Q1',
-        'rejected_at' => now()->subDay(),
     ]);
 
     $action = QuoteResource::acceptAction();
@@ -227,11 +228,10 @@ it('acceptAction stamps accepted_at and clears rejected_at', function () {
     expect($quote->rejected_at)->toBeNull();
 });
 
-it('rejectAction stamps rejected_at and clears accepted_at', function () {
+it('rejectAction stamps rejected_at on an open quote', function () {
     $quote = Quote::create([
         'external_id' => (string) Str::uuid(),
         'title' => 'Q2',
-        'accepted_at' => now()->subDay(),
     ]);
 
     $action = QuoteResource::rejectAction();

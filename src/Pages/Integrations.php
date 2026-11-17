@@ -114,6 +114,16 @@ class Integrations extends Page implements HasForms
                 Section::make('Xero')->heading(__('laravel-crm-filament::labels.sections.xero'))
                     ->description(__('laravel-crm-filament::labels.integrations.xero_description'))
                     ->schema([
+                        // Core 2.7.0's XeroConnect names the organisation the
+                        // CRM is linked to. Hidden when the name can't be read.
+                        TextEntry::make('xeroTenant')
+                            ->hiddenLabel()
+                            ->icon('heroicon-o-check-circle')
+                            ->iconColor('success')
+                            ->state(fn (): ?string => ($name = $this->xeroTenantName()) !== null
+                                ? __('laravel-crm-filament::labels.integrations.xero_connected_to', ['name' => $name])
+                                : null)
+                            ->visible(fn (): bool => $this->xeroTenantName() !== null),
                         Toggle::make('xero_contacts')->label(static::KEYS['xero_contacts']),
                         Toggle::make('xero_products')->label(static::KEYS['xero_products']),
                         Toggle::make('xero_quotes')->label(static::KEYS['xero_quotes']),
@@ -184,6 +194,24 @@ class Integrations extends Page implements HasForms
     protected function xeroIsConnected(): bool
     {
         return XeroIntegration::connected();
+    }
+
+    /**
+     * Memoised for the request: the entry's state and visibility both ask, and
+     * each lookup goes through the Xero package.
+     */
+    protected ?string $xeroTenantNameMemo = null;
+
+    protected bool $xeroTenantNameResolved = false;
+
+    protected function xeroTenantName(): ?string
+    {
+        if (! $this->xeroTenantNameResolved) {
+            $this->xeroTenantNameMemo = XeroIntegration::tenantName();
+            $this->xeroTenantNameResolved = true;
+        }
+
+        return $this->xeroTenantNameMemo;
     }
 
     protected function getFormActions(): array

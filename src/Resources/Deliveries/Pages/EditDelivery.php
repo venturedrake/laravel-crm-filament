@@ -8,12 +8,21 @@ use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\Delivery;
 use VentureDrake\LaravelCrm\Services\DeliveryService;
 use VentureDrake\LaravelCrm\Support\DeliveryOptions;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Deliveries\DeliveryResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class EditDelivery extends EditRecord
 {
+    use SurfacesServiceValidation;
+
     protected static string $resource = DeliveryResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function getHeaderActions(): array
     {
@@ -72,13 +81,15 @@ class EditDelivery extends EditRecord
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
         /** @var Delivery $record */
-        app(DeliveryService::class)->update(
-            FormPayload::wrap($data),
-            $record,
-            $record->order?->person,
-            $record->order?->organization,
-            // Hidden, "Delivered on" is not submitted; a stored date survives.
-            withDeliveredOn: DeliveryOptions::showsDeliveredOn(),
+        $this->surfacingServiceValidation(
+            fn () => app(DeliveryService::class)->update(
+                FormPayload::wrap($data),
+                $record,
+                $record->order?->person,
+                $record->order?->organization,
+                // Hidden, "Delivered on" is not submitted; a stored date survives.
+                withDeliveredOn: DeliveryOptions::showsDeliveredOn(),
+            ),
         );
 
         return $record->refresh();

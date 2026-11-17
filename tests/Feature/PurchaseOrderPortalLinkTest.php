@@ -129,18 +129,25 @@ it('never mails an empty anchor for the portal link', function () {
     expect($mail->content ?? '')->not->toContain('<a href=""></a>');
 });
 
-it('gates both purchase-order send paths on the shared support class', function (string $file) {
-    $source = file_get_contents($file);
+it('gates the purchase-order send path on the shared support class', function () {
+    $source = file_get_contents(__DIR__ . '/../../src/Resources/PurchaseOrders/PurchaseOrderResource.php');
 
     expect($source)->toContain('PurchaseOrderPortalLink::signedFor(')
         ->toContain('PurchaseOrderPortalLink::stripPlaceholder(')
         ->toContain('PurchaseOrderPortalLink::defaultMessage()')
         // The literal placeholder must not be hard-coded as a default any more.
         ->not->toContain('[Online Purchase Order Link]');
-})->with([
-    'page trait' => [__DIR__ . '/../../src/Resources/PurchaseOrders/Pages/Concerns/HasPurchaseOrderSendAction.php'],
-    'resource' => [__DIR__ . '/../../src/Resources/PurchaseOrders/PurchaseOrderResource.php'],
-]);
+});
+
+it('has the View and Edit pages send through the resource action', function () {
+    // One Send implementation (core 2.7.0 port): the page trait delegates
+    // rather than keeping a second copy that could drift from the row action.
+    $source = file_get_contents(__DIR__ . '/../../src/Resources/PurchaseOrders/Pages/Concerns/HasPurchaseOrderSendAction.php');
+
+    expect($source)->toContain('PurchaseOrderResource::sendPurchaseOrderActionFactory()')
+        ->not->toContain('Mail::send(')
+        ->not->toContain('[Online Purchase Order Link]');
+});
 
 it('hides the resource-level preview action while the route is missing', function () {
     withoutPurchaseOrderPortalRoute();

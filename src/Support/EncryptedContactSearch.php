@@ -4,9 +4,11 @@ namespace VentureDrake\LaravelCrmFilament\Support;
 
 use Filament\Forms\Components\Select;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Collection;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 
 /**
  * Person and organization name search that still works with
@@ -25,6 +27,12 @@ use VentureDrake\LaravelCrm\Models\Person;
 class EncryptedContactSearch
 {
     private const CHUNK_SIZE = 500;
+
+    /**
+     * How many people a guest search returns, as core 2.7.0's
+     * HasGuestSearch::GUEST_SEARCH_LIMIT.
+     */
+    public const GUEST_SEARCH_LIMIT = 20;
 
     public static function enabled(): bool
     {
@@ -59,13 +67,77 @@ class EncryptedContactSearch
     }
 
     /**
-     * id => "First Last" for the people matching $term (all of them when it
-     * is blank), sorted by decrypted name and capped at $limit.
+     * A multi-select of people searched on the server as the user types, like
+     * the Guests picker on core 2.7.0's calls, meetings and lunches
+     * (HasGuestSearch): nothing is preloaded, a search returns at most
+     * $limit people, and only the chosen people's labels are looked up.
+     */
+    public static function personSearchSelect(Select $select, int $limit = self::GUEST_SEARCH_LIMIT): Select
+    {
+        return $select
+            ->searchable()
+            ->preload(false)
+            ->options([])
+            ->optionsLimit($limit)
+            ->getSearchResultsUsing(fn (?string $search): array => static::personOptions($search, $limit, blankMatchesAll: false))
+            ->getOptionLabelsUsing(fn (array $values): array => static::personLabels($values));
+    }
+
+    /**
+     * id => "First Last" for the given person ids, sorted by name.
+     *
+     * @param  array<int|string>  $ids
+     * @return array<int|string, string>
+     */
+    public static function personLabels(array $ids): array
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return Person::query()
+            ->whereKey($ids)
+            ->get(['id', 'first_name', 'last_name'])
+            ->mapWithKeys(fn (Person $person): array => [$person->getKey() => static::personName($person)])
+            ->sort(fn (string $a, string $b): int => strcasecmp($a, $b))
+            ->all();
+    }
+
+    /**
+     * id => "First Last" for the people matching $term, sorted by name and
+     * capped at $limit. A blank term matches everyone, or no one when
+     * $blankMatchesAll is false (a search picker before anything is typed).
+     *
+     * With encryption off the match runs in SQL, as core 2.7.0's guest
+     * search does; with it on the names are ciphertext, so they are
+     * decrypted and matched in PHP.
      *
      * @return array<int|string, string>
      */
-    public static function personOptions(?string $term, ?int $limit = null): array
+    public static function personOptions(?string $term, ?int $limit = null, bool $blankMatchesAll = true): array
     {
+        $term = trim((string) $term);
+
+        if ($term === '' && ! $blankMatchesAll) {
+            return [];
+        }
+
+        if (! static::enabled()) {
+            return Person::query()
+                ->when($term !== '', fn (Builder $query) => $query->where(
+                    fn (Builder $query) => static::orPersonNameLike($query, $term),
+                ))
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->orderBy('id')
+                ->when($limit !== null, fn (Builder $query) => $query->limit($limit))
+                ->get(['id', 'first_name', 'last_name'])
+                ->mapWithKeys(fn (Person $person): array => [$person->getKey() => static::personName($person)])
+                ->all();
+        }
+
         return static::people($term)
             ->mapWithKeys(fn (Person $person): array => [$person->getKey() => static::personName($person)])
             ->sort(fn (string $a, string $b): int => strcasecmp($a, $b))
@@ -166,6 +238,28 @@ class EncryptedContactSearch
             });
 
         return $matches;
+    }
+
+    /**
+     * `or` a LIKE on each name column and on "First Last", with core's
+     * RecordSearch so `%` and `_` in the term match literally.
+     */
+    protected static function orPersonNameLike(Builder $query, string $term): void
+    {
+        foreach (['first_name', 'last_name', 'middle_name', 'maiden_name'] as $column) {
+            RecordSearch::orLike($query, $column, $term);
+        }
+
+        $grammar = $query->getQuery()->getGrammar();
+        $first = $grammar->wrap('first_name');
+        $last = $grammar->wrap('last_name');
+
+        // SQLite before 3.44 has no CONCAT(), and MySQL reads || as OR.
+        $fullName = in_array($query->getModel()->getConnection()->getDriverName(), ['sqlite', 'pgsql'], true)
+            ? "({$first} || ' ' || {$last})"
+            : "CONCAT({$first}, ' ', {$last})";
+
+        RecordSearch::orLike($query, new Expression($fullName), $term);
     }
 
     protected static function personMatches(Person $person, string $needle): bool

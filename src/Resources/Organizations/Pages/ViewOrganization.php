@@ -30,7 +30,7 @@ class ViewOrganization extends ViewRecord
                 ->icon('heroicon-m-pencil-square')
                 ->hiddenLabel()
                 ->tooltip('Edit'),
-            Actions\DeleteAction::make()
+            OrganizationResource::warnOfLinkedRecords(Actions\DeleteAction::make())
                 ->icon('heroicon-m-trash')
                 ->hiddenLabel()
                 ->tooltip('Delete'),

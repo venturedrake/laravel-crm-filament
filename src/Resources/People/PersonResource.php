@@ -25,6 +25,7 @@ use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedGlobalSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasEncryptedSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\HasLabels;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
+use VentureDrake\LaravelCrmFilament\Concerns\WarnsOfLinkedRecords;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmActivitiesRelationManager;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmCallsRelationManager;
@@ -46,6 +47,7 @@ class PersonResource extends Resource
     use HasEncryptedGlobalSearch;
     use HasLabels;
     use UsesExternalIdRouting;
+    use WarnsOfLinkedRecords;
 
     protected static ?string $model = Person::class;
 
@@ -198,6 +200,9 @@ class PersonResource extends Resource
                 $query->with(['emails', 'phones']);
                 NextActivity::eagerLoad($query);
 
+                // Backs deleteWarning() in each row's delete dialog.
+                static::withLinkedRecordCounts($query);
+
                 if ($encrypted) {
                     $accessor = HasEncryptedSearch::modifyQuery(
                         fn ($r) => trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')),
@@ -215,7 +220,7 @@ class PersonResource extends Resource
                 Actions\EditAction::make()
                     ->button()
                     ->hiddenLabel(),
-                Actions\DeleteAction::make()
+                static::warnOfLinkedRecords(Actions\DeleteAction::make())
                     ->button()
                     ->hiddenLabel(),
             ])
@@ -231,7 +236,7 @@ class PersonResource extends Resource
                         ],
                         filename: 'people',
                     ),
-                    Actions\DeleteBulkAction::make(),
+                    static::warnOfLinkedRecordsInBulk(Actions\DeleteBulkAction::make()),
                 ]),
             ]);
     }
@@ -295,8 +300,10 @@ class PersonResource extends Resource
                 ->label(__('laravel-crm-filament::labels.fields.gender'))
                 ->formatStateUsing(fn ($state) => $state ? ucfirst((string) $state) : null),
 
+            // Dated with the date_format setting, as core 2.7.0's person page is.
             TextEntry::make('birthday')
-                ->label(__('laravel-crm-filament::labels.fields.birthday')),
+                ->label(__('laravel-crm-filament::labels.fields.birthday'))
+                ->date(fn (): string => (string) app('laravel-crm.settings')->get('date_format', config('laravel-crm.date_format', 'Y-m-d'))),
 
             TextEntry::make('description')
                 ->label(__('laravel-crm-filament::labels.fields.description'))

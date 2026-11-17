@@ -156,10 +156,11 @@ it('prefills the invoice conversion from the remainder, not the ordered quantity
         ->and($products[0]['order_product_id'])->toBe($this->orderProduct->id)
         // Header totals recomputed from the prefilled lines, so a partial
         // invoice's header matches its own body rather than restating the
-        // whole order's total.
+        // whole order's total. Summed in integer cents (core 2.7.0), so a
+        // whole-dollar amount can come back as an int: compare the value.
         ->and(OrderDrawdownPrefill::totalsFor($products)['sub_total'])
-        ->toBe(round($products[0]['unit_price'] * 4, 2))
-        ->and($products[0]['amount'])->toBe(round($products[0]['unit_price'] * 4, 2));
+        ->toEqual(round($products[0]['unit_price'] * 4, 2))
+        ->and($products[0]['amount'])->toEqual(round($products[0]['unit_price'] * 4, 2));
 });
 
 it('drops fully drawn lines from the prefill rather than offering zero', function () {

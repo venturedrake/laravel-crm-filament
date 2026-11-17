@@ -43,7 +43,7 @@ it('InvoiceResource source uses the shared form concerns + order_id orderLink', 
     expect($source)->toContain('SalesDetailsSection::make([');
     expect($source)->toContain("'orderLink' => true");
     expect($source)->toContain("LineItemsRepeater::products(\n                            fkColumn: 'invoice_line_id',");
-    expect($source)->toContain('MoneyTotalsRow::make()');
+    expect($source)->toContain('MoneyTotalsRow::make(withAdjustments: false)');
 });
 
 it('SalesDetailsSection with orderLink puts order_id first', function () {
@@ -65,7 +65,7 @@ it('SalesDetailsSection with orderLink puts order_id first', function () {
     expect($children[0]->getName())->toBe('order_id');
 });
 
-it('CreateInvoice persists Invoice + discount + adjustment columns past the service', function () {
+it('CreateInvoice stores the totals its lines add up to, with no discount or adjustment', function () {
     $person = Person::create([
         'external_id' => (string) Str::uuid(),
         'first_name' => 'Ada',
@@ -87,21 +87,29 @@ it('CreateInvoice persists Invoice + discount + adjustment columns past the serv
             'order_id' => $order->getKey(),
             'person_id' => $person->getKey(),
             'organization_id' => $organization->getKey(),
+            // Posted totals are only what the form last summed. Core 2.7.0
+            // sums the saved lines instead - none here.
             'sub_total' => 100,
-            'discount' => 5,
             'tax' => 10,
-            'adjustment' => 2,
-            'total' => 107,
+            'total' => 110,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $invoice = Invoice::query()->where('reference', 'INV-PARITY')->first();
     expect($invoice)->not->toBeNull();
-    expect($invoice->getAttributes()['subtotal'])->toBe(100 * 100);
-    expect($invoice->getAttributes()['discount'])->toBe(5 * 100);
-    expect($invoice->getAttributes()['tax'])->toBe(10 * 100);
-    expect($invoice->getAttributes()['adjustments'])->toBe(2 * 100);
+    expect((int) $invoice->getAttributes()['subtotal'])->toBe(0);
+    expect((int) $invoice->getAttributes()['tax'])->toBe(0);
+    expect((int) $invoice->getAttributes()['total'])->toBe(0);
+    expect($invoice->getAttributes()['discount'])->toBeNull();
+    expect($invoice->getAttributes()['adjustments'])->toBeNull();
+});
+
+it('hides discount and adjustment on the invoice form, as InvoiceService ignores both', function () {
+    livewire(CreateInvoice::class)
+        ->assertFormFieldExists('sub_total')
+        ->assertFormFieldDoesNotExist('discount')
+        ->assertFormFieldDoesNotExist('adjustment');
 });
 
 it('LineItemsRepeater for Invoice uses invoice_line_id and unit_price', function () {

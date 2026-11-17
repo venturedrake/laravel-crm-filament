@@ -2,7 +2,7 @@
     @php
         $stages = $this->getStages();
         $quotesByStage = $this->getQuotesByStage();
-        $currency = config('laravel-crm.default_currency', 'USD');
+        $summaries = $this->getStageSummaries();
     @endphp
 
     <style>
@@ -13,6 +13,12 @@
         .crm-kanban-col-title { font-weight: 600; font-size: 0.875rem; }
         .crm-kanban-col-meta { text-align: right; font-size: 0.75rem; color: #6b7280; line-height: 1.2; }
         .crm-kanban-col-total { font-size: 0.65rem; color: #9ca3af; margin-top: 0.125rem; }
+        .crm-kanban-more {
+            display: block; width: 100%; margin-top: 0.5rem; padding: 0.375rem;
+            font-size: 0.75rem; color: #05b3a9; background: transparent;
+            border: 1px dashed rgba(5,179,169,0.4); border-radius: 0.375rem; cursor: pointer;
+        }
+        .crm-kanban-more:hover { background: rgba(5,179,169,0.06); }
         .crm-kanban-list { display: flex; flex-direction: column; gap: 0.5rem; min-height: 60px; }
         .crm-kanban-card { position: relative; background: #fff; border: 1px solid rgba(0,0,0,0.06); border-radius: 0.5rem; padding: 0.625rem 0.75rem; cursor: grab; transition: box-shadow 120ms ease; }
         html.dark .crm-kanban-card { background: rgb(31,41,55); border-color: rgba(255,255,255,0.08); }
@@ -55,7 +61,7 @@
                         onEnd: (evt) => {
                             const stageId = evt.to.getAttribute('data-stage-id');
                             const quoteId = evt.item.getAttribute('data-quote-id');
-                            if (stageId && quoteId) { $wire.moveQuote(quoteId, parseInt(stageId)); }
+                            if (stageId && quoteId && evt.from !== evt.to) { $wire.moveQuote(quoteId, parseInt(stageId)); }
                         },
                     });
                 });
@@ -73,27 +79,31 @@
         <div x-ref="board" class="crm-kanban"
              style="grid-template-columns: repeat({{ max($stages->count(), 1) }}, minmax(260px, 1fr));">
             @forelse ($stages as $stage)
-                @php $stageQuotes = $quotesByStage[$stage->id] ?? collect(); @endphp
-                <div class="crm-kanban-col">
+                @php
+                    $stageQuotes = $quotesByStage[$stage->id] ?? collect();
+                    $summary = $summaries[$stage->id] ?? ['count' => 0, 'totals' => [], 'hasMore' => false];
+                @endphp
+                <div class="crm-kanban-col" wire:key="stage-{{ $stage->id }}">
                     <div class="crm-kanban-col-head">
                         <div class="crm-kanban-col-title">{{ $stage->name }}</div>
                         <div class="crm-kanban-col-meta">
-                            <div>{{ $stageQuotes->count() }}</div>
-                            <div class="crm-kanban-col-total">
-                                {{ \VentureDrake\LaravelCrmFilament\Support\MoneyForm::display($this->getStageTotal($stage->id, $quotesByStage), $currency) }}
-                            </div>
+                            <div>{{ $summary['count'] }}</div>
+                            {{-- One line per currency, as core 2.7.0's board header. --}}
+                            @foreach ($summary['totals'] as $total)
+                                <div class="crm-kanban-col-total">{{ $total }}</div>
+                            @endforeach
                         </div>
                     </div>
                     <div data-kanban-column data-stage-id="{{ $stage->id }}" class="crm-kanban-list">
                         @foreach ($stageQuotes as $quote)
-                            <div data-quote-id="{{ $quote->external_id }}" class="crm-kanban-card">
+                            <div data-quote-id="{{ $quote->external_id }}" wire:key="quote-{{ $quote->external_id }}" class="crm-kanban-card">
                                 <div class="crm-kanban-actions">
                                     <button type="button" wire:click.stop="markAccepted('{{ $quote->external_id }}')"
                                             class="crm-kanban-btn crm-kanban-btn-success" title="Mark accepted">Accept</button>
                                     <button type="button" wire:click.stop="markRejected('{{ $quote->external_id }}')"
                                             class="crm-kanban-btn crm-kanban-btn-danger" title="Mark rejected">Reject</button>
                                 </div>
-                                <a href="{{ route('filament.crm.resources.quotes.edit', ['record' => $quote->external_id]) }}"
+                                <a href="{{ \VentureDrake\LaravelCrmFilament\Resources\Quotes\QuoteResource::getUrl('edit', ['record' => $quote]) }}"
                                    class="crm-kanban-card-link">
                                     <div class="crm-kanban-card-id">{{ $quote->quote_id }}</div>
                                     <div class="crm-kanban-card-title">{{ $quote->title }}</div>
@@ -107,6 +117,15 @@
                             </div>
                         @endforeach
                     </div>
+                    @if ($summary['hasMore'])
+                        {{-- Outside the sortable list, so it is never dragged as a card. --}}
+                        <button type="button" class="crm-kanban-more"
+                                wire:click="loadMore({{ $stage->id }})"
+                                wire:loading.attr="disabled"
+                                wire:target="loadMore({{ $stage->id }})">
+                            {{ ucfirst(__('laravel-crm::lang.load_more')) }}
+                        </button>
+                    @endif
                 </div>
             @empty
                 <div class="crm-kanban-empty">No pipeline stages configured for Quotes.</div>

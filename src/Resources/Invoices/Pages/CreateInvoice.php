@@ -8,12 +8,21 @@ use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\InvoiceService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Invoices\InvoiceResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 
 class CreateInvoice extends CreateRecord
 {
+    use SurfacesServiceValidation;
+
     protected static string $resource = InvoiceResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function handleRecordCreation(array $data): Model
     {
@@ -24,20 +33,9 @@ class CreateInvoice extends CreateRecord
         // contacts of each other, as core 2.5.0 does (#94).
         app(PersonService::class)->linkToOrganization($person, $organization);
 
-        $record = app(InvoiceService::class)->create(FormPayload::wrap($data), $person, $organization);
-
-        // InvoiceService doesn't persist discount/adjustments — write them
-        // directly so the 5-rollup money row reaches the DB.
-        $extras = [];
-        if (isset($data['discount'])) {
-            $extras['discount'] = (int) round(((float) $data['discount']) * 100);
-        }
-        if (isset($data['adjustment'])) {
-            $extras['adjustments'] = (int) round(((float) $data['adjustment']) * 100);
-        }
-        if ($extras !== []) {
-            $record->forceFill($extras)->save();
-        }
+        $record = $this->surfacingServiceValidation(
+            fn () => app(InvoiceService::class)->create(FormPayload::wrap($data), $person, $organization),
+        );
 
         InvoiceResource::saveCrmCustomFields($data, $record);
 

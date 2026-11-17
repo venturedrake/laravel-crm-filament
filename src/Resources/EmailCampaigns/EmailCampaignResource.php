@@ -3,20 +3,29 @@
 namespace VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns;
 
 use BackedEnum;
+use Carbon\Carbon;
+use Closure;
 use Filament\Actions;
+use Filament\Actions\Action;
 use Filament\Forms;
 use Filament\Forms\Components\Placeholder;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\HtmlString;
 use VentureDrake\LaravelCrm\Models\EmailCampaign;
 use VentureDrake\LaravelCrm\Models\EmailTemplate;
+use VentureDrake\LaravelCrm\Services\EmailCampaignService;
+use VentureDrake\LaravelCrm\Support\EmailCampaignAudience;
 use VentureDrake\LaravelCrmFilament\Concerns\UsesExternalIdRouting;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns\Pages\CreateEmailCampaign;
@@ -25,6 +34,7 @@ use VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns\Pages\ListEmailCamp
 use VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns\Pages\ViewEmailCampaign;
 use VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns\RelationManagers\ClicksRelationManager;
 use VentureDrake\LaravelCrmFilament\Resources\EmailCampaigns\RelationManagers\RecipientsRelationManager;
+use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 class EmailCampaignResource extends Resource
 {
@@ -39,6 +49,17 @@ class EmailCampaignResource extends Resource
     protected static string | BackedEnum | null $navigationIcon = 'heroicon-o-megaphone';
 
     protected static ?int $navigationSort = 70;
+
+    public const SEND_DRAFT = 'draft';
+
+    public const SEND_NOW = 'now';
+
+    public const SEND_SCHEDULE = 'schedule';
+
+    /**
+     * Matches core's HasEmailCampaignAudience::AUDIENCE_SEARCH_LIMIT.
+     */
+    public const AUDIENCE_SEARCH_LIMIT = 20;
 
     public static function getNavigationGroup(): ?string
     {
@@ -82,37 +103,274 @@ class EmailCampaignResource extends Resource
                         ->columnSpan(['default' => 1, 'lg' => 1])
                         ->content(new HtmlString(static::placeholdersPanelHtml())),
                 ]),
+            static::audienceSection(),
             Section::make('Send')
-                ->heading('Send')
+                ->heading(ucfirst(__('laravel-crm::lang.send')))
                 ->columns(2)
                 ->columnSpanFull()
                 ->schema([
+                    // Core 2.7.0: a campaign saves as a draft unless a send
+                    // mode is picked. "Send now" confirms on the Create/Save
+                    // button (confirmingSendNow()).
                     Forms\Components\Radio::make('send_mode')
-                        ->label('Send')
+                        ->label(ucfirst(__('laravel-crm::lang.send')))
                         ->options([
-                            'send_now' => 'Send now',
-                            'schedule_send' => 'Schedule send',
+                            self::SEND_DRAFT => ucfirst(__('laravel-crm::lang.save_as_draft')),
+                            self::SEND_NOW => ucfirst(__('laravel-crm::lang.send_now')),
+                            self::SEND_SCHEDULE => ucfirst(__('laravel-crm::lang.schedule_send')),
                         ])
-                        ->default('send_now')
-                        ->dehydrated(false)
+                        ->default(self::SEND_DRAFT)
+                        ->required()
                         ->live()
-                        ->afterStateHydrated(function (Forms\Components\Radio $component, $state, ?EmailCampaign $record): void {
-                            if ($state !== null) {
-                                return;
+                        // Not a model attribute, so the edit form fills it
+                        // with null; every visit starts from a draft.
+                        ->afterStateHydrated(function (Forms\Components\Radio $component, $state): void {
+                            if ($state === null) {
+                                $component->state(self::SEND_DRAFT);
                             }
-                            $component->state($record && $record->scheduled_at ? 'schedule_send' : 'send_now');
                         })
-                        ->afterStateUpdated(function ($state, $set): void {
-                            if ($state === 'send_now') {
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            if ($state !== self::SEND_SCHEDULE) {
                                 $set('scheduled_at', null);
                             }
                         }),
-                    Forms\Components\DateTimePicker::make('scheduled_at')
-                        ->label(__('laravel-crm-filament::labels.campaign.schedule_for'))
-                        ->visible(fn ($get): bool => $get('send_mode') === 'schedule_send')
-                        ->required(fn ($get): bool => $get('send_mode') === 'schedule_send'),
+                    static::scheduledAtPicker('scheduled_at')
+                        ->label(ucfirst(__('laravel-crm::lang.scheduled_at')))
+                        ->visible(fn (Get $get): bool => $get('send_mode') === self::SEND_SCHEDULE)
+                        ->required(fn (Get $get): bool => $get('send_mode') === self::SEND_SCHEDULE),
                 ]),
         ]);
+    }
+
+    /**
+     * Who the campaign goes to (core 2.7.0's HasEmailCampaignAudience):
+     * everyone subscribed, or the people behind some labels, organizations,
+     * pipeline stages or a hand-picked list. Labels and stages are short lists
+     * and load in full; people and organizations are searched on the server.
+     */
+    protected static function audienceSection(): Section
+    {
+        return Section::make('audience')
+            ->heading(ucfirst(__('laravel-crm::lang.audience')))
+            ->columns(2)
+            ->columnSpanFull()
+            ->schema([
+                Grid::make(1)
+                    ->columnSpan(1)
+                    ->schema([
+                        Forms\Components\Radio::make('audience_type')
+                            ->label(ucfirst(__('laravel-crm::lang.audience')))
+                            ->options(fn (): array => collect(EmailCampaignAudience::typeOptions())->pluck('name', 'id')->all())
+                            ->default(EmailCampaign::AUDIENCE_ALL)
+                            ->required()
+                            ->live()
+                            // Campaigns from before 2.7.0 have no type: they
+                            // went to everyone.
+                            ->afterStateHydrated(function (Forms\Components\Radio $component, $state): void {
+                                if (blank($state)) {
+                                    $component->state(EmailCampaign::AUDIENCE_ALL);
+                                }
+                            })
+                            ->afterStateUpdated(fn (Set $set) => $set('audience_ids', [])),
+                        Forms\Components\Select::make('audience_ids')
+                            ->label(fn (Get $get): string => ucfirst(EmailCampaignAudience::typeLabel(static::audienceType($get('audience_type')))))
+                            ->multiple()
+                            ->searchable()
+                            ->options(fn (Get $get): array => EmailCampaignAudience::isSearchable($type = static::audienceType($get('audience_type')))
+                                ? []
+                                : static::audienceOptions($type))
+                            ->getSearchResultsUsing(fn (Get $get, ?string $search): array => static::audienceSearchResults(static::audienceType($get('audience_type')), $search))
+                            ->getOptionLabelsUsing(fn (Get $get, array $values): array => static::audienceOptions(static::audienceType($get('audience_type')), $values))
+                            ->visible(fn (Get $get): bool => static::audienceType($get('audience_type')) !== EmailCampaign::AUDIENCE_ALL)
+                            // A filtered type with nothing picked matches
+                            // nobody; it never falls back to everyone.
+                            ->required(fn (Get $get): bool => static::audienceType($get('audience_type')) !== EmailCampaign::AUDIENCE_ALL)
+                            ->live(),
+                    ]),
+                Placeholder::make('recipient_count')
+                    ->label(ucfirst(__('laravel-crm::lang.recipients')))
+                    ->columnSpan(1)
+                    ->content(fn (Get $get): string => number_format(static::audienceCount($get('audience_type'), $get('audience_ids')))),
+            ]);
+    }
+
+    public static function audienceType(mixed $type): string
+    {
+        return is_string($type) && in_array($type, EmailCampaign::AUDIENCE_TYPES, true)
+            ? $type
+            : EmailCampaign::AUDIENCE_ALL;
+    }
+
+    /**
+     * The ids that count for $type: none when it targets everyone.
+     *
+     * @return array<int|string>
+     */
+    public static function audienceIds(mixed $type, mixed $ids): array
+    {
+        return static::audienceType($type) === EmailCampaign::AUDIENCE_ALL ? [] : array_values((array) $ids);
+    }
+
+    public static function audienceCount(mixed $type, mixed $ids): int
+    {
+        return EmailCampaignAudience::count(static::audienceType($type), static::audienceIds($type, $ids));
+    }
+
+    public static function audienceHasRecipients(mixed $type, mixed $ids): bool
+    {
+        return EmailCampaignAudience::any(static::audienceType($type), static::audienceIds($type, $ids));
+    }
+
+    /**
+     * id => name, through core's options() so encrypted names are decrypted.
+     *
+     * @param  array<int|string>|null  $only
+     * @return array<int|string, string>
+     */
+    public static function audienceOptions(string $type, ?array $only = null): array
+    {
+        return collect(EmailCampaignAudience::options($type, $only))
+            ->mapWithKeys(fn (array $option): array => [$option['id'] => $option['name']])
+            ->all();
+    }
+
+    /**
+     * @return array<int|string, string>
+     */
+    public static function audienceSearchResults(string $type, ?string $search): array
+    {
+        $search = trim((string) $search);
+
+        return match ($type) {
+            EmailCampaign::AUDIENCE_PEOPLE => EncryptedContactSearch::personOptions($search, self::AUDIENCE_SEARCH_LIMIT),
+            EmailCampaign::AUDIENCE_ORGANIZATIONS => EncryptedContactSearch::organizationOptions($search, self::AUDIENCE_SEARCH_LIMIT),
+            EmailCampaign::AUDIENCE_ALL => [],
+            default => array_filter(
+                static::audienceOptions($type),
+                fn (string $name): bool => $search === '' || mb_stripos($name, $search) !== false,
+            ),
+        };
+    }
+
+    /**
+     * Danger notification and halt when a non-draft save has nobody to send
+     * to. Core 2.7.0 checks before anything is written, so an empty "Send
+     * now" leaves no draft behind.
+     *
+     * @param  array<string, mixed>  $data
+     *
+     * @throws Halt
+     */
+    public static function refuseEmptyAudience(array $data): void
+    {
+        if (($data['send_mode'] ?? self::SEND_DRAFT) === self::SEND_DRAFT) {
+            return;
+        }
+
+        if (! static::audienceHasRecipients($data['audience_type'] ?? null, $data['audience_ids'] ?? [])) {
+            static::notifyEmptyAudience();
+
+            throw (new Halt)->rollBackDatabaseTransaction();
+        }
+    }
+
+    public static function notifyEmptyAudience(): void
+    {
+        Notification::make()
+            ->danger()
+            ->title(ucfirst(__('laravel-crm::lang.no_recipients_in_audience')))
+            ->send();
+    }
+
+    /**
+     * After the campaign is saved: "now" and "schedule" go through core's
+     * EmailCampaignService::schedule(), which materialises the recipients.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function scheduleAfterSave(EmailCampaign $campaign, array $data): void
+    {
+        $sendAt = match ($data['send_mode'] ?? self::SEND_DRAFT) {
+            self::SEND_NOW => null,
+            self::SEND_SCHEDULE => (string) $data['scheduled_at'],
+            default => false,
+        };
+
+        if ($sendAt !== false) {
+            app(EmailCampaignService::class)->schedule($campaign, $sendAt);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public static function savedMessage(array $data): string
+    {
+        return match ($data['send_mode'] ?? self::SEND_DRAFT) {
+            self::SEND_NOW => ucfirst(__('laravel-crm::lang.campaign_sending')),
+            self::SEND_SCHEDULE => ucfirst(__('laravel-crm::lang.campaign_scheduled')),
+            default => ucfirst(__('laravel-crm::lang.campaign_saved_as_draft')),
+        };
+    }
+
+    /**
+     * Put the page's Create/Save button behind core's `confirm_send_now`
+     * modal when "Send now" is picked and the audience has someone in it.
+     * An empty audience skips the modal and is refused by the save.
+     *
+     * @param  Closure(): array<string, mixed>  $state  the form's raw state
+     * @param  Closure(): void  $save
+     */
+    public static function confirmingSendNow(Action $action, Closure $state, Closure $save): Action
+    {
+        $confirms = function () use ($state): bool {
+            $data = $state();
+
+            return ($data['send_mode'] ?? null) === self::SEND_NOW
+                && static::audienceHasRecipients($data['audience_type'] ?? null, $data['audience_ids'] ?? []);
+        };
+
+        return $action
+            ->submit(null)
+            // Both, or the custom heading alone would open a modal for a
+            // plain draft save too.
+            ->modal($confirms)
+            ->requiresConfirmation($confirms)
+            ->modalHeading(ucfirst(__('laravel-crm::lang.send_now')))
+            ->modalDescription(function () use ($state): string {
+                $data = $state();
+                $count = static::audienceCount($data['audience_type'] ?? null, $data['audience_ids'] ?? []);
+
+                return trans_choice('laravel-crm::lang.confirm_send_now', $count, ['count' => number_format($count)]);
+            })
+            ->modalSubmitActionLabel(ucfirst(__('laravel-crm::lang.send_now')))
+            ->action(fn () => $save());
+    }
+
+    /**
+     * A send time in the future, read in the CRM's timezone: that is how
+     * EmailCampaignService::schedule() reads it.
+     */
+    public static function scheduledAtPicker(string $name): Forms\Components\DateTimePicker
+    {
+        return Forms\Components\DateTimePicker::make($name)
+            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                if (blank($value)) {
+                    return;
+                }
+
+                $timezone = (string) (app('laravel-crm.settings')->get('timezone') ?: 'UTC');
+
+                try {
+                    $future = Carbon::parse((string) $value, $timezone)->isFuture();
+                } catch (\Throwable) {
+                    $future = false;
+                }
+
+                if (! $future) {
+                    $fail(__('validation.after', ['date' => 'now']));
+                }
+            });
     }
 
     public static function infolist(Schema $schema): Schema
@@ -135,6 +393,9 @@ class EmailCampaignResource extends Resource
                     TextEntry::make('status')
                         ->label(__('laravel-crm-filament::labels.fields.status'))
                         ->badge(),
+                    TextEntry::make('audience')
+                        ->label(ucfirst(__('laravel-crm::lang.audience')))
+                        ->state(fn (EmailCampaign $record): string => EmailCampaignAudience::describe($record)),
                     TextEntry::make('scheduled_at')
                         ->label(__('laravel-crm-filament::labels.campaign.schedule_for'))
                         ->state(function (EmailCampaign $record): ?string {
@@ -263,9 +524,9 @@ class EmailCampaignResource extends Resource
         return $out;
     }
 
-    public static function backToIndexAction(): Actions\Action
+    public static function backToIndexAction(): Action
     {
-        return Actions\Action::make('backToIndex')
+        return Action::make('backToIndex')
             ->label(__('laravel-crm-filament::labels.actions.back_to_email_campaigns'))
             ->icon('heroicon-o-arrow-left')
             ->color('gray')

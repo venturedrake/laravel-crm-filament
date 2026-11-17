@@ -178,11 +178,27 @@ it('gates every quote and invoice send path on the shared helper', function (str
         // Neither the literal placeholder nor a raw null link may reach base.
         ->not->toContain($placeholder);
 })->with([
-    'quote page trait' => [__DIR__ . '/../../src/Resources/Quotes/Pages/Concerns/HasQuoteSendAction.php', '[Online Quote Link]'],
     'quote resource' => [__DIR__ . '/../../src/Resources/Quotes/QuoteResource.php', '[Online Quote Link]'],
-    'invoice page trait' => [__DIR__ . '/../../src/Resources/Invoices/Pages/Concerns/HasInvoiceSendAction.php', '[Online Invoice Link]'],
     'invoice resource' => [__DIR__ . '/../../src/Resources/Invoices/InvoiceResource.php', '[Online Invoice Link]'],
 ]);
+
+it('sends invoices from the page header through the resource factory', function () {
+    // One implementation since core 2.7.0's send changes, so the page trait
+    // cannot drift from the guarded resource factory.
+    $source = (string) file_get_contents(__DIR__ . '/../../src/Resources/Invoices/Pages/Concerns/HasInvoiceSendAction.php');
+
+    expect($source)->toContain('InvoiceResource::sendInvoiceActionFactory()')
+        ->not->toContain('new SendInvoice(');
+});
+
+it('sends quotes from the page header through the resource factory', function () {
+    // One implementation since core 2.7.0's send changes, so the page trait
+    // cannot drift from the guarded resource factory.
+    $source = (string) file_get_contents(__DIR__ . '/../../src/Resources/Quotes/Pages/Concerns/HasQuoteSendAction.php');
+
+    expect($source)->toContain('QuoteResource::sendActionFactory()')
+        ->not->toContain('new SendQuote(');
+});
 
 it('shares one stripping rule with the purchase-order helper', function () {
     $source = (string) file_get_contents(__DIR__ . '/../../src/Support/PurchaseOrderPortalLink.php');

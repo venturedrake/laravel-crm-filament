@@ -30,8 +30,15 @@ class MeetingsRelationManager extends RelationManager
                 ->rows(2)
                 ->columnSpanFull(),
             Grid::make(2)->schema([
-                Forms\Components\DateTimePicker::make('start_at')->label(__('laravel-crm-filament::labels.money.start')),
-                Forms\Components\DateTimePicker::make('finish_at')->label(__('laravel-crm-filament::labels.money.finish')),
+                // Both times required and the finish not before the start,
+                // as core 2.7.0 checks (`after_or_equal:start_at`).
+                Forms\Components\DateTimePicker::make('start_at')
+                    ->label(__('laravel-crm-filament::labels.money.start'))
+                    ->required(),
+                Forms\Components\DateTimePicker::make('finish_at')
+                    ->label(__('laravel-crm-filament::labels.money.finish'))
+                    ->required()
+                    ->afterOrEqual('start_at'),
             ]),
             Grid::make(2)->schema([
                 Forms\Components\Select::make('user_owner_id')

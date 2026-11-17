@@ -75,6 +75,11 @@ class ViewInvoice extends ViewRecord
             $badges .= ' <span class="ml-2 inline-flex items-center rounded-full bg-emerald-500 px-3 py-1 text-sm font-medium text-white align-middle">Sent</span>';
         }
 
+        // Core 2.7.0: something paid, but not all of it.
+        if (InvoiceResource::isPartPaid($record)) {
+            $badges .= ' <span class="ml-2 inline-flex items-center rounded-full bg-sky-500 px-3 py-1 text-sm font-medium text-white align-middle">' . e(ucfirst(__('laravel-crm::lang.part_paid'))) . '</span>';
+        }
+
         if ($record->fully_paid_at === null && $record->due_date !== null) {
             $due = Carbon::parse($record->due_date);
 

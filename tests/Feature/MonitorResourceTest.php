@@ -46,7 +46,7 @@ it('routes Monitor page classes back to MonitorResource', function () {
     }
 });
 
-it('declares the 2-col create/edit form fields: url, name (Friendly name), description, method, expected_status_code, interval, downtime_minutes_before_alert, perf_threshold_ms, user_owner_id, is_active toggle + hidden type=https', function () {
+it('declares the 2-col create/edit form fields: type (https/http selector), url, name (Friendly name), description, method, expected_status_code, interval, downtime_minutes_before_alert, perf_threshold_ms, user_owner_id, is_active toggle', function () {
     $source = file_get_contents((new ReflectionClass(MonitorResource::class))->getFileName());
 
     // Fields surfaced in the 2-col layout (matches the screenshot reference)
@@ -61,11 +61,13 @@ it('declares the 2-col create/edit form fields: url, name (Friendly name), descr
     expect($source)->toContain("Forms\\Components\\Select::make('user_owner_id')");
     expect($source)->toContain("Forms\\Components\\Toggle::make('is_active')");
 
-    // Hidden type defaults to https (URL prefix shows protocol visually).
-    expect($source)->toContain("Forms\\Components\\Hidden::make('type')->default('https')");
+    // Core 2.7.0: the scheme is a visible https/http selector (tcp dropped),
+    // defaulting to https.
+    expect($source)->toContain("Forms\\Components\\Select::make('type')");
+    expect($source)->not->toContain("Forms\\Components\\Hidden::make('type')");
+    expect(MonitorResource::TYPE_OPTIONS)->toBe(['https' => 'https', 'http' => 'http']);
 
     // The screenshot layout drops these from the visible form.
-    expect($source)->not->toContain("Forms\\Components\\Select::make('type')");
     expect($source)->not->toContain("Forms\\Components\\KeyValue::make('headers')");
     expect($source)->not->toContain("Forms\\Components\\TextInput::make('timeout')");
     expect($source)->not->toContain("Forms\\Components\\Toggle::make('uptime_enabled')");
@@ -79,9 +81,11 @@ it('renders the form in a 2-col Section layout with the screenshot-style helper 
     // The Section is configured with ->columns(2) for the 2-col layout.
     expect($source)->toMatch("/Section::make\\(__\\('laravel-crm-filament::labels\\.sections\\.monitor_settings'\\)\\)[\\s\\S]{0,200}->columns\\(2\\)/");
 
-    // URL has https:// prefix and example.com placeholder per the screenshot.
-    expect($source)->toContain("->prefix('https://')");
+    // URL prefix follows the type selector; example.com placeholder per the
+    // screenshot; core's monitor_url_hint as the helper text.
+    expect($source)->toContain("->prefix(fn (Get \$get): string => static::schemeFor(\$get('type')) . '://')");
     expect($source)->toContain("->placeholder('example.com')");
+    expect($source)->toContain("__('laravel-crm::lang.monitor_url_hint')");
 
     // The 4 helper-text translation keys are wired
     expect($source)->toContain('labels.sales.friendly_name_helper');

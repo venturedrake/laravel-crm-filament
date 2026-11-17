@@ -155,3 +155,25 @@ it('handles zero / non-numeric inputs gracefully', function () {
     expect($row['amount'])->toBe(0.0);
     expect($row['tax_amount'])->toBe(0.0);
 });
+
+it('prices a line in integer cents like core 2.7.0, so a half cent rounds up', function () {
+    // 333.33 x 2.5 is exactly 833.325. As a float product rounded to 2dp it
+    // came out 833.32; core's LineAmount scales the quantity first.
+    $row = recalcRowInvoke([
+        'id' => null,
+        'unit_price' => '333.33',
+        'quantity' => '2.5',
+    ], 'unit_price');
+
+    expect($row['amount'])->toBe(833.33);
+});
+
+it('reads a masked unit price when pricing the line', function () {
+    $row = recalcRowInvoke([
+        'id' => null,
+        'unit_price' => '$1,200.00',
+        'quantity' => 2,
+    ], 'unit_price');
+
+    expect($row['amount'])->toBe(2400.0);
+});

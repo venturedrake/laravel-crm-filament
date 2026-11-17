@@ -11,13 +11,22 @@ use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Services\OrderService;
 use VentureDrake\LaravelCrm\Services\PersonService;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\OrderAddressTabs;
+use VentureDrake\LaravelCrmFilament\Concerns\SurfacesServiceValidation;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
 use VentureDrake\LaravelCrmFilament\Support\FormPayload;
 use VentureDrake\LaravelCrmFilament\Support\MoneyForm;
 
 class EditOrder extends EditRecord
 {
+    use SurfacesServiceValidation;
+
     protected static string $resource = OrderResource::class;
+
+    /**
+     * Core's services already run in a transaction; this one also covers
+     * the contact links and custom field values saved around them.
+     */
+    protected ?bool $hasDatabaseTransactions = true;
 
     protected function getHeaderActions(): array
     {
@@ -26,7 +35,9 @@ class EditOrder extends EditRecord
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-eye'),
-            Actions\DeleteAction::make()
+            // Disabled with core 2.7.0's reason while invoices, purchase
+            // orders or deliveries still point at the order.
+            OrderResource::deleteAction(Actions\DeleteAction::make())
                 ->button()
                 ->hiddenLabel()
                 ->icon('heroicon-m-trash'),
@@ -96,13 +107,15 @@ class EditOrder extends EditRecord
 
         // With the form options, a hidden description, hidden labels and an
         // address of a hidden type are left as stored.
-        app(OrderService::class)->update(
-            FormPayload::wrap($data),
-            $record,
-            $person,
-            $organization,
-            $record->client,
-            form: $form,
+        $this->surfacingServiceValidation(
+            fn () => app(OrderService::class)->update(
+                FormPayload::wrap($data),
+                $record,
+                $person,
+                $organization,
+                $record->client,
+                form: $form,
+            ),
         );
 
         if ($form->shows('custom_fields')) {

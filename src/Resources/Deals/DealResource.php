@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
+use VentureDrake\LaravelCrm\Support\RecordSearch;
 use VentureDrake\LaravelCrmFilament\Concerns\ExportsCsv;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Concerns\Forms\LineItemsRepeater;
@@ -40,8 +41,6 @@ use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\DealKanban;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\EditDeal;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ListDeals;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ViewDeal;
-use VentureDrake\LaravelCrmFilament\Resources\Organizations\OrganizationResource;
-use VentureDrake\LaravelCrmFilament\Resources\People\PersonResource;
 use VentureDrake\LaravelCrmFilament\Support\CrmMoney;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
@@ -161,9 +160,13 @@ class DealResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
+                // Matched as core 2.7.0's index search matches it: the stored
+                // number, or its prefix and digits, so LD-12 and 12 both find it.
                 Tables\Columns\TextColumn::make('deal_id')
                     ->label(__('laravel-crm-filament::labels.fields.number'))
-                    ->searchable()
+                    ->searchable(query: fn (Builder $query, string $search): Builder => $query->where(
+                        fn (Builder $query) => RecordSearch::orNumber($query, $search),
+                    ))
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('title')
@@ -418,18 +421,9 @@ class DealResource extends Resource
 
             Section::make(__('laravel-crm-filament::labels.sections.contact'))
                 ->schema([
-                    TextEntry::make('person.name')
-                        ->label(__('laravel-crm-filament::labels.fields.contact'))
-                        ->state(fn ($record) => LeadDealContactSection::personLabel($record?->person))
-                        ->url(fn ($record) => $record?->person
-                            ? PersonResource::getUrl('view', ['record' => $record->person])
-                            : null),
+                    LeadDealContactSection::personEntry(),
 
-                    TextEntry::make('organization.name')
-                        ->label(__('laravel-crm-filament::labels.fields.organization'))
-                        ->url(fn ($record) => $record?->organization
-                            ? OrganizationResource::getUrl('view', ['record' => $record->organization])
-                            : null),
+                    LeadDealContactSection::organizationEntry(),
                 ]),
 
             Section::make(__('laravel-crm-filament::labels.sections.custom_fields'))

@@ -4,6 +4,7 @@ namespace VentureDrake\LaravelCrmFilament\Support;
 
 use Closure;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Model;
 use VentureDrake\LaravelCrm\Http\Rules\QuantityWithinRemaining;
 use VentureDrake\LaravelCrm\Models\OrderProduct;
 use VentureDrake\LaravelCrm\Support\Quantity;
@@ -100,19 +101,40 @@ class RemainingQuantity
      * Reads the sibling `order_product_id` / drawdown key through Filament's
      * $get rather than parsing the attribute path, which is exactly the part
      * core's rule cannot do.
+     *
+     * $drawdownOwnerColumn is the drawdown model's parent column (e.g.
+     * `delivery_id`). On an edit form the form's record is the owner, and, as
+     * core 2.7.0's QuantityWithinRemaining does, a row that is one of its own
+     * saved lines left at or below the saved quantity is not checked, so a
+     * document whose order line was later reduced can still be saved. On a
+     * create form there is no saved record and so no exemption.
      */
-    public static function rule(?string $drawdownModel, ?string $drawdownRelation, ?string $drawdownKey): Closure
-    {
-        return static function (Get $get) use ($drawdownModel, $drawdownRelation, $drawdownKey): Closure {
-            return static function (string $attribute, mixed $value, Closure $fail) use ($get, $drawdownModel, $drawdownRelation, $drawdownKey): void {
+    public static function rule(
+        ?string $drawdownModel,
+        ?string $drawdownRelation,
+        ?string $drawdownKey,
+        ?string $drawdownOwnerColumn = null,
+    ): Closure {
+        return static function (Get $get, mixed $record = null) use ($drawdownModel, $drawdownRelation, $drawdownKey, $drawdownOwnerColumn): Closure {
+            $owner = $drawdownOwnerColumn && $record instanceof Model && $record->exists
+                ? [$drawdownOwnerColumn => $record->getKey()]
+                : null;
+
+            return static function (string $attribute, mixed $value, Closure $fail) use ($get, $drawdownModel, $drawdownRelation, $drawdownKey, $owner): void {
                 if ($value === null || $value === '') {
                     return;
                 }
 
-                $max = self::forRow([
+                $row = [
                     'order_product_id' => $get('order_product_id'),
                     $drawdownKey => $drawdownKey ? $get($drawdownKey) : null,
-                ], $drawdownModel, $drawdownRelation, $drawdownKey);
+                ];
+
+                if (self::notRaised($row, $value, $drawdownModel, $drawdownKey, $owner)) {
+                    return;
+                }
+
+                $max = self::forRow($row, $drawdownModel, $drawdownRelation, $drawdownKey);
 
                 if ($max === null) {
                     return;
@@ -125,6 +147,37 @@ class RemainingQuantity
                 }
             };
         };
+    }
+
+    /**
+     * Whether the row is a saved line of the document being edited, left at
+     * or below the quantity it was saved with (core 2.7.0's
+     * QuantityWithinRemaining::notRaised()). The saved line is looked up
+     * within the owner and against the row's order line, so a row key forged
+     * onto another document's line gets no exemption.
+     *
+     * @param  class-string|null  $drawdownModel
+     * @param  array<string, mixed>|null  $owner  parent column => id
+     */
+    public static function notRaised(
+        array $row,
+        mixed $value,
+        ?string $drawdownModel,
+        ?string $drawdownKey,
+        ?array $owner,
+    ): bool {
+        if ($drawdownModel === null || ! $drawdownKey || ! $owner
+            || empty($row[$drawdownKey]) || empty($row['order_product_id'])) {
+            return false;
+        }
+
+        $saved = $drawdownModel::query()
+            ->whereKey($row[$drawdownKey])
+            ->where($owner)
+            ->where('order_product_id', $row['order_product_id'])
+            ->first();
+
+        return $saved !== null && ! Quantity::greaterThan($value, $saved->quantity);
     }
 
     /**

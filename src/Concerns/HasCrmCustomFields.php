@@ -62,7 +62,7 @@ trait HasCrmCustomFields
             ])
             ->all();
 
-        return match ($field->type) {
+        $component = match ($field->type) {
             'textarea' => Textarea::make($key)->label($label)->required($required)->rows(3),
             'date' => DatePicker::make($key)->label($label)->required($required),
             'checkbox' => Checkbox::make($key)->label($label),
@@ -72,6 +72,41 @@ trait HasCrmCustomFields
             'checkbox_multiple' => CheckboxList::make($key)->label($label)->options($options)->required($required),
             default => TextInput::make($key)->label($label)->required($required)->maxLength(255),
         };
+
+        // Filament only applies a default when a create form is filled, so an
+        // edit form keeps the record's stored values (loadCrmCustomFieldsInto).
+        return $component->default(static::crmCustomFieldDefault($field));
+    }
+
+    /**
+     * The field's configured default as form state. Ported from core 2.7.0's
+     * HasCustomFormFields::customFieldFormValue(), which converts defaults and
+     * saved values the same way: option-backed fields map onto the option id,
+     * multi-value fields decode their JSON list, a checkbox becomes a bool.
+     */
+    protected static function crmCustomFieldDefault(Field $field): mixed
+    {
+        $value = $field->getAttribute('default');
+        $type = $field->getAttribute('type');
+
+        if (in_array($type, ['checkbox_multiple', 'select_multiple'], true)) {
+            $decoded = is_string($value) ? json_decode($value, true) : $value;
+
+            return array_values(array_filter(
+                array_map(fn ($item) => static::crmCustomFieldOptionId($field, $item), is_array($decoded) ? $decoded : []),
+                fn ($item) => $item !== null,
+            ));
+        }
+
+        if (in_array($type, ['select', 'radio'], true)) {
+            return static::crmCustomFieldOptionId($field, $value);
+        }
+
+        if ($type === 'checkbox') {
+            return (bool) $value;
+        }
+
+        return $value === '' ? null : $value;
     }
 
     public static function loadCrmCustomFieldsInto(array $data, $record): array

@@ -2,6 +2,11 @@
 
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Pages\Updates;
@@ -469,3 +474,32 @@ function updatesPageVisibleSectionHeadings(): array
 
     return $headings;
 }
+
+it('asks the version API through core\'s laravel-crm.version-client binding', function () {
+    // Core 2.7.0 binds the client under a package-only key, so a host app's
+    // own Guzzle client (default headers, proxy) never rides along, and a
+    // test can swap in an offline one.
+    $history = [];
+    $stack = HandlerStack::create(new MockHandler([
+        new Response(200, [], (string) json_encode(['id' => 'install-123', 'version' => '9.9.9'])),
+    ]));
+    $stack->push(Middleware::history($history));
+    app()->bind('laravel-crm.version-client', fn () => new Client(['handler' => $stack]));
+
+    $page = new class extends Updates
+    {
+        protected function fetchLatestPanelVersion(): bool
+        {
+            return false;
+        }
+    };
+
+    $method = new ReflectionMethod($page, 'fetchLatestVersion');
+    $method->setAccessible(true);
+
+    expect($method->invoke($page))->toBeTrue()
+        ->and($history)->toHaveCount(1)
+        ->and((string) $history[0]['request']->getUri())->toBe(Updates::VERSION_API_URL)
+        ->and(Setting::where('name', 'version_latest')->value('value'))->toBe('9.9.9')
+        ->and(Setting::where('name', 'install_id')->value('value'))->toBe('install-123');
+});

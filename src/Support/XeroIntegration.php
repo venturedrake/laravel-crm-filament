@@ -52,4 +52,25 @@ class XeroIntegration
             return false;
         }
     }
+
+    /**
+     * The connected Xero organisation's name, or null when there is no live
+     * connection or the token has none. Core 2.7.0's XeroConnect reads it
+     * through the package (behind connected()) to say which organisation the
+     * CRM is linked to; a failure here only drops that line.
+     */
+    public static function tenantName(): ?string
+    {
+        if (! static::connected()) {
+            return null;
+        }
+
+        try {
+            $name = app('xero')->getTenantName();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return is_string($name) && trim($name) !== '' ? $name : null;
+    }
 }

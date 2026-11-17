@@ -235,7 +235,9 @@ it('prices each line from the product supplier cost, not the order line price', 
 
     // cost_per_unit was stored as 10 (mutator × 100 → 1000 cents).
     expect($line['unit_price'])->toBe(10.0);
-    expect($line['amount'])->toBe(20.0);
+    // Priced in integer cents (core 2.7.0's LineAmount), so a whole-dollar
+    // amount can come back as an int: compare the value.
+    expect($line['amount'])->toEqual(20.0);
 });
 
 it('creates a single purchase order from the selected lines with split off', function () {

@@ -141,6 +141,15 @@ return new class extends Migration
             });
         }
 
+        // Core's add_pipeline_order stub: the boards order a column by pipeline_stage_order (2.7.0 paging).
+        foreach (['leads', 'deals', 'quotes'] as $boardTable) {
+            if (Schema::hasTable($prefix . $boardTable) && ! Schema::hasColumn($prefix . $boardTable, 'pipeline_stage_order')) {
+                Schema::table($prefix . $boardTable, function (Blueprint $table) {
+                    $table->integer('pipeline_stage_order')->nullable();
+                });
+            }
+        }
+
         if (! Schema::hasTable('teams')) {
             Schema::create('teams', function (Blueprint $table) {
                 $table->bigIncrements('id');
@@ -517,6 +526,14 @@ return new class extends Migration
         if (Schema::hasTable($prefix . 'organizations') && ! Schema::hasColumn($prefix . 'organizations', 'linkedin')) {
             Schema::table($prefix . 'organizations', function (Blueprint $table) {
                 $table->string('linkedin')->nullable();
+            });
+        }
+
+        // OrganizationService::update() writes it; EditOrganization saves
+        // through it (ContactValidationTest).
+        if (Schema::hasTable($prefix . 'organizations') && ! Schema::hasColumn($prefix . 'organizations', 'annual_revenue')) {
+            Schema::table($prefix . 'organizations', function (Blueprint $table) {
+                $table->bigInteger('annual_revenue')->nullable();
             });
         }
 
@@ -991,6 +1008,37 @@ return new class extends Migration
                     $table->timestamp($monitorColumn)->nullable();
                 });
             }
+        }
+
+        // Core 2.7.0 email campaign audiences
+        // (2026_11_12_000001_add_audience_to_laravel_crm_email_campaigns_table).
+        if (Schema::hasTable($prefix . 'email_campaigns') && ! Schema::hasColumn($prefix . 'email_campaigns', 'audience_type')) {
+            Schema::table($prefix . 'email_campaigns', function (Blueprint $table) {
+                $table->string('audience_type', 32)->default('all');
+                $table->json('audience_ids')->nullable();
+            });
+        }
+
+        // EmailCampaignAudience only counts subscribed addresses
+        // (core's add_subscribed_to_laravel_crm_emails_table stub).
+        if (Schema::hasTable($prefix . 'emails') && ! Schema::hasColumn($prefix . 'emails', 'subscribed')) {
+            Schema::table($prefix . 'emails', function (Blueprint $table) {
+                $table->boolean('subscribed')->default(true);
+                $table->timestamp('unsubscribed_at')->nullable();
+            });
+        }
+
+        // The columns EmailCampaignService::materialiseRecipients() writes.
+        // `email` is the bootstrap schema's own column, which core's table
+        // does not have, so it must accept a row written without it.
+        if (Schema::hasTable($prefix . 'email_campaign_recipients') && ! Schema::hasColumn($prefix . 'email_campaign_recipients', 'email_id')) {
+            Schema::table($prefix . 'email_campaign_recipients', function (Blueprint $table) {
+                $table->unsignedBigInteger('team_id')->nullable()->index();
+                $table->unsignedBigInteger('email_id')->nullable()->index();
+                $table->unsignedBigInteger('person_id')->nullable()->index();
+                $table->string('address')->nullable();
+                $table->string('email')->nullable()->change();
+            });
         }
 
         if (! Schema::hasTable($prefix . 'monitor_checks')) {

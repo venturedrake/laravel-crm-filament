@@ -5,19 +5,22 @@ namespace VentureDrake\LaravelCrmFilament\Resources\Deals\Pages;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Resources\Pages\Page;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use VentureDrake\LaravelCrm\Models\Deal;
-use VentureDrake\LaravelCrm\Models\Pipeline;
-use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrmFilament\Concerns\AuthorizesKanbanBoard;
 use VentureDrake\LaravelCrmFilament\Concerns\FiltersBoardByOwner;
+use VentureDrake\LaravelCrmFilament\Concerns\PagesPipelineBoard;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 
 class DealKanban extends Page
 {
     use AuthorizesKanbanBoard;
     use FiltersBoardByOwner;
+    use PagesPipelineBoard;
 
     protected static string $resource = DealResource::class;
 
@@ -36,28 +39,24 @@ class DealKanban extends Page
         ];
     }
 
-    public function getStages(): Collection
+    protected function boardModel(): string
     {
-        $pipelineIds = Pipeline::query()
-            ->where('model', Deal::class)
-            ->pluck('id');
-
-        return PipelineStage::query()
-            ->whereIn('pipeline_id', $pipelineIds)
-            ->orderBy('order')
-            ->get();
+        return Deal::class;
     }
 
+    protected function boardScope(Builder $query): void
+    {
+        $query->whereNull($this->boardColumn('closed_at'));
+    }
+
+    /**
+     * The cards on screen, keyed by stage id.
+     *
+     * @return array<int, Collection<int, Model>>
+     */
     public function getDealsByStage(): array
     {
-        $deals = Deal::query()
-            ->whereNull('closed_at')
-            ->when($this->ownerFilter, fn ($q) => $q->where('user_owner_id', $this->ownerFilter))
-            ->whereNotNull('pipeline_stage_id')
-            ->orderByDesc('updated_at')
-            ->get();
-
-        return $deals->groupBy('pipeline_stage_id')->all();
+        return $this->cardsByStage();
     }
 
     public function markWon(string $externalId): void
@@ -96,25 +95,13 @@ class DealKanban extends Page
         }
 
         $this->authorizeKanbanEdit($deal);
-        $deal->pipeline_stage_id = $stageId;
-        if ($stageId) {
-            $stage = PipelineStage::find($stageId);
-            $deal->pipeline_id = $stage?->pipeline_id;
-        }
-        $deal->save();
-    }
 
-    /**
-     * The stage column total, in stored cents, ready for money().
-     */
-    public function getStageTotal(int $stageId, array $byStage): int
-    {
-        $rows = $byStage[$stageId] ?? collect();
-        $sum = 0;
-        foreach ($rows as $row) {
-            $sum += (int) ($row->amount ?? 0);
-        }
+        // Core 2.7.0: only a stage on this board, never another pipeline's.
+        $stage = $this->boardStage($stageId);
 
-        return $sum;
+        DB::transaction(function () use ($deal, $stage): void {
+            $this->placeInStage($deal, $stage);
+            $deal->save();
+        });
     }
 }

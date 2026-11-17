@@ -6,6 +6,7 @@ use Filament\Schemas\Schema;
 use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Order;
 use VentureDrake\LaravelCrm\Models\Quote;
+use VentureDrake\LaravelCrmFilament\Concerns\Forms\LeadDealContactSection;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\DealResource;
 use VentureDrake\LaravelCrmFilament\Resources\Deals\Pages\ViewDeal;
 use VentureDrake\LaravelCrmFilament\Resources\Orders\OrderResource;
@@ -63,6 +64,15 @@ it('infolist source uses crmCustomFieldEntries() helper for the custom-fields se
 
 it('infolist source uses PersonResource::getUrl and OrganizationResource::getUrl for contact links', function (string $resource): void {
     $src = file_get_contents((new ReflectionClass($resource))->getFileName());
+
+    // The deal's contact entries come from LeadDealContactSection, which
+    // reads the trashed-aware relations (core 2.7.0).
+    if ($resource === DealResource::class) {
+        expect($src)->toContain('LeadDealContactSection::personEntry()');
+        expect($src)->toContain('LeadDealContactSection::organizationEntry()');
+
+        $src = file_get_contents((new ReflectionClass(LeadDealContactSection::class))->getFileName());
+    }
 
     expect($src)->toContain("PersonResource::getUrl('view'");
     expect($src)->toContain("OrganizationResource::getUrl('view'");

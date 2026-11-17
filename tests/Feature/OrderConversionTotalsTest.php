@@ -82,9 +82,11 @@ it('adds tax into the total it derives from the prefilled lines', function () {
     $products = OrderDrawdownPrefill::invoiceProducts($this->order->fresh());
     $totals = OrderDrawdownPrefill::totalsFor($products);
 
-    expect($totals['sub_total'])->toBe(100.0)
-        ->and($totals['tax'])->toBe(10.0)
-        ->and($totals['total'])->toBe(110.0);
+    // Summed in integer cents, as core 2.7.0's DocumentTotals does, so a
+    // whole-dollar total can come back as an int: compare the value.
+    expect($totals['sub_total'])->toEqual(100.0)
+        ->and($totals['tax'])->toEqual(10.0)
+        ->and($totals['total'])->toEqual(110.0);
 });
 
 /**
@@ -147,9 +149,9 @@ it('states the tax for the part it is actually billing, not the whole order', fu
     );
 
     // 4 x $10 = $40, plus 10% = $44 — not the order's own $10 of tax.
-    expect($totals['sub_total'])->toBe(40.0)
-        ->and($totals['tax'])->toBe(4.0)
-        ->and($totals['total'])->toBe(44.0);
+    expect($totals['sub_total'])->toEqual(40.0)
+        ->and($totals['tax'])->toEqual(4.0)
+        ->and($totals['total'])->toEqual(44.0);
 });
 
 it('refuses to create a delivery for an order with nothing outstanding', function () {

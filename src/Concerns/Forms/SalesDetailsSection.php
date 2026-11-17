@@ -6,12 +6,14 @@ use Filament\Forms;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Illuminate\Support\Fluent;
+use VentureDrake\LaravelCrm\Http\Rules\NotBeforeDate;
 use VentureDrake\LaravelCrm\Models\Order as OrderModel;
 use VentureDrake\LaravelCrm\Models\Organization;
 use VentureDrake\LaravelCrm\Models\Person;
 use VentureDrake\LaravelCrm\Models\PipelineStage;
 use VentureDrake\LaravelCrm\Services\OrganizationService;
 use VentureDrake\LaravelCrm\Services\PersonService;
+use VentureDrake\LaravelCrmFilament\Concerns\ContactFieldsSchema;
 use VentureDrake\LaravelCrmFilament\Support\EncryptedContactSearch;
 
 /**
@@ -121,8 +123,20 @@ class SalesDetailsSection
                 'delivery_date' => 'laravel-crm-filament::labels.money.delivery_date',
                 default => 'laravel-crm-filament::labels.money.expiry_date',
             };
-            $dateRow[] = Forms\Components\DatePicker::make($opts['expiryDateKey'])
+            $endDate = Forms\Components\DatePicker::make($opts['expiryDateKey'])
                 ->label(__($label));
+
+            // An expiry, due or delivery date on an earlier day than the
+            // issue date is refused, as core 2.7.0's forms refuse it (#106).
+            if ($opts['issueDateKey']) {
+                $issueKey = $opts['issueDateKey'];
+                $endDate->rule(fn ($get) => new NotBeforeDate(
+                    $get($issueKey),
+                    __('laravel-crm::lang.issue_date'),
+                ));
+            }
+
+            $dateRow[] = $endDate;
         }
         if ($dateRow !== []) {
             $components[] = Grid::make(2)->schema($dateRow);
@@ -187,8 +201,10 @@ class SalesDetailsSection
                     Forms\Components\TextInput::make('first_name')->required()->maxLength(255),
                     Forms\Components\TextInput::make('last_name')->maxLength(255),
                 ]),
-                Forms\Components\TextInput::make('email')->email()->maxLength(255),
-                Forms\Components\TextInput::make('phone')->tel()->maxLength(50),
+                // Checked with core 2.7.0's ContactEmail / PhoneNumber rules,
+                // as the person form is.
+                ContactFieldsSchema::emailInput('email', forRecord: false),
+                ContactFieldsSchema::phoneInput('phone', forRecord: false),
             ])
             ->createOptionUsing(function (array $data): int {
                 $request = new Fluent([
