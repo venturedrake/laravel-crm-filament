@@ -2,6 +2,9 @@
 
 namespace VentureDrake\LaravelCrmFilament\Support;
 
+use Composer\InstalledVersions;
+use Filament\Support\Assets\Asset;
+use Filament\Support\Facades\FilamentAsset;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
@@ -24,6 +27,14 @@ use VentureDrake\LaravelCrm\Scopes\BelongsToTeamsScope;
  * because this package performs no one-shot data backfills; if that ever
  * changes, the two signals below still cover it, since a backfill ships with a
  * version bump.
+ *
+ * It also answers one question core cannot: "are Filament's published CSS
+ * and JS the ones the installed Filament ships?" Filament renders its
+ * components on the server, but the browser runs whatever `filament:assets`
+ * last copied into `public/`. When composer moves Filament forward and the
+ * hook that republishes those copies never fires, the new markup waits on
+ * Alpine components and CSS that the old copies do not have, and selects,
+ * tables and actions stay inert with nothing on the server side looking wrong.
  */
 class PanelSystemCheck
 {
@@ -38,6 +49,13 @@ class PanelSystemCheck
      * the other in the banner's alert list.
      */
     public const PANEL_DB_UPDATE_REQUIRED = 'panel_db_update_required';
+
+    /**
+     * The published copies of Filament's own assets differ from the files the
+     * installed Filament ships. Fixed by `laravelcrm:filament-upgrade`, which
+     * runs `filament:assets`.
+     */
+    public const FILAMENT_ASSETS_STALE = 'filament_assets_stale';
 
     /**
      * The setting `laravelcrm:filament-update` stamps with
@@ -57,28 +75,140 @@ class PanelSystemCheck
      */
     public function check(): array
     {
+        $alerts = [];
+
         // A missing settings table means the install is structurally behind,
-        // which is core's UPGRADE_REQUIRED case, not this one. Everything
-        // below reads that table, so say nothing rather than guess.
-        if (! $this->settingsTableExists()) {
-            return [];
+        // which is core's UPGRADE_REQUIRED case, not this one. The database
+        // half reads that table, so it says nothing rather than guess.
+        if ($this->settingsTableExists()) {
+            $versionBehind = $this->dbVersionBehind();
+            $migrationsPending = $this->hasPendingMigrations();
+
+            if ($versionBehind || $migrationsPending) {
+                $alerts[] = [
+                    'type' => self::PANEL_DB_UPDATE_REQUIRED,
+                    'level' => 'info',
+                    'version_behind' => $versionBehind,
+                    'migrations_pending' => $migrationsPending,
+                ];
+            }
         }
 
-        $versionBehind = $this->dbVersionBehind();
-        $migrationsPending = $this->hasPendingMigrations();
+        // Not a database question, so not behind the settings-table guard: a
+        // host with stale assets has broken selects whatever its schema says.
+        $stale = $this->staleFilamentAssets();
 
-        if (! $versionBehind && ! $migrationsPending) {
-            return [];
+        if ($stale !== []) {
+            $alerts[] = [
+                'type' => self::FILAMENT_ASSETS_STALE,
+                'level' => 'warning',
+                // In the payload so the combined signature moves with the next
+                // Filament upgrade, and a banner dismissed at this version
+                // comes back if the same thing happens at the next one.
+                'filament_version' => $this->installedFilamentVersion(),
+                'stale_count' => count($stale),
+            ];
         }
 
-        return [
-            [
-                'type' => self::PANEL_DB_UPDATE_REQUIRED,
-                'level' => 'info',
-                'version_behind' => $versionBehind,
-                'migrations_pending' => $migrationsPending,
-            ],
-        ];
+        return $alerts;
+    }
+
+    /**
+     * The public paths, relative to `public/`, of Filament's published assets
+     * that differ from the files the installed Filament ships.
+     *
+     * Walks Filament's own asset registry — the list `filament:assets` copies
+     * from — rather than a hard-coded set of paths, so it follows whatever the
+     * installed Filament registers. Only `filament/*` packages are compared:
+     * those are the files Filament's server-rendered markup depends on, and
+     * another plugin's assets are that plugin's business.
+     *
+     * A published file that does not exist is skipped, not reported. A host
+     * serving assets from a CDN or `ASSET_URL` has none locally, and neither
+     * does a test bench; flagging those would be a banner nobody can clear.
+     *
+     * Wrapped because this runs on a page render: an unreadable `public/` must
+     * degrade to "nothing to report", not throw on the way to a banner.
+     *
+     * @return array<int, string>
+     */
+    public function staleFilamentAssets(): array
+    {
+        try {
+            if (! class_exists(FilamentAsset::class)) {
+                return [];
+            }
+
+            /** @var array<int, Asset> $assets */
+            $assets = [
+                ...FilamentAsset::getStyles(),
+                ...FilamentAsset::getScripts(),
+                ...FilamentAsset::getAlpineComponents(),
+            ];
+
+            $stale = [];
+
+            foreach ($assets as $asset) {
+                if (! str_starts_with((string) $asset->getPackage(), 'filament/')) {
+                    continue;
+                }
+
+                if ($asset->isRemote()) {
+                    continue;
+                }
+
+                $source = $asset->getPath();
+
+                // A directory source is a lazy-loaded chunk folder, not a file
+                // to compare, and a missing one is Filament's problem to report.
+                if ($source === null || ! is_file($source)) {
+                    continue;
+                }
+
+                $published = $asset->getPublicPath();
+
+                if (! is_file($published)) {
+                    continue;
+                }
+
+                if ($this->filesDiffer($source, $published)) {
+                    $stale[] = ltrim(substr($published, strlen(public_path())), '/\\');
+                }
+            }
+
+            return $stale;
+        } catch (Throwable) {
+            return [];
+        }
+    }
+
+    /**
+     * Size first, because it is free and settles nearly every real case — a
+     * Filament release rebuilds its bundles. The hash only runs when the sizes
+     * agree.
+     */
+    protected function filesDiffer(string $a, string $b): bool
+    {
+        if (filesize($a) !== filesize($b)) {
+            return true;
+        }
+
+        return md5_file($a) !== md5_file($b);
+    }
+
+    protected function installedFilamentVersion(): ?string
+    {
+        foreach (['filament/filament', 'filament/support'] as $package) {
+            try {
+                if (InstalledVersions::isInstalled($package)) {
+                    return InstalledVersions::getPrettyVersion($package);
+                }
+            } catch (Throwable) {
+                // Fall through to the next package.
+            }
+        }
+
+        return null;
     }
 
     /**

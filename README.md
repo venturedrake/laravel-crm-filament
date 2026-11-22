@@ -141,6 +141,34 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 behind its code; the same information reaches every panel page as a dismissible banner. Neither
 runs anything — applying an update is a console step, taken with a backup in reach.
 
+### Stale Filament assets
+
+Filament renders its components on the server, but the browser runs the CSS and JavaScript that
+`filament:assets` last copied into `public/`. If composer updates Filament and nothing republishes
+those files, the new markup waits for Alpine components that the old JavaScript does not have.
+Selects then stay inert, "Loading…" stays on screen, and the console shows errors such as
+`isLoading is not defined`.
+
+The panel checks for this. When the published copies differ from the installed Filament's, every
+panel page shows a warning that names the installed version. To fix it:
+
+1. Check that your `composer.json` `post-autoload-dump` scripts include
+   `@php artisan laravelcrm:filament-upgrade --ansi`, as in the example above. Hosts installed with
+   `--no-composer-hook`, or by an installer older than this hook, do not have it.
+2. Run `php artisan laravelcrm:filament-upgrade` once. It republishes the assets and clears the
+   check, so the banner goes away.
+3. Clear the browser's cached copies of the old files (see below).
+
+**The browser cache.** Filament adds `?v=<installed Filament version>` to its asset URLs. The URL
+changes as soon as composer installs a new Filament, before the files in `public/` change. A
+browser that loads a page in that window caches the old file under the new URL. Republishing does
+not change the URL again, so the browser keeps the old file. Many local servers, Herd included,
+send no `Cache-Control` header, so the browser can treat the cached file as fresh for weeks. A hard
+reload does not always help, because Filament loads some components, the select among them, later
+and on demand. Clear the site's cached files instead. In Chrome, open DevTools, then
+**Application → Storage → Clear site data**. Or tick **Network → Disable cache** and reload with
+DevTools open.
+
 ## Registering the plugin
 
 ```php

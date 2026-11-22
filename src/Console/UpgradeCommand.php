@@ -245,6 +245,13 @@ class UpgradeCommand extends Command
 
         try {
             $this->callSilent(self::FILAMENT_ASSETS_COMMAND);
+
+            // The stale-asset banner is cached for five minutes. Without this
+            // it would keep telling the operator to run the command they just
+            // ran.
+            if (app()->bound('laravel-crm-filament.system-check')) {
+                app('laravel-crm-filament.system-check')->forgetCache();
+            }
         } catch (Throwable $e) {
             $this->warn('Could not run ' . self::FILAMENT_ASSETS_COMMAND . ': ' . $e->getMessage());
             $this->warn('Run "php artisan ' . self::FILAMENT_ASSETS_COMMAND . '" manually, or the panel may render with a stylesheet from an older Filament release.');

@@ -651,6 +651,8 @@ return [
         'panel_db_update_required_banner' => 'El panel de Laravel CRM requiere algunas actualizaciones de base de datos para funcionar correctamente. Ejecuta :command desde la raíz de tu proyecto, o :updates_page.',
         'panel_db_update_command' => 'php artisan laravelcrm:filament-update',
         'panel_update_database' => 'actualizar la base de datos',
+        'filament_assets_stale_banner' => 'El CSS y el JavaScript publicados de Filament no coinciden con la versión de Filament instalada (:version), por lo que es posible que los selectores, las tablas y las acciones no respondan. Ejecuta :command desde la raíz de tu proyecto y, después, borra los archivos en caché de este sitio en tu navegador.',
+        'filament_assets_command' => 'php artisan laravelcrm:filament-upgrade',
         'how_to_update' => 'Cómo actualizar',
         'how_to_update_intro' => 'Actualiza ambos paquetes juntos y luego ejecuta el comando de actualización:',
         'upgrade_guide' => 'Guía de actualización',

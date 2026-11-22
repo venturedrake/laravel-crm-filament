@@ -20,7 +20,8 @@ use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
  * It renders two checks' alerts: core's `laravel-crm.system-check` and this
  * package's own `laravel-crm-filament.system-check`, which answers the same
  * "is the database behind the code?" question for the panel's own migrations
- * and version line. They are separate alerts fixed by separate commands, so
+ * and version line, and also whether Filament's published assets match the
+ * installed Filament. They are separate alerts fixed by separate commands, so
  * they are reported separately rather than merged into one sentence.
  *
  * The dismissal key is deliberately core's exact `system_check_dismissed`
@@ -155,6 +156,19 @@ class SystemCheckBanner extends Component
                     'html' => __('laravel-crm-filament::labels.updates.panel_db_update_required_banner', [
                         'command' => $this->code(__('laravel-crm-filament::labels.updates.panel_db_update_command')),
                         'updates_page' => $this->link($updatesUrl, __('laravel-crm-filament::labels.updates.panel_update_database'), false),
+                    ]),
+                ];
+
+            case PanelSystemCheck::FILAMENT_ASSETS_STALE:
+                // A warning, not info: until it is fixed, selects, tables and
+                // actions in this very panel may not respond. The second half
+                // of the sentence is the part no command can do for them — the
+                // browser cached the old files under the new `?v=` URL.
+                return [
+                    'level' => 'warning',
+                    'html' => __('laravel-crm-filament::labels.updates.filament_assets_stale_banner', [
+                        'version' => e((string) ($alert['filament_version'] ?? '')),
+                        'command' => $this->code(__('laravel-crm-filament::labels.updates.filament_assets_command')),
                     ]),
                 ];
         }

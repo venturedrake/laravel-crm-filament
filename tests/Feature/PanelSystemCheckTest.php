@@ -1,6 +1,9 @@
 <?php
 
+use Composer\InstalledVersions;
+use Filament\Support\Facades\FilamentAsset;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Setting;
 use VentureDrake\LaravelCrmFilament\Support\PanelSystemCheck;
 
@@ -165,4 +168,148 @@ it('reads the marker install-wide, with the team scope dropped', function () {
     $source = (string) file_get_contents((new ReflectionClass(PanelSystemCheck::class))->getFileName());
 
     expect($source)->toContain('withoutGlobalScope(BelongsToTeamsScope::class)');
+});
+
+/**
+ * One registered Filament asset with a real source file, and the path
+ * `filament:assets` would publish it to, relative to `public/`.
+ *
+ * @return array{0: string, 1: string}
+ */
+function panelCheckFilamentAsset(): array
+{
+    foreach ([
+        ...FilamentAsset::getScripts(),
+        ...FilamentAsset::getStyles(),
+    ] as $asset) {
+        if (
+            str_starts_with((string) $asset->getPackage(), 'filament/')
+            && ! $asset->isRemote()
+            && is_file((string) $asset->getPath())
+        ) {
+            return [(string) $asset->getPath(), $asset->getRelativePublicPath()];
+        }
+    }
+
+    throw new RuntimeException('No local Filament asset is registered.');
+}
+
+/**
+ * Point public/ at an empty temporary directory, so the stale-asset tests
+ * neither see nor write the test bench's own public directory.
+ */
+function panelCheckUseTempPublicPath(): string
+{
+    $path = sys_get_temp_dir() . '/crm-filament-public-' . Str::random(8);
+
+    File::ensureDirectoryExists($path);
+    app()->usePublicPath($path);
+
+    test()->tempPublicPath = $path;
+
+    return $path;
+}
+
+/**
+ * Publish the asset into the temporary public directory, as filament:assets
+ * would, optionally altering it first.
+ */
+function panelCheckPublish(string $publicPath, string $source, string $relative, ?string $append = null): void
+{
+    $target = $publicPath . '/' . $relative;
+
+    File::ensureDirectoryExists(dirname($target));
+    File::copy($source, $target);
+
+    if ($append !== null) {
+        File::append($target, $append);
+    }
+}
+
+/**
+ * @return array<int, array<string, mixed>>
+ */
+function panelCheckAssetAlerts(): array
+{
+    return array_values(array_filter(
+        panelCheck()->check(),
+        fn (array $alert) => $alert['type'] === PanelSystemCheck::FILAMENT_ASSETS_STALE,
+    ));
+}
+
+describe('stale Filament assets', function () {
+    beforeEach(function () {
+        $this->originalPublicPath = public_path();
+        $this->tempPublicPath = null;
+    });
+
+    afterEach(function () {
+        app()->usePublicPath($this->originalPublicPath);
+
+        if ($this->tempPublicPath !== null) {
+            File::deleteDirectory($this->tempPublicPath);
+        }
+    });
+
+    it('reports nothing when the published copy matches the installed Filament', function () {
+        [$source, $relative] = panelCheckFilamentAsset();
+        panelCheckPublish(panelCheckUseTempPublicPath(), $source, $relative);
+
+        expect(panelCheck()->staleFilamentAssets())->toBe([])
+            ->and(panelCheckAssetAlerts())->toBe([]);
+    });
+
+    it('reports a published copy that differs from the installed Filament', function () {
+        // The QA host's shape: composer moved Filament forward, the hook that
+        // republishes its assets never ran, and the browser kept running the
+        // old JS against the new server-rendered markup.
+        [$source, $relative] = panelCheckFilamentAsset();
+        panelCheckPublish(panelCheckUseTempPublicPath(), $source, $relative, "\n// from an older release\n");
+
+        expect(panelCheck()->staleFilamentAssets())->toBe([$relative]);
+
+        $alerts = panelCheckAssetAlerts();
+
+        expect($alerts)->toHaveCount(1)
+            ->and($alerts[0]['level'])->toBe('warning')
+            ->and($alerts[0]['stale_count'])->toBe(1)
+            ->and($alerts[0]['filament_version'])
+            ->toBe(InstalledVersions::getPrettyVersion('filament/filament'));
+    });
+
+    it('catches a same-size difference by hash', function () {
+        [$source, $relative] = panelCheckFilamentAsset();
+        $publicPath = panelCheckUseTempPublicPath();
+        panelCheckPublish($publicPath, $source, $relative);
+
+        $target = $publicPath . '/' . $relative;
+        $contents = (string) file_get_contents($target);
+        $contents[0] = $contents[0] === 'x' ? 'y' : 'x';
+        file_put_contents($target, $contents);
+
+        expect(panelCheck()->staleFilamentAssets())->toBe([$relative]);
+    });
+
+    it('says nothing when no copy has been published at all', function () {
+        // A CDN or ASSET_URL host has no local copies, and nor does a test
+        // bench. Reporting those would be a banner nobody can clear.
+        panelCheckUseTempPublicPath();
+
+        expect(panelCheck()->staleFilamentAssets())->toBe([])
+            ->and(panelCheckAssetAlerts())->toBe([]);
+    });
+
+    it('reports stale assets even when the settings table is absent', function () {
+        // Not a database question: stale assets break the panel's selects
+        // whatever state the schema is in.
+        [$source, $relative] = panelCheckFilamentAsset();
+        panelCheckPublish(panelCheckUseTempPublicPath(), $source, $relative, "\n// stale\n");
+
+        config()->set('laravel-crm.db_table_prefix', 'no_such_prefix_');
+
+        $alerts = panelCheck()->check();
+
+        expect($alerts)->toHaveCount(1)
+            ->and($alerts[0]['type'])->toBe(PanelSystemCheck::FILAMENT_ASSETS_STALE);
+    });
 });

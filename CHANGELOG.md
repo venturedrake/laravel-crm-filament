@@ -97,6 +97,17 @@ guard.
 - **Several recipients in the Send modals.** The quote, invoice and purchase-order To field takes
   addresses separated by commas or semicolons, and checks each one.
 - **Xero:** the Integrations page names the connected Xero organisation.
+- **Stale Filament assets banner.** The panel compares Filament's published CSS and JavaScript in
+  `public/` with the files the installed Filament ships. When they differ, every panel page shows
+  a warning naming the installed Filament version and the command that republishes them,
+  `php artisan laravelcrm:filament-upgrade`. Until then, selects, tables and actions can stay
+  inert, because Filament renders its components on the server and the old JavaScript does not
+  know them. The check uses Filament's own asset registry, and it ignores assets that were never
+  published, such as on a host that serves them from a CDN. `laravelcrm:filament-upgrade` clears
+  the check's cache, so the banner goes away as soon as the assets are republished. If your
+  `composer.json` `post-autoload-dump` scripts do not run `laravelcrm:filament-upgrade`, add it.
+  Hosts installed with `--no-composer-hook` or by an older installer do not have it. See
+  [Updating](README.md#updating), which also explains how to clear the browser's cached copies.
 
 ### Changed
 

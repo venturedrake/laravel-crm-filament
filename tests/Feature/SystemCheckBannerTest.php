@@ -303,3 +303,32 @@ it('spaces the banner off the page, and adds no gap when there is nothing to sho
     expect($empty->instance()->alerts)->toBeEmpty();
     expect($empty->html())->not->toContain('margin-block');
 });
+
+it('names the asset command in the stale-asset alert and escapes the version', function () {
+    // The version comes from composer metadata, not from lang, so it is
+    // escaped like any other interpolated value.
+    app()->instance('laravel-crm-filament.system-check', new class extends PanelSystemCheck
+    {
+        public function alerts(): array
+        {
+            return [[
+                'type' => PanelSystemCheck::FILAMENT_ASSETS_STALE,
+                'level' => 'warning',
+                'filament_version' => '<b>5.12.0</b>',
+                'stale_count' => 3,
+            ]];
+        }
+    });
+
+    $this->actingAs(bannerUser());
+
+    $component = livewire(SystemCheckBanner::class);
+    $messages = $component->viewData('messages');
+    $assetMessage = collect($messages)->first(fn (array $m) => str_contains($m['html'], 'laravelcrm:filament-upgrade'));
+
+    expect($assetMessage)->not->toBeNull()
+        ->and($assetMessage['level'])->toBe('warning')
+        ->and($assetMessage['html'])->toContain('<code class="font-mono text-sm">php artisan laravelcrm:filament-upgrade</code>')
+        ->and($assetMessage['html'])->toContain('&lt;b&gt;5.12.0&lt;/b&gt;')
+        ->and($assetMessage['html'])->not->toContain('<b>5.12.0</b>');
+});
