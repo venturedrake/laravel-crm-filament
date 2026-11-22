@@ -175,12 +175,103 @@ it('renders the typed-price guard on each row\'s unit-price input', function () 
         ->fillForm(['title' => 'Widgets', 'currency' => 'USD'])
         ->set('data.products', ['row1' => ['id' => $this->product->id, 'quantity' => 1]])
         ->assertSeeHtml('$wire.$interceptMessage')
-        ->assertSeeHtml("'data.products.row1.unit_price'");
+        ->assertSeeHtml("'data.products.row1.unit_price'")
+        ->assertSeeHtml("'data.products.row1.price_typed'");
 
     $component = livewire(EditQuote::class, ['record' => $quote->external_id]);
     $row = array_key_first($component->get('data.products'));
 
     $component
         ->assertSeeHtml('$wire.$interceptMessage')
-        ->assertSeeHtml("'data.products.{$row}.unit_price'");
+        ->assertSeeHtml("'data.products.{$row}.unit_price'")
+        ->assertSeeHtml("'data.products.{$row}.price_typed'");
+});
+
+/**
+ * Issue #9 / QU-3017: the line was on Premium at a typed 17.50. Switched to
+ * Standard and 17.50 typed again at once, the price's request went out in
+ * parallel with the variation's. The server saw 17.50 against the 17.5 it
+ * held, took the price as untyped and repriced the row to 12.34 - and that
+ * response landed after Save had stored 17.50, so the input showed 12.34.
+ * The unit-price input now stamps price_typed on each edit.
+ */
+function quoteOnPremiumAtTypedPrice(object $test): Quote
+{
+    $quote = Quote::create(['external_id' => (string) Str::uuid(), 'title' => 'Widgets', 'currency' => 'USD']);
+    // QuoteProduct's price and amount mutators take dollars; tax_amount is
+    // stored as given, in cents.
+    $quote->quoteProducts()->create([
+        'product_id' => $test->product->id,
+        'product_variation_id' => $test->premium->id,
+        'quantity' => 2.5,
+        'price' => 17.50,
+        'amount' => 43.75,
+        'tax_amount' => 438,
+        'currency' => 'USD',
+    ]);
+
+    return $quote;
+}
+
+it('keeps a retyped price equal to the previous one when the variation changes with it', function () {
+    $quote = quoteOnPremiumAtTypedPrice($this);
+
+    $component = livewire(EditQuote::class, ['record' => $quote->external_id]);
+    $row = array_key_first($component->get('data.products'));
+
+    // Filled as a float, so the typed "17.50" is the same price.
+    expect($component->get("data.products.{$row}.unit_price"))->toBe(17.5);
+
+    $component->update(updates: [
+        "data.products.{$row}.product_variation_id" => $this->standard->id,
+        "data.products.{$row}.unit_price" => '17.50',
+        "data.products.{$row}.price_typed" => 'tok-1',
+    ]);
+
+    assertTypedPriceRow($component, $row);
+
+    $component->call('save')->assertHasNoFormErrors();
+
+    $quote->refresh();
+    expect($quote->quoteProducts()->first()->product_variation_id)->toBe($this->standard->id);
+    assertTypedPriceSaved($quote);
+
+    // The form still shows the saved price, not the variation's.
+    expect((float) $component->get("data.products.{$row}.unit_price"))->toBe(17.5);
+});
+
+it('keeps a typed price that Livewire left out of the request because it was unchanged', function () {
+    $quote = quoteOnPremiumAtTypedPrice($this);
+
+    $component = livewire(EditQuote::class, ['record' => $quote->external_id]);
+    $row = array_key_first($component->get('data.products'));
+
+    // The server now holds the string "17.50", so typing "17.50" again sends
+    // no price - only the marker the input stamped.
+    $component->set("data.products.{$row}.unit_price", '17.50');
+
+    $component->update(updates: [
+        "data.products.{$row}.product_variation_id" => $this->standard->id,
+        "data.products.{$row}.price_typed" => 'tok-2',
+    ]);
+
+    assertTypedPriceRow($component, $row);
+});
+
+it('still reprices on a later variation change once a typed price has gone out', function () {
+    $quote = quoteOnPremiumAtTypedPrice($this);
+
+    $component = livewire(EditQuote::class, ['record' => $quote->external_id]);
+    $row = array_key_first($component->get('data.products'));
+
+    $component->update(updates: [
+        "data.products.{$row}.unit_price" => '18.25',
+        "data.products.{$row}.price_typed" => 'tok-1',
+    ])->assertSet("data.products.{$row}.unit_price", '18.25');
+
+    // The marker is unchanged in this request, so the price was not typed.
+    $component
+        ->set("data.products.{$row}.product_variation_id", $this->standard->id)
+        ->assertSet("data.products.{$row}.unit_price", 12.34)
+        ->assertSet("data.products.{$row}.amount", 30.85);
 });

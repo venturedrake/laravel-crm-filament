@@ -47,6 +47,12 @@ use VentureDrake\LaravelCrmFilament\Support\RemainingQuantity;
 class LineItemsRepeater
 {
     /**
+     * The hidden row field the unit-price input stamps on each edit, so the
+     * server knows a price was typed. See keepTypedPrice().
+     */
+    private const PRICE_TYPED = 'price_typed';
+
+    /**
      * @param  string  $fkColumn  the hidden per-entity foreign key
      * @param  string  $priceField  'price' on Deal, 'unit_price' elsewhere
      * @param  class-string|null  $drawdownModel  InvoiceLine / DeliveryProduct on
@@ -134,6 +140,11 @@ class LineItemsRepeater
                 Forms\Components\Hidden::make($fkColumn),
                 // Opt-in, because only the drawdown forms carry the linkage.
                 $withOrderProductId ? Forms\Components\Hidden::make('order_product_id') : null,
+                // Client-side marker for a typed price (keepTypedPrice()).
+                // Declared so every row's state has the key from the start:
+                // a key that appeared later would make Livewire send the
+                // whole row as one update. Never saved.
+                Forms\Components\Hidden::make(self::PRICE_TYPED)->dehydrated(false),
                 Forms\Components\Select::make('id')
                     ->label(__('laravel-crm-filament::labels.money.product'))
                     // Searched on the server and capped at 20, as core 2.7.0's
@@ -393,8 +404,18 @@ class LineItemsRepeater
      * goes out in the next request together with the variation, so by the time
      * the variation hook runs the typed price is already in the state. Filament
      * snapshots the form data before the request's updates are applied
-     * (InteractsWithSchemas::updatingInteractsWithSchemas()), so a price that
-     * differs from that snapshot came in with this request.
+     * (InteractsWithSchemas::updatingInteractsWithSchemas()).
+     *
+     * The price's value alone cannot tell (QU-3017). Retyping the price the
+     * row already had - 17.50 on a line filled as the float 17.5 - compares
+     * equal, so the variation hook repriced it, and that stale response then
+     * overwrote the input after Save had stored 17.50. And when the typed
+     * text is the same JSON the server already holds, Livewire leaves the
+     * price out of the request altogether. So the unit-price input stamps a
+     * new token on the row's PRICE_TYPED field on every edit, and a token
+     * that differs from the snapshot means the user typed in this request.
+     * A price that differs from the snapshot still counts, for callers that
+     * send no token.
      *
      * No snapshot means no client update started this - e.g. the create-option
      * modal's action selected the product - and the row is repriced as before.
@@ -415,6 +436,10 @@ class LineItemsRepeater
 
         if ($livewire->getOldSchemaState(Str::before($rowPath, '.')) === null) {
             return false;
+        }
+
+        if ($livewire->getOldSchemaState($rowPath . '.' . self::PRICE_TYPED) !== $get(self::PRICE_TYPED)) {
+            return true;
         }
 
         $old = $livewire->getOldSchemaState($rowPath . '.' . $priceField);
@@ -441,6 +466,18 @@ class LineItemsRepeater
      * the deferred Create/Save) submits it, and the price field's
      * afterStateUpdated recalculates the row before create()/save() runs.
      *
+     * That alone is not enough (QU-3017). Livewire runs overlapping
+     * wire:model.live requests in parallel: the variation's request A, and the
+     * price's request B sent while A is in flight, with the old snapshot. A
+     * Save clicked meanwhile waits only for A, so it goes out and stores the
+     * typed price - and then B's response lands. If B's server hook repriced
+     * the row, that patches the input back to the variation's price, and
+     * nothing here restores it, because B was sent after the typing. So each
+     * edit also stamps a fresh token on the row's price_typed field,
+     * client-side only. Every request sent after typing carries it, even one
+     * that leaves the unchanged price out, and the server then keeps the
+     * price (priceSubmittedWithThisUpdate()).
+     *
      * Attribute values are not escaped when rendered: no double quotes here.
      *
      * @return array<string, string>
@@ -448,6 +485,7 @@ class LineItemsRepeater
     public static function keepTypedPrice(string $statePath): array
     {
         $path = Js::from($statePath)->toHtml();
+        $markerPath = Js::from(Str::beforeLast($statePath, '.') . '.' . self::PRICE_TYPED)->toHtml();
 
         return [
             'x-data' => <<<JS
@@ -473,7 +511,7 @@ class LineItemsRepeater
                     },
                 }
                 JS,
-            'x-on:input' => 'edits++; typed = $el.value',
+            'x-on:input' => "edits++; typed = \$el.value; \$wire.\$set({$markerPath}, Date.now() + '-' + edits, false)",
         ];
     }
 

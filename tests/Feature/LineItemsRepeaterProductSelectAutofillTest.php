@@ -1,5 +1,6 @@
 <?php
 
+use Filament\Forms\Components\Select;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Product;
 use VentureDrake\LaravelCrm\Models\ProductPrice;
@@ -23,8 +24,10 @@ function productSelectClosure(string $fkColumn, string $priceField): Closure
     // numeric-indexed depending on Filament version).
     $list = $children['default'] ?? $children;
 
-    // Position 0 = Hidden FK; position 1 = the product Select.
-    $select = $list[1];
+    // The product Select is the field named `id`, after the hidden fields.
+    $select = collect($list)->first(
+        fn ($component) => $component instanceof Select && $component->getName() === 'id',
+    );
 
     $afterStateUpdatedRef = new ReflectionProperty($select, 'afterStateUpdated');
     $afterStateUpdatedRef->setAccessible(true);

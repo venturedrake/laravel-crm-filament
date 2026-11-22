@@ -87,6 +87,7 @@ it('LineItemsRepeater for PurchaseOrder uses purchase_order_line_id + unit_price
 
     expect($names)->toBe([
         'purchase_order_line_id',
+        'price_typed',
         'id',
         'product_variation_id',
         'unit_price',

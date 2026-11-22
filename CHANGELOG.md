@@ -165,6 +165,13 @@ guard.
 
 ### Fixed
 
+- **A line's unit price showed the variation's price after saving a typed price
+  ([#9](https://github.com/venturedrake/laravel-crm-filament/issues/9)).** Changing a line's
+  variation and then typing the price it had before, such as 17.50, saved 17.50 and the right
+  totals, but the Unit price input showed the variation's price until the page was reloaded. The
+  price's request ran in parallel with the variation's, and the server could not tell the
+  retyped 17.50 from the old one, so it repriced the row. That response arrived after Save. The
+  unit-price input now marks each row when the user types, so the typed price is kept.
 - **A note could not be added from a record's Notes tab
   ([#6](https://github.com/venturedrake/laravel-crm-filament/issues/6)).** Saving failed with
   "Field 'external_id' doesn't have a default value". Core's `crm_notes.external_id` column is

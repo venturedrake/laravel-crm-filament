@@ -66,6 +66,7 @@ it('LineItemsRepeater produces a reorderable Repeater with the expected FK and r
     $names = dealFormCollectLeafNames($repeater);
     expect($names)->toBe([
         'deal_product_id',
+        'price_typed',
         'id',
         'product_variation_id',
         'price',

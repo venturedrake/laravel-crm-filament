@@ -141,6 +141,7 @@ it('LineItemsRepeater for Quote uses unit_price and quote_product_id', function 
 
     expect($names)->toBe([
         'quote_product_id',
+        'price_typed',
         'id',
         'product_variation_id',
         'unit_price',
