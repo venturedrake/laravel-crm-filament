@@ -21,7 +21,7 @@ class ListEmailCampaigns extends ListRecords
     public function getTabs(): array
     {
         $statusTab = fn (string $label, string $status, ?string $color = null) => Tab::make($label)
-            ->modifyQueryUsing(fn (Builder $q) => $q->where('status', $status))
+            ->modifyQueryUsing(fn (Builder $query) => $query->where('status', $status))
             ->badge(fn () => EmailCampaign::query()->where('status', $status)->count() ?: null)
             ->badgeColor($color);
 

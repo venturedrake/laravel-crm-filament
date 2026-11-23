@@ -176,6 +176,14 @@ guard.
 
 ### Fixed
 
+- **The status tabs on the Tasks, Email Campaigns and SMS Campaigns lists returned an error
+  ([#11](https://github.com/venturedrake/laravel-crm-filament/issues/11)).** Every tab except
+  All, such as Open, Completed, Draft or Sent, failed with "Call to a member function
+  newQueryWithoutRelationships() on null". This happened when the tab was clicked and when a URL
+  such as `?tab=completed` was opened, with or without a search. Filament passes the table's query
+  to a tab's filter by the parameter name `$query`. These filters named it `$q`, so Filament gave
+  them an empty query with no model, and that query replaced the table's query. The filters now
+  use `$query`, so each tab filters the table's query.
 - **A line's unit price showed the variation's price after saving a typed price
   ([#9](https://github.com/venturedrake/laravel-crm-filament/issues/9)).** Changing a line's
   variation and then typing the price it had before, such as 17.50, saved 17.50 and the right

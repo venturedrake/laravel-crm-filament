@@ -23,17 +23,17 @@ class ListTasks extends ListRecords
         return [
             'all' => Tab::make('All'),
             'open' => Tab::make('Open')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereNull('completed_at')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereNull('completed_at')),
             'today' => Tab::make('Today')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereNull('completed_at')->whereDate('due_at', today()))
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereNull('completed_at')->whereDate('due_at', today()))
                 ->badge(fn () => Task::query()->whereNull('completed_at')->whereDate('due_at', today())->count() ?: null)
                 ->badgeColor('warning'),
             'overdue' => Tab::make('Overdue')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereNull('completed_at')->whereDate('due_at', '<', today()))
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereNull('completed_at')->whereDate('due_at', '<', today()))
                 ->badge(fn () => Task::query()->whereNull('completed_at')->whereDate('due_at', '<', today())->count() ?: null)
                 ->badgeColor('danger'),
             'completed' => Tab::make('Completed')
-                ->modifyQueryUsing(fn (Builder $q) => $q->whereNotNull('completed_at')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereNotNull('completed_at')),
         ];
     }
 }
