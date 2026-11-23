@@ -241,12 +241,6 @@ parameters:
 			path: src/Pages/ClickSendIntegration.php
 
 		-
-			message: '#^Call to function method_exists\(\) with VentureDrake\\LaravelCrm\\Services\\SettingService and ''forgetCache'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/Pages/ClickSendIntegration.php
-
-		-
 			message: '#^Offset ''error'' on \*NEVER\* on left side of \?\? always exists and is not nullable\.$#'
 			identifier: nullCoalesce.offset
 			count: 1
@@ -351,12 +345,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Setting\:\:\$phones\.$#'
 			identifier: property.notFound
-			count: 1
-			path: src/Pages/GeneralSettings.php
-
-		-
-			message: '#^Call to function method_exists\(\) with VentureDrake\\LaravelCrm\\Services\\SettingService and ''forgetCache'' will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
 			count: 1
 			path: src/Pages/GeneralSettings.php
 
@@ -841,25 +829,7 @@ parameters:
 			path: src/Resources/Deals/DealResource.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Deal\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deals/Pages/DealKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Deal\:\:\$pipeline_stage_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deals/Pages/DealKanban.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Deal\:\:\$won\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Deals/Pages/DealKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Deals/Pages/DealKanban.php
@@ -1535,24 +1505,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: src/Resources/Leads/LeadResource.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Lead\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Leads/Pages/LeadKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Lead\:\:\$pipeline_stage_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Leads/Pages/LeadKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Leads/Pages/LeadKanban.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Monitor\:\:\$host\.$#'
@@ -2279,18 +2231,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Resources/Quotes/Pages/EditQuote.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\PipelineStage\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/QuoteKanban.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$pipeline_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Quotes/Pages/QuoteKanban.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\Quote\:\:\$pipeline_stage_id\.$#'

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-23
+
 Catches up to `venturedrake/laravel-crm` 2.7.0, and with it 2.6.0. From 2.7.0: part payments on
 invoices, quote locking and state changes through core's `QuoteStateService`, paged boards, email
 campaign audiences, pipeline stage ordering, record-number search and the purchase-order delivery
@@ -173,6 +175,11 @@ guard.
 - **The person birthday** is shown in the `date_format` setting.
 - **The Send action, and the invoice Pay action, are shared** by each table row and its view and
   edit pages.
+- **The dashboard layout is rebalanced.** The widgets have a set order, so a stock Filament
+  dashboard renders them in the intended layout. The Contacts row has three tiles, adding People
+  and Organizations with the number of new ones. Leads by stage spans the full width, and the
+  Leads by stage and Deals pipeline value charts show only the stages of their own pipeline.
+- **The person form requires a first name.**
 
 ### Fixed
 
@@ -184,6 +191,17 @@ guard.
   to a tab's filter by the parameter name `$query`. These filters named it `$q`, so Filament gave
   them an empty query with no model, and that query replaced the table's query. The filters now
   use `$query`, so each tab filters the table's query.
+- **The summary totals on quote, order, invoice and purchase-order edit pages did not update
+  ([#3](https://github.com/venturedrake/laravel-crm-filament/issues/3)).** Changing a line's price
+  or adding a line left Subtotal, Tax and Total at their old values, during editing and after
+  Save, until the page was reloaded. Subtotal was also blank. The summary now recalculates as
+  lines change, and after a save it shows the totals core stored.
+- **A task's due date could be before its start date
+  ([#8](https://github.com/venturedrake/laravel-crm-filament/issues/8)).** Every task form now
+  requires the due date to be on or after the start date when a start is entered, as core 2.7.0
+  does. Tasks with only a due date or only a start date still save.
+- **A unit price typed while a line's product or variation was loading was overwritten** with the
+  catalogue price.
 - **A line's unit price showed the variation's price after saving a typed price
   ([#9](https://github.com/venturedrake/laravel-crm-filament/issues/9)).** Changing a line's
   variation and then typing the price it had before, such as 17.50, saved 17.50 and the right
@@ -975,6 +993,7 @@ These landed on `develop` after 1.0.0 and were never written up. They ship in 1.
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.5.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.5.0
 [1.4.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.4.0
 [1.3.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.3.0
 [1.2.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.2.0

@@ -314,7 +314,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **Purchase-order line edits are saved**, now that core reads the rows the form submits.
 - **Settings → Product Attributes is removed**, as it is in core.
 
-### Unreleased — core 2.6.0 parity
+### v1.5 — core 2.6.0 parity
 
 - **Order form options.** `laravel-crm.orders.form` trims the panel's order form the same way it
   trims core's: hide the description, labels or custom fields, take "Unallocated" off the owner
@@ -327,7 +327,7 @@ Importers route through the core CRM services (`PersonService`, `OrganizationSer
 - **`laravelcrm:filament-install` and `laravelcrm:filament-update` refuse to run on a v1 CRM
   database**, as core's `migrate` and `laravelcrm:update` now do. Run `laravelcrm:v2` first.
 
-### Unreleased — core 2.7.0 parity
+### v1.5 — core 2.7.0 parity
 
 - **Invoices can be paid in parts.** Pay takes any amount up to the balance and stays on the
   invoice until it is paid in full. A part-paid invoice has a "Part paid" badge, and once a
