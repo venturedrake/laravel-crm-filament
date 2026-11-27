@@ -2,12 +2,12 @@
 
 namespace VentureDrake\LaravelCrmFilament\RelationManagers;
 
-use Filament\Forms;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Storage;
 use VentureDrake\LaravelCrm\Models\File;
 use VentureDrake\LaravelCrmFilament\Concerns\RollsUpRelatedActivity;
+use VentureDrake\LaravelCrmFilament\Support\AttachmentStore;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 
 class CrmFilesRelationManager extends FilesRelationManager
 {
@@ -31,17 +31,11 @@ class CrmFilesRelationManager extends FilesRelationManager
 
     public function form(Schema $schema): Schema
     {
-        $disk = config('laravel-crm.upload_disk', 'public');
-
         return $schema
             ->statePath('data')
             ->components([
-                Forms\Components\FileUpload::make('file')
+                static::attachmentUploadField()
                     ->hiddenLabel()
-                    ->disk($disk)
-                    ->directory(fn (): string => 'laravel-crm/lead/' . $this->getOwnerRecord()->id . '/files')
-                    ->required()
-                    ->preserveFilenames()
                     ->columnSpanFull(),
             ]);
     }
@@ -50,45 +44,40 @@ class CrmFilesRelationManager extends FilesRelationManager
     {
         $data = $this->form->getState();
 
-        $disk = config('laravel-crm.upload_disk', 'public');
-        $path = $data['file'] ?? null;
+        $this->attachUpload($data['file'] ?? null);
+    }
 
-        if (! $path) {
-            return;
+    /**
+     * Store an upload against the owner record and reset the card.
+     *
+     * Split from {@see self::createFile()} so the store-and-log path is the
+     * same code whether the state came from the mounted form or a test.
+     */
+    protected function attachUpload(mixed $upload): ?File
+    {
+        if (blank($upload)) {
+            return null;
         }
 
-        $name = basename($path);
-        $filesize = null;
-        $mime = null;
-        $format = null;
-
-        $storage = Storage::disk($disk);
-        if ($storage->exists($path)) {
-            $filesize = $storage->size($path);
-            $mime = $storage->mimeType($path);
-            $format = pathinfo($path, PATHINFO_EXTENSION) ?: null;
-        }
-
-        $file = $this->getOwnerRecord()->files()->create([
-            'file' => $path,
-            'name' => $name,
-            'format' => $format,
-            'filesize' => $filesize,
-            'mime' => $mime,
-            'disk' => $disk,
-            'user_created_id' => auth()->id(),
-        ]);
+        $file = AttachmentStore::storeFor($this->getOwnerRecord(), $upload, [], 'data.file');
 
         static::logCrmActivity($this->getOwnerRecord(), $file);
 
-        $this->form->fill([
-            'file' => null,
-        ]);
+        $this->resetUploadForm();
 
         Notification::make()
             ->title('File added')
             ->success()
             ->send();
+
+        return $file;
+    }
+
+    protected function resetUploadForm(): void
+    {
+        $this->form->fill([
+            'file' => null,
+        ]);
     }
 
     /**
@@ -124,17 +113,6 @@ class CrmFilesRelationManager extends FilesRelationManager
 
     protected static function buildOwnerDownloadUrl(File $file): ?string
     {
-        if (! $file->file) {
-            return null;
-        }
-
-        $disk = $file->disk ?: config('laravel-crm.upload_disk', 'public');
-        $storage = Storage::disk($disk);
-
-        try {
-            return $storage->temporaryUrl($file->file, now()->addMinutes(5));
-        } catch (\Throwable $e) {
-            return $storage->url($file->file);
-        }
+        return FileDownload::urlFor($file);
     }
 }

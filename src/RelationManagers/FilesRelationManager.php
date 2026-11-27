@@ -9,10 +9,11 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
-use Ramsey\Uuid\Uuid;
 use VentureDrake\LaravelCrm\Models\File;
+use VentureDrake\LaravelCrm\Support\AttachmentUpload;
 use VentureDrake\LaravelCrmFilament\Concerns\LogsCrmActivity;
+use VentureDrake\LaravelCrmFilament\Support\AttachmentStore;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 
 class FilesRelationManager extends RelationManager
 {
@@ -24,15 +25,9 @@ class FilesRelationManager extends RelationManager
 
     public function form(Schema $schema): Schema
     {
-        $disk = config('laravel-crm.upload_disk', 'public');
-
         return $schema->components([
-            Forms\Components\FileUpload::make('file')
+            static::attachmentUploadField()
                 ->label(__('laravel-crm-filament::labels.file.file'))
-                ->disk($disk)
-                ->directory(fn (RelationManager $livewire): string => 'laravel-crm/' . strtolower(class_basename($livewire->getOwnerRecord())) . '/' . $livewire->getOwnerRecord()->id . '/files')
-                ->required()
-                ->preserveFilenames()
                 ->columnSpanFull(),
             Forms\Components\TextInput::make('title')
                 ->label(__('laravel-crm-filament::labels.fields.description'))
@@ -63,36 +58,17 @@ class FilesRelationManager extends RelationManager
             ->defaultSort('created_at', 'desc')
             ->headerActions([
                 Actions\CreateAction::make()
-                    ->using(function (array $data, RelationManager $livewire): Model {
-                        $disk = config('laravel-crm.upload_disk', 'public');
-                        $path = $data['file'];
-                        $owner = $livewire->getOwnerRecord();
-
-                        $name = basename($path);
-                        $filesize = null;
-                        $mime = null;
-                        $format = $data['format'] ?? null;
-
-                        $storage = Storage::disk($disk);
-                        if ($storage->exists($path)) {
-                            $filesize = $storage->size($path);
-                            $mime = $storage->mimeType($path);
-                            if (! $format) {
-                                $format = pathinfo($path, PATHINFO_EXTENSION) ?: null;
-                            }
-                        }
-
-                        return $owner->files()->create([
-                            'external_id' => Uuid::uuid4()->toString(),
-                            'file' => $path,
-                            'name' => $name,
+                    ->using(fn (array $data, RelationManager $livewire, Actions\CreateAction $action): Model => AttachmentStore::storeFor(
+                        $livewire->getOwnerRecord(),
+                        $data['file'] ?? null,
+                        [
                             'title' => $data['title'] ?? null,
-                            'format' => $format,
-                            'filesize' => $filesize,
-                            'mime' => $mime,
-                            'disk' => $disk,
-                        ]);
-                    })
+                            'format' => $data['format'] ?? null,
+                        ],
+                        // The modal's form lives at mountedActions.{n}.data, so
+                        // that is where a rejected upload has to be reported.
+                        'mountedActions.' . ($action->getNestingIndex() ?? 0) . '.data.file',
+                    ))
                     ->after(fn (Model $record, RelationManager $livewire) => static::logCrmActivity($livewire->getOwnerRecord(), $record)),
             ])
             ->recordActions([
@@ -106,23 +82,35 @@ class FilesRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * The upload field both files managers share.
+     *
+     * Filament does not store the file: the state stays a Livewire temporary
+     * upload and {@see AttachmentStore::storeFor()} hands it to core, which
+     * checks it and writes it to the private attachments disk under a hashed
+     * name. The type and size limits here are hints for the browser; the
+     * server-side check is core's.
+     */
+    protected static function attachmentUploadField(): Forms\Components\FileUpload
+    {
+        return Forms\Components\FileUpload::make('file')
+            ->storeFiles(false)
+            ->required()
+            ->maxSize(AttachmentUpload::MAX_SIZE_KB)
+            ->acceptedFileTypes(AttachmentStore::acceptedMimeTypes())
+            // Filament's own message lists every MIME alias; name the
+            // extensions a user actually recognises instead.
+            ->validationMessages([
+                'mimetypes' => __('validation.mimes', ['values' => implode(', ', AttachmentUpload::EXTENSIONS)]),
+            ]);
+    }
+
     protected static function buildDownloadUrl(File $record): ?string
     {
-        if (! $record->file) {
+        if (! $record->file || ! FileDownload::disk($record)->exists($record->file)) {
             return null;
         }
 
-        $disk = $record->disk ?: config('laravel-crm.upload_disk', 'public');
-        $storage = Storage::disk($disk);
-
-        if (! $storage->exists($record->file)) {
-            return null;
-        }
-
-        try {
-            return $storage->temporaryUrl($record->file, now()->addMinutes(5));
-        } catch (\Throwable $e) {
-            return $storage->url($record->file);
-        }
+        return FileDownload::urlFor($record);
     }
 }

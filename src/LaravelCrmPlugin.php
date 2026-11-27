@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Route;
 use VentureDrake\LaravelCrm\Support\Modules;
 use VentureDrake\LaravelCrmFilament\Http\Controllers\DocumentPreviewController;
+use VentureDrake\LaravelCrmFilament\Http\Controllers\FileDownloadController;
 use VentureDrake\LaravelCrmFilament\Livewire\SystemCheckBanner;
 use VentureDrake\LaravelCrmFilament\Pages\AcceptInvitation;
 use VentureDrake\LaravelCrmFilament\Pages\ActivityFeed;
@@ -71,6 +72,7 @@ use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroInvoiceResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroItemResource;
 use VentureDrake\LaravelCrmFilament\Resources\Xero\XeroPurchaseOrderResource;
 use VentureDrake\LaravelCrmFilament\Support\DocumentPreview;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 use VentureDrake\LaravelCrmFilament\Support\LogoUrl;
 use VentureDrake\LaravelCrmFilament\Support\TenancyGuard;
 use VentureDrake\LaravelCrmFilament\Widgets\ContactsStatsOverview;
@@ -536,6 +538,15 @@ class LaravelCrmPlugin implements Plugin
                 'documents/{type}/{record}/preview',
                 DocumentPreviewController::class,
             )->name(DocumentPreview::ROUTE);
+
+            // Attachments live on a private disk since core 2.7.1, so they
+            // download through the panel rather than from a storage URL. Same
+            // shape as the preview: auth middleware here, `view` policy per
+            // file in the controller. See FileDownload.
+            Route::get(
+                'files/{file}/download',
+                FileDownloadController::class,
+            )->name(FileDownload::ROUTE);
         });
     }
 

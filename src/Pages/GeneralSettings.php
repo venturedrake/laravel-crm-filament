@@ -523,9 +523,7 @@ class GeneralSettings extends Page implements HasForms
         $this->syncEmails($anchor, $data['emails'] ?? []);
         $this->syncAddresses($anchor, $data['addresses'] ?? []);
 
-        if (method_exists($settings, 'forgetCache')) {
-            $settings->forgetCache();
-        }
+        $settings->forgetCache();
 
         Notification::make()
             ->title('Settings saved')

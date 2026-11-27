@@ -10,12 +10,12 @@ use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
 use VentureDrake\LaravelCrm\Models\File;
 use VentureDrake\LaravelCrmFilament\Concerns\StandaloneActivityResource;
 use VentureDrake\LaravelCrmFilament\LaravelCrmPlugin;
 use VentureDrake\LaravelCrmFilament\Resources\Files\Pages\ListFiles;
 use VentureDrake\LaravelCrmFilament\Resources\Files\Pages\ViewFile;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 use VentureDrake\LaravelCrmFilament\Support\ParentTypeOptions;
 
 class FileResource extends Resource
@@ -105,22 +105,11 @@ class FileResource extends Resource
 
     public static function buildDownloadUrl(File $record): ?string
     {
-        if (! $record->file) {
+        if (! $record->file || ! FileDownload::disk($record)->exists($record->file)) {
             return null;
         }
 
-        $disk = $record->disk ?: config('laravel-crm.upload_disk', 'public');
-        $storage = Storage::disk($disk);
-
-        if (! $storage->exists($record->file)) {
-            return null;
-        }
-
-        try {
-            return $storage->temporaryUrl($record->file, now()->addMinutes(5));
-        } catch (\Throwable $e) {
-            return $storage->url($record->file);
-        }
+        return FileDownload::urlFor($record);
     }
 
     public static function getPages(): array

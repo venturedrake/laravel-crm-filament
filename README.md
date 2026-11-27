@@ -11,12 +11,17 @@ A native Filament plugin for [`venturedrake/laravel-crm`](https://github.com/ven
 - PHP `^8.2`
 - Laravel `^11.0 | ^12.0 | ^13.0`
 - Filament `^4.0 | ^5.0`
-- `venturedrake/laravel-crm` `~2.7.0` — any 2.7 release from 2.7.0 on. The floor is 2.7.0 because
-  the panel uses services, support classes and validation rules core added in 2.7.0 (quote state,
-  pipeline stages, line amounts, record search, campaign audiences), and core 2.7.0 renamed the
-  purchase-order delivery type `collect` to `pickup`. The cap is 2.8, so a new core minor version
-  is not picked up before the panel has been checked against it. Take a database backup before
-  upgrading: five of core 2.7.0's six migrations change existing rows and cannot be rolled back.
+- `venturedrake/laravel-crm` `~2.7.1` — any 2.7 release from 2.7.1 on. The floor is 2.7.1, a
+  security release: the panel uploads attachments through core's `Support\AttachmentUpload`,
+  which 2.7.1 added. It checks the type and size, and stores files on a private disk
+  (`laravel-crm.attachments.disk`). Before deploying, set Livewire's `temporary_file_upload.disk`
+  to a private disk; see core's
+  [Secure CRM attachment storage before upgrading](https://github.com/venturedrake/laravel-crm/blob/master/docs/upgrading.md#secure-crm-attachment-storage-before-upgrading).
+  The panel also uses what core added in 2.7.0 (quote state, pipeline stages, line amounts,
+  record search, campaign audiences). The cap is 2.8, so a new core minor version is not picked
+  up before the panel has been checked against it. If you are coming from core 2.6 or earlier,
+  take a database backup first: five of core 2.7.0's six migrations change existing rows and
+  cannot be rolled back.
 - `dcblogdev/laravel-xero` `^1.1.3`, only if you use the Xero integration (`->withXero()`). See
   [Xero](#xero).
 

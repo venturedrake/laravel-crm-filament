@@ -1,8 +1,8 @@
 <?php
 
 use Filament\Forms;
-use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use VentureDrake\LaravelCrm\Models\Activity;
@@ -10,72 +10,11 @@ use VentureDrake\LaravelCrm\Models\File;
 use VentureDrake\LaravelCrm\Models\Lead;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmFilesRelationManager;
 use VentureDrake\LaravelCrmFilament\RelationManagers\FilesRelationManager;
+use VentureDrake\LaravelCrmFilament\Resources\Leads\Pages\ViewLead;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 use VentureDrake\LaravelCrmFilament\Tests\Stubs\User;
 
-/**
- * Hot-patch subclass that bypasses $this->form->fill() / getState() (which require
- * a real Filament panel mount) and operates on $this->data directly. Mirrors the
- * pattern locked-in by CrmNotesRelationManagerTest / CrmTasksRelationManagerTest /
- * CrmCallsRelationManagerTest. Re-implements the lifecycle bodies without form
- * validation so the round-trip can be exercised headless.
- */
-function leadFilesFocusedRm(): CrmFilesRelationManager
-{
-    return new class extends CrmFilesRelationManager
-    {
-        public function createFile(): void
-        {
-            $data = $this->data ?? [];
-
-            $disk = config('laravel-crm.upload_disk', 'public');
-            $path = $data['file'] ?? null;
-            if (! $path) {
-                return;
-            }
-
-            $name = basename($path);
-            $filesize = null;
-            $mime = null;
-            $format = null;
-
-            $storage = Storage::disk($disk);
-            if ($storage->exists($path)) {
-                $filesize = $storage->size($path);
-                $mime = $storage->mimeType($path);
-                $format = pathinfo($path, PATHINFO_EXTENSION) ?: null;
-            }
-
-            $file = $this->getOwnerRecord()->files()->create([
-                'file' => $path,
-                'name' => $name,
-                'format' => $format,
-                'filesize' => $filesize,
-                'mime' => $mime,
-                'disk' => $disk,
-                'user_created_id' => auth()->id(),
-            ]);
-
-            self::logCrmActivity($this->getOwnerRecord(), $file);
-
-            $this->data = ['file' => null];
-
-            Notification::make()->title('File added')->success()->send();
-        }
-
-        public function deleteFile(int $id): void
-        {
-            $file = $this->getOwnerRecord()->files()->whereKey($id)->first();
-
-            if ($file === null) {
-                return;
-            }
-
-            $file->delete();
-
-            Notification::make()->title('File deleted')->success()->send();
-        }
-    };
-}
+use function Pest\Livewire\livewire;
 
 // AC (1) Inheritance.
 
@@ -159,41 +98,36 @@ it('declares createFile/downloadFile/deleteFile lifecycle methods (no edit/updat
 
 // AC (4) CRUD round-trip against a real Lead owner record.
 
-it('createFile() persists a File row via the morphMany with name/mime/filesize/disk', function () {
-    config(['laravel-crm.upload_disk' => 'local']);
+it('createFile() stores the upload through core and persists a File row via the morphMany', function () {
     Storage::fake('local');
-    Storage::disk('local')->put('leads/example.pdf', 'binary-payload');
 
-    $rm = leadFilesFocusedRm();
-
-    $user = User::create([
-        'name' => 'Focused File Uploader',
-        'email' => 'focused-uploader-' . Str::random(6) . '@example.com',
-        'password' => bcrypt('secret'),
-    ]);
-    auth()->login($user);
+    $user = actingAsCrmAdmin();
 
     $lead = Lead::create([
         'external_id' => (string) Str::uuid(),
         'title' => 'Focused lead — upload',
     ]);
 
-    $rm->ownerRecord = $lead->fresh();
-    $rm->data = [
-        'file' => 'leads/example.pdf',
-    ];
+    $component = livewire(CrmFilesRelationManager::class, [
+        'ownerRecord' => $lead,
+        'pageClass' => ViewLead::class,
+    ])
+        ->set('data.file', UploadedFile::fake()->create('example.pdf', 14, 'application/pdf'))
+        ->call('createFile')
+        ->assertHasNoErrors();
 
-    $rm->createFile();
-
-    $file = File::query()->where('file', 'leads/example.pdf')->first();
+    $file = File::query()->where('name', 'example.pdf')->first();
     expect($file)->not->toBeNull();
     expect($file->fileable_type)->toBe($lead->getMorphClass());
     expect((int) $file->fileable_id)->toBe($lead->id);
-    expect($file->name)->toBe('example.pdf');
-    expect((int) $file->filesize)->toBe(strlen('binary-payload'));
-    expect($file->mime)->not->toBeNull();
+    expect($file->file)->toMatch('#^laravel-crm/lead/' . $lead->id . '/files/[A-Za-z0-9]{40}\.pdf$#');
+    expect((int) $file->filesize)->toBe(14 * 1024);
+    expect($file->mime)->toBe('application/pdf');
+    expect($file->format)->toBe('pdf');
     expect($file->disk)->toBe('local');
+    expect($file->external_id)->not->toBeEmpty();
     expect((int) $file->user_created_id)->toBe($user->id);
+    Storage::disk('local')->assertExists($file->file);
 
     // Activity row written for the timeline.
     expect(Activity::query()
@@ -204,13 +138,12 @@ it('createFile() persists a File row via the morphMany with name/mime/filesize/d
         ->exists())->toBeTrue();
 
     // Form state reset.
-    expect($rm->data['file'])->toBeNull();
+    expect($component->get('data.file'))->toBeEmpty();
 });
 
-it('downloadFile() returns a URL resolved from Storage::disk($file->disk) with fallback', function () {
-    config(['laravel-crm.upload_disk' => 'local']);
+it('downloadFile() returns the panel download route for the file', function () {
     Storage::fake('local');
-    Storage::disk('local')->put('leads/downloadable.txt', 'hello');
+    Storage::disk('local')->put('laravel-crm/lead/1/files/downloadable.txt', 'hello');
 
     $user = User::create([
         'name' => 'Download User',
@@ -225,7 +158,8 @@ it('downloadFile() returns a URL resolved from Storage::disk($file->disk) with f
     ]);
 
     $file = $lead->files()->create([
-        'file' => 'leads/downloadable.txt',
+        'external_id' => (string) Str::uuid(),
+        'file' => 'laravel-crm/lead/1/files/downloadable.txt',
         'name' => 'downloadable.txt',
         'disk' => 'local',
     ]);
@@ -233,10 +167,8 @@ it('downloadFile() returns a URL resolved from Storage::disk($file->disk) with f
     $rm = new CrmFilesRelationManager;
     $rm->ownerRecord = $lead->fresh();
 
-    $url = $rm->downloadFile((int) $file->id);
-
-    expect($url)->toBeString();
-    expect($url)->not->toBe('');
+    expect($rm->downloadFile((int) $file->id))
+        ->toBe(route(FileDownload::routeName(), ['file' => $file->external_id]));
 });
 
 it('downloadFile() returns null for a record that does not belong to the owner lead', function () {
@@ -263,7 +195,7 @@ it('downloadFile() returns null for a record that does not belong to the owner l
 });
 
 it('deleteFile() soft-deletes the file via the owner relation', function () {
-    $rm = leadFilesFocusedRm();
+    $rm = new CrmFilesRelationManager;
 
     $user = User::create([
         'name' => 'Focused File Deleter',

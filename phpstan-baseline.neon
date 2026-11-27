@@ -145,6 +145,18 @@ parameters:
 			path: src/Concerns/ImportsCsv.php
 
 		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$file\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Http/Controllers/FileDownloadController.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Http/Controllers/FileDownloadController.php
+
+		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$email\.$#'
 			identifier: property.notFound
 			count: 1
@@ -421,33 +433,15 @@ parameters:
 			path: src/RelationManagers/CrmCallsRelationManager.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/RelationManagers/CrmFilesRelationManager.php
-
-		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrmFilament\\RelationManagers\\CrmFilesRelationManager\:\:\$form\.$#'
 			identifier: property.notFound
 			count: 3
 			path: src/RelationManagers/CrmFilesRelationManager.php
 
 		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$disk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/RelationManagers/CrmFilesRelationManager.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$file\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/RelationManagers/CrmFilesRelationManager.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:files\(\)\.$#'
 			identifier: method.notFound
-			count: 2
+			count: 1
 			path: src/RelationManagers/CrmFilesRelationManager.php
 
 		-
@@ -567,24 +561,12 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 3
-			path: src/RelationManagers/FilesRelationManager.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$disk\.$#'
-			identifier: property.notFound
-			count: 1
+			count: 2
 			path: src/RelationManagers/FilesRelationManager.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$file\.$#'
 			identifier: property.notFound
-			count: 1
-			path: src/RelationManagers/FilesRelationManager.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:files\(\)\.$#'
-			identifier: method.notFound
 			count: 1
 			path: src/RelationManagers/FilesRelationManager.php
 
@@ -1199,12 +1181,6 @@ parameters:
 			identifier: property.nonObject
 			count: 1
 			path: src/Resources/Fields/Pages/ViewField.php
-
-		-
-			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$disk\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Resources/Files/FileResource.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$file\.$#'
@@ -2671,6 +2647,12 @@ parameters:
 			path: src/Resources/Users/UserResource.php
 
 		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:files\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Support/AttachmentStore.php
+
+		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$external_id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2717,6 +2699,24 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: src/Support/EncryptedContactSearch.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$disk\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/FileDownload.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$external_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Support/FileDownload.php
+
+		-
+			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\File\:\:\$file\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Support/FileDownload.php
 
 		-
 			message: '#^Access to an undefined property VentureDrake\\LaravelCrm\\Models\\UserInvitation\:\:\$code\.$#'

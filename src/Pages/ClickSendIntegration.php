@@ -236,9 +236,7 @@ class ClickSendIntegration extends Page implements HasForms
             $settings->set($key, $data[$key] ?? null, $label);
         }
 
-        if (method_exists($settings, 'forgetCache')) {
-            $settings->forgetCache();
-        }
+        $settings->forgetCache();
 
         app(ClickSendService::class)->refresh();
 

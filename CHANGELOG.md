@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
+Supports `venturedrake/laravel-crm` 2.7.1, a security release. The panel had the same attachment
+problem core fixed, and a worse one, so it now uploads through core's `Support\AttachmentUpload`
+and downloads through a panel route.
+
+### Upgrading
+
+- **Requires `venturedrake/laravel-crm` `~2.7.1`** (was `~2.7.0`). The panel calls
+  `Support\AttachmentUpload`, which core added in 2.7.1. Core 2.7.1 raises its Livewire minimum
+  to `^3.8.6|^4.4.8`, and the panel picks that up through core.
+- **Before deploying, set Livewire's temporary upload disk to a private disk.** In
+  `config/livewire.php`, set `temporary_file_upload.disk` to `local` or another private disk.
+  Filament's upload fields stage files there too, so this applies to the panel as much as to
+  core. Follow core's
+  [Secure CRM attachment storage before upgrading](https://github.com/venturedrake/laravel-crm/blob/master/docs/upgrading.md#secure-crm-attachment-storage-before-upgrading),
+  including choosing `laravel-crm.attachments.disk` on multi-node hosts. Then update the packages
+  and run the panel's update command:
+
+  ```bash
+  composer update venturedrake/laravel-crm venturedrake/laravel-crm-filament livewire/livewire
+  php artisan laravelcrm:filament-update
+  ```
+
+  There are no migrations, but the command advances core's `db_version` marker. Without it the
+  system check reports the database as behind the code.
+- **Existing attachments stay where they are.** Rows already on the `public` disk keep
+  downloading, now through the panel route. They are still reachable at their old `/storage`
+  URL, so review them and any cached copies separately. Moving them is not part of this release.
+
+### Security
+
+- **Attachments were stored on the public disk, with the client's filename and no type or size
+  checks.** The Files tab on customers, and the files card on leads, deals, quotes, orders,
+  invoices, deliveries, purchase orders, people, organizations and features, wrote uploads to
+  `laravel-crm.upload_disk` (default `public`). They kept the uploaded filename, so an `.html` or
+  `.svg` was served from `/storage` as-is (stored XSS), and a second file with the same name
+  replaced the first. Any type and any size was accepted.
+
+  Both upload paths now hand the file to core's `AttachmentUpload`, through the panel's
+  `Support\AttachmentStore`:
+  - The type is checked twice: the MIME type detected from the content, and the filename
+    extension. Allowed: pdf, jpg/jpeg/png/gif/webp, doc/docx, xls/xlsx, csv/tsv/txt and zip.
+  - Files are limited to 10 MB.
+  - Files are stored under a hashed name on the private `laravel-crm.attachments.disk` (default
+    `local`).
+  - If the write fails, the upload is refused with a validation error and no File row is
+    created.
+
+  The upload field's type and size limits are only hints for the browser. The check that counts
+  runs on the server.
+- **Downloads go through an authenticated route.** Download links used `temporaryUrl()` and
+  fell back to a `/storage` URL. On a private disk that link 404s, and where it works the file is
+  public. Downloads now go through `files/{file}/download` on the panel. The route is inside the
+  panel's auth middleware, and it checks core's `FilePolicy` `view` ability for each file. It
+  always sends the file as an attachment with `Cache-Control: private, no-store` and
+  `X-Content-Type-Options: nosniff`, so a legacy `.html` upload is never rendered on the panel's
+  origin. It reads from the disk recorded on each row, so legacy rows on `public` work too.
+
+### Changed
+
+- **`laravel-crm.upload_disk` no longer applies to attachments.** New attachments go to
+  `laravel-crm.attachments.disk` (`LARAVEL_CRM_ATTACHMENTS_DISK`). `upload_disk` is still the
+  fallback for old rows that recorded no disk, and it is still where profile avatars go, because
+  those are meant to be public.
+
+### Fixed
+
+- **Every owner's files were stored under `laravel-crm/lead/`.** The files card hard-coded the
+  directory. Core's `AttachmentUpload` names it after the owner, for example
+  `laravel-crm/deal/{id}/files/`.
+- **Files added from the files card had no `external_id`.** They get one now. Older rows get one
+  the first time their download link is built, because the download route looks files up by it.
+
 ## [1.5.0] - 2026-11-23
 
 Catches up to `venturedrake/laravel-crm` 2.7.0, and with it 2.6.0. From 2.7.0: part payments on

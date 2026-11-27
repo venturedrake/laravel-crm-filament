@@ -19,6 +19,7 @@ use VentureDrake\LaravelCrmFilament\RelationManagers\CrmMeetingsRelationManager;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmNotesRelationManager;
 use VentureDrake\LaravelCrmFilament\RelationManagers\CrmTasksRelationManager;
 use VentureDrake\LaravelCrmFilament\Resources\Organizations\Pages\ViewOrganization;
+use VentureDrake\LaravelCrmFilament\Support\FileDownload;
 
 /**
  * US-009 — `show_related_activity` rollup.
@@ -446,7 +447,8 @@ it('resolves a download URL for a rolled-up file but still refuses to delete it'
 
     // Read-only: the rolled-up file is downloadable rather than rendering
     // without any link at all.
-    expect($rm->downloadFile((int) $relatedFile->id))->toContain('laravel-crm/related.pdf');
+    expect($rm->downloadFile((int) $relatedFile->id))
+        ->toBe(route(FileDownload::routeName(), ['file' => $relatedFile->external_id]));
 
     // Mutating: still owner-scoped.
     $rm->deleteFile((int) $relatedFile->id);

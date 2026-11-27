@@ -1,8 +1,10 @@
 <?php
 
 use Filament\Notifications\Notification;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\FileUploadConfiguration;
 use VentureDrake\LaravelCrm\Models\Call;
 use VentureDrake\LaravelCrm\Models\Deal;
 use VentureDrake\LaravelCrm\Models\Delivery;
@@ -174,37 +176,23 @@ function crmCrossOwnerLunchesRm(): CrmLunchesRelationManager
     };
 }
 
+/**
+ * Headless stand-in for the mounted card: reads `$this->data` instead of the
+ * Filament form, then runs the real store path (attachUpload() ->
+ * AttachmentStore -> core's AttachmentUpload).
+ */
 function crmCrossOwnerFilesRm(): CrmFilesRelationManager
 {
     return new class extends CrmFilesRelationManager
     {
         public function createFile(): void
         {
-            $data = $this->data ?? [];
-            $disk = config('laravel-crm.upload_disk', 'public');
-            $path = $data['file'] ?? null;
+            $this->attachUpload($this->data['file'] ?? null);
+        }
 
-            if (! $path) {
-                return;
-            }
-
-            $name = basename($path);
-            $storage = Storage::disk($disk);
-            $filesize = $storage->exists($path) ? $storage->size($path) : null;
-            $mime = $storage->exists($path) ? $storage->mimeType($path) : null;
-            $format = pathinfo($path, PATHINFO_EXTENSION) ?: null;
-
-            $this->getOwnerRecord()->files()->create([
-                'file' => $path,
-                'name' => $name,
-                'format' => $format,
-                'filesize' => $filesize,
-                'mime' => $mime,
-                'disk' => $disk,
-                'user_created_id' => auth()->id(),
-            ]);
-
-            Notification::make()->title('File added')->success()->send();
+        protected function resetUploadForm(): void
+        {
+            $this->data = ['file' => null];
         }
     };
 }
@@ -319,19 +307,24 @@ it('CrmFilesRelationManager creates a File attached to the new owner family', fu
     $owner = crmCrossOwnerMake($modelClass, $extra);
 
     Storage::fake('local');
-    config(['laravel-crm.upload_disk' => 'local']);
-
-    $path = 'crm-files/cross-' . Str::random(8) . '.txt';
-    Storage::disk('local')->put($path, 'cross-owner file body');
+    Storage::fake(FileUploadConfiguration::disk());
 
     $rm = crmCrossOwnerFilesRm();
     $rm->ownerRecord = $owner->fresh();
-    $rm->data = ['file' => $path];
+    $rm->data = ['file' => crmTemporaryUpload(UploadedFile::fake()->create('cross-owner.pdf', 12, 'application/pdf'))];
     $rm->createFile();
 
-    $file = File::query()->where('file', $path)->first();
+    $file = File::query()->where('name', 'cross-owner.pdf')->first();
     expect($file)->not->toBeNull();
     expect($file->fileable_type)->toBe($owner->getMorphClass());
     expect((int) $file->fileable_id)->toBe((int) $owner->id);
     expect((int) $file->user_created_id)->toBe($user->id);
+
+    // Core's store() names the directory after the owner, so a Deal's files
+    // no longer land under laravel-crm/lead/.
+    $directory = 'laravel-crm/' . strtolower(class_basename($owner)) . '/' . $owner->id . '/files/';
+    expect($file->file)->toStartWith($directory)
+        ->and($file->file)->not->toContain('/lead/')
+        ->and($file->disk)->toBe('local');
+    Storage::disk('local')->assertExists($file->file);
 })->with('crmActivityOwners');
