@@ -7,13 +7,15 @@ and this project adheres to [Semantic Versioning 2.0.0](https://semver.org/spec/
 
 ## [Unreleased]
 
-Supports `venturedrake/laravel-crm` 2.7.1, a security release. The panel had the same attachment
+## [1.5.1] - 2026-11-27
+
+A security release of the panel, for `venturedrake/laravel-crm` 2.7.1. The panel had the same attachment
 problem core fixed, and a worse one, so it now uploads through core's `Support\AttachmentUpload`
 and downloads through a panel route.
 
 ### Upgrading
 
-- **Requires `venturedrake/laravel-crm` `~2.7.1`** (was `~2.7.0`). The panel calls
+- **Requires `venturedrake/laravel-crm` `~2.7.1`** (was `~2.7.0` at 1.5.0). The panel calls
   `Support\AttachmentUpload`, which core added in 2.7.1. Core 2.7.1 raises its Livewire minimum
   to `^3.8.6|^4.4.8`, and the panel picks that up through core.
 - **Before deploying, set Livewire's temporary upload disk to a private disk.** In
@@ -1065,6 +1067,7 @@ These landed on `develop` after 1.0.0 and were never written up. They ship in 1.
 - Filament `^4.0 | ^5.0` (`filament/filament`, `filament/forms`, `filament/tables`)
 - `venturedrake/laravel-crm` `^2.0`
 
+[1.5.1]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.5.1
 [1.5.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.5.0
 [1.4.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.4.0
 [1.3.0]: https://github.com/venturedrake/laravel-crm-filament/releases/tag/v1.3.0
